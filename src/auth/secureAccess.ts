@@ -18,6 +18,7 @@ export const secureProfileSchema = z.object({
   role: z.enum(ACCOUNT_ROLES),
   created_at: databaseTimestampSchema,
   reviewed_at: databaseTimestampSchema.nullable(),
+  last_seen_at: databaseTimestampSchema.nullable(),
 });
 
 const remoteSubmissionSchema = z.object({
@@ -46,8 +47,8 @@ export type SecureSession = Session;
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? '';
 const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ?? '';
 
-export const secureAccessConfigured = Boolean(supabaseUrl && publishableKey);
-export const secureAccessRequired = import.meta.env.VITE_REQUIRE_SECURE_ACCESS === 'true';
+export const secureAccessConfigured = import.meta.env.MODE !== 'e2e' && Boolean(supabaseUrl && publishableKey);
+export const secureAccessRequired = import.meta.env.MODE !== 'e2e' && import.meta.env.VITE_REQUIRE_SECURE_ACCESS === 'true';
 
 export const secureAccessConfigurationError = secureAccessRequired && !secureAccessConfigured
   ? 'Soukromý server zatím není připojený. Správce musí doplnit adresu projektu a veřejný klientský klíč.'
@@ -140,7 +141,7 @@ export async function loadSecureProfile(): Promise<SecureProfile | null> {
   if (!userData.user) return null;
   const { data, error } = await supabase
     .from('profiles')
-    .select('id,email,display_name,status,role,created_at,reviewed_at')
+    .select('id,email,display_name,status,role,created_at,reviewed_at,last_seen_at')
     .eq('id', userData.user.id)
     .single();
   if (error) throw readableError(error, 'Profil se nepodařilo načíst.');
@@ -150,11 +151,25 @@ export async function loadSecureProfile(): Promise<SecureProfile | null> {
 export async function loadPendingProfiles(): Promise<SecureProfile[]> {
   const { data, error } = await requireClient()
     .from('profiles')
-    .select('id,email,display_name,status,role,created_at,reviewed_at')
+    .select('id,email,display_name,status,role,created_at,reviewed_at,last_seen_at')
     .eq('status', 'pending')
     .order('created_at', { ascending: true });
   if (error) throw readableError(error, 'Čekající uživatele se nepodařilo načíst.');
   return z.array(secureProfileSchema).parse(data ?? []);
+}
+
+export async function loadAllProfiles(): Promise<SecureProfile[]> {
+  const { data, error } = await requireClient()
+    .from('profiles')
+    .select('id,email,display_name,status,role,created_at,reviewed_at,last_seen_at')
+    .order('display_name', { ascending: true });
+  if (error) throw readableError(error, 'Seznam uživatelů se nepodařilo načíst.');
+  return z.array(secureProfileSchema).parse(data ?? []);
+}
+
+export async function touchSecurePresence(): Promise<void> {
+  const { error } = await requireClient().rpc('touch_my_presence');
+  if (error) throw readableError(error, 'Online aktivitu se nepodařilo zaznamenat.');
 }
 
 export async function reviewSecureProfile(userId: string, decision: 'approved' | 'rejected'): Promise<void> {

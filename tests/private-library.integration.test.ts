@@ -99,6 +99,19 @@ describe('soukromé knihovní balíky', () => {
     expect(createPrivateLibraryBackup(granted, 'members').personalSongs).toHaveLength(0);
   });
 
+  it('uchová důvody kontroly a přitom zůstane čitelný ve starší PWA', () => {
+    const source = snapshot();
+    source.catalog.songs[0] = {
+      ...source.catalog.songs[0],
+      reviewFlags: ['possible_duplicate', 'missing_chords', 'malformed_chord_layout'],
+    };
+
+    const adminSong = createPrivateLibraryBackup(source, 'admin').personalSongs[0].song;
+
+    expect(adminSong.reviewFlags).toEqual(['possible_duplicate']);
+    expect(adminSong.tags).toEqual(expect.arrayContaining(['review:missing_chords', 'review:malformed_chord_layout']));
+  });
+
   it('odmítne oprávnění pro jiné nebo změněné dokumenty', () => {
     expect(() => applyMemberLibraryGrant(snapshot(), {
       schemaVersion: 1,

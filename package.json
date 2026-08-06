@@ -7,6 +7,7 @@
     "dev": "npm run generate:assets && vite",
     "dev:mobile": "npm run build && vite preview --host 0.0.0.0",
     "build": "npm run generate:assets && tsc -b && vite build && npm run finalize:dist",
+    "build:e2e": "npm run generate:assets && tsc -b && vite build --mode e2e && npm run finalize:dist",
     "preview": "vite preview",
     "generate:assets": "npm run generate:icons && npm run generate:catalog && npm run generate:distribution",
     "generate:icons": "tsx scripts/generate-icons.ts",
@@ -22,7 +23,7 @@
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "vitest run src",
     "test:integration": "vitest run tests",
-    "test:e2e": "npm run build && playwright test"
+    "test:e2e": "npm run build:e2e && playwright test"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.112.1",

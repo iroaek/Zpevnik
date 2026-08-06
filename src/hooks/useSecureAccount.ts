@@ -6,6 +6,7 @@ import {
   secureAccessConfigurationError,
   secureAccessRequired,
   subscribeToSecureSession,
+  touchSecurePresence,
   type SecureProfile,
   type SecureSession,
 } from '../auth/secureAccess';
@@ -62,6 +63,24 @@ export function useSecureAccount(): SecureAccountState {
       unsubscribe();
     };
   }, [enabled, refresh]);
+
+  useEffect(() => {
+    if (!enabled || !session || !profile) return;
+    const touchIfActive = () => {
+      if (document.visibilityState === 'hidden' || !navigator.onLine) return;
+      void touchSecurePresence().catch(() => undefined);
+    };
+    const firstTouch = window.setTimeout(touchIfActive, 0);
+    const heartbeat = window.setInterval(touchIfActive, 60_000);
+    document.addEventListener('visibilitychange', touchIfActive);
+    window.addEventListener('online', touchIfActive);
+    return () => {
+      window.clearTimeout(firstTouch);
+      window.clearInterval(heartbeat);
+      document.removeEventListener('visibilitychange', touchIfActive);
+      window.removeEventListener('online', touchIfActive);
+    };
+  }, [enabled, profile, session]);
 
   return { enabled, required: secureAccessRequired, hydrated, session, profile, error, passwordRecovery, refresh, finishPasswordRecovery: () => setPasswordRecovery(false) };
 }

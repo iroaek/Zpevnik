@@ -42,6 +42,7 @@ const profile: SecureProfile = {
   role: 'member',
   created_at: '2026-08-06T00:00:00.000Z',
   reviewed_at: '2026-08-06T01:00:00.000Z',
+  last_seen_at: null,
 };
 
 describe('Offline obsah', () => {

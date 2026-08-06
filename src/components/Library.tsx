@@ -17,6 +17,10 @@ function normalize(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }
 
+function hasReviewFlag(song: Song, flag: NonNullable<Song['reviewFlags']>[number]): boolean {
+  return Boolean(song.reviewFlags?.includes(flag) || song.tags.includes(`review:${flag}`));
+}
+
 export function Library({ songs, favorites, recent, onOpenSong, personalSummary, deviceSongCount = 0 }: LibraryProps) {
   const [query, setQuery] = useState('');
   const [mode, setMode] = useState<CollectionMode>('all');
@@ -110,11 +114,11 @@ export function Library({ songs, favorites, recent, onOpenSong, personalSummary,
               <span>{song.authors.join(', ') || 'Autor neuveden'}</span>
               {song.personalOnly && <span className="song-card__labels">
                 <span>Osobní · ke kontrole</span>
-                {song.reviewFlags?.includes('possible_duplicate') && <span>Možná duplicita</span>}
-                {song.reviewFlags?.includes('missing_chords') && <span>Chybí akordy</span>}
-                {song.reviewFlags?.includes('unrecognized_glyphs') && <span>Vadné znaky</span>}
-                {song.reviewFlags?.includes('malformed_chord_layout') && <span>Kontrola akordů</span>}
-                {song.reviewFlags?.includes('legacy_text_spacing') && <span>Vadné mezery v PDF</span>}
+                {hasReviewFlag(song, 'possible_duplicate') && <span>Možná duplicita</span>}
+                {hasReviewFlag(song, 'missing_chords') && <span>Chybí akordy</span>}
+                {hasReviewFlag(song, 'unrecognized_glyphs') && <span>Vadné znaky</span>}
+                {hasReviewFlag(song, 'malformed_chord_layout') && <span>Kontrola akordů</span>}
+                {hasReviewFlag(song, 'legacy_text_spacing') && <span>Vadné mezery v PDF</span>}
               </span>}
             </span>
             <span className="song-card__meta"><span>{song.originalKey ?? '—'}</span>{song.scoreAssets.length > 0 && <span aria-label="Obsahuje noty">♫</span>}{favorites.includes(song.id) && <span aria-label="Oblíbená">★</span>}<span aria-hidden="true">›</span></span>

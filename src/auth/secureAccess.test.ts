@@ -16,7 +16,8 @@ describe('časové údaje ze Supabase', () => {
       role: 'admin',
       created_at: createdAt,
       reviewed_at: reviewedAt,
-    })).toMatchObject({ created_at: createdAt, reviewed_at: reviewedAt });
+      last_seen_at: createdAt,
+    })).toMatchObject({ created_at: createdAt, reviewed_at: reviewedAt, last_seen_at: createdAt });
   });
 
   it('nadále přijme čas v UTC zakončený Z', () => {

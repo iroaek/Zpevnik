@@ -84,8 +84,14 @@ export function createPrivateLibraryBackup(
     if (scope === 'members' && !isPublishable(parsed)) return [];
     const content = snapshot.contentBySongId.get(parsed.id);
     if (content === undefined) throw new Error(`Chybí obsah písně ${parsed.id}.`);
+    const qualityFlags = (parsed.reviewFlags ?? []).filter((flag) => flag !== 'possible_duplicate');
+    const compatibilityTags = qualityFlags.map((flag) => `review:${flag}`);
     const song = songSchema.parse({
       ...parsed,
+      tags: [...new Set([...parsed.tags, ...compatibilityTags])],
+      // Starší nainstalované PWA znaly pouze `possible_duplicate`. Další důvody
+      // kontroly ukládáme také do tagů, aby balík zůstal zpětně čitelný.
+      reviewFlags: parsed.reviewFlags?.includes('possible_duplicate') ? ['possible_duplicate'] : [],
       personalOnly: true,
       chordProPath: `indexeddb:${parsed.id}`,
       contentBytes: Buffer.byteLength(content, 'utf8'),

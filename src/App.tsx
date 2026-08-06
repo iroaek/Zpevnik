@@ -22,7 +22,7 @@ import { useUserProfile } from './hooks/useUserProfile';
 import { useUserState } from './hooks/useUserState';
 import { loadLatestCatalog } from './pwa/contentCache';
 import { canonicalUrl, relativeRoute, routePath } from './pwa/paths';
-import { activateWaitingUpdate } from './pwa/updateManager';
+import { activateWaitingUpdate, hasWaitingUpdate } from './pwa/updateManager';
 import { addRecent, createUserProfile, isDownloadedLibrarySong, loadPersonalSongs } from './storage/database';
 import type { PersonalLibrarySummary } from './personalLibrary';
 
@@ -75,7 +75,7 @@ export default function App() {
   const [userState, setUserState, hydrated, storageError] = useUserState();
   const [userProfile, setUserProfile, profileHydrated, profileError] = useUserProfile();
   const secureAccount = useSecureAccount();
-  const [updateAvailable, setUpdateAvailable] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(hasWaitingUpdate);
   const [systemMessage, setSystemMessage] = useState('');
   const libraryScroll = useRef(0);
   const online = useConnectivity();
@@ -151,7 +151,11 @@ export default function App() {
     window.addEventListener('zpevnik:update-available', available);
     window.addEventListener('zpevnik:offline-shell-ready', offlineReady);
     window.addEventListener('zpevnik:update-error', updateError);
+    const waitingCheck = window.setTimeout(() => {
+      if (hasWaitingUpdate()) setUpdateAvailable(true);
+    }, 0);
     return () => {
+      window.clearTimeout(waitingCheck);
       window.removeEventListener('zpevnik:update-available', available);
       window.removeEventListener('zpevnik:offline-shell-ready', offlineReady);
       window.removeEventListener('zpevnik:update-error', updateError);

@@ -1,6 +1,7 @@
-import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
-import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
+import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import { convertLayoutTextToChordPro, looksLikeChordLine } from './layoutToChordPro';
+import { readBlobBytes } from './readBlobBytes';
 import { reconstructPdfLines, type PositionedTextItem } from './pdfLayout';
 import type { ChordNotation } from './chords';
 import type { Song } from './song';
@@ -68,7 +69,7 @@ export async function importPdfFile(
   if (file.size <= 0) throw new Error(`${file.name}: soubor je prázdný.`);
   if (file.size > MAX_PDF_BYTES) throw new Error(`${file.name}: maximum je 80 MB na jeden soubor.`);
 
-  const loadingTask = getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+  const loadingTask = getDocument({ data: await readBlobBytes(file) });
   const document = await loadingTask.promise;
   const pageCount = document.numPages;
   if (pageCount > MAX_PDF_PAGES) {

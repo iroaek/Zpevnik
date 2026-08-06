@@ -4,6 +4,7 @@ import type { Song } from '../domain/song';
 import { downloadPersonalLibrary } from '../personalLibraryDownload';
 import { exportFullBackup, importFullBackup, type UserProfile, type UserState } from '../storage/database';
 import { AdminAccessPanel } from './AdminAccessPanel';
+import { AdminUsersPanel } from './AdminUsersPanel';
 import { QrCodeGenerator } from './QrCodeGenerator';
 
 interface SettingsProps {
@@ -103,6 +104,8 @@ export function Settings({
       </div>
 
       {!secureMode && <section className="backup-card personal-download-card"><h2>{userProfile.role === 'admin' ? 'Stáhnout moji osobní knihovnu' : 'Aktivovat správcovské zařízení'}</h2><p>Balíček je na serveru pouze v zašifrované podobě. Správný osobní kód odemkne písně v tomto zařízení a aktivuje administrátorské funkce.</p><form onSubmit={(event) => { event.preventDefault(); void downloadLegacyLibrary(); }}><label htmlFor="library-access-code">Osobní administrátorský kód</label><div className="access-code-row"><input id="library-access-code" type="password" autoComplete="off" spellCheck={false} value={accessCode} onChange={(event) => setAccessCode(event.target.value)} placeholder="XXXX-XXXX-XXXX-XXXX" disabled={backupBusy} /><button type="submit" className="primary-button" disabled={backupBusy || !accessCode.trim()}>{backupBusy ? 'Stahuji…' : 'Odemknout a stáhnout'}</button></div></form></section>}
+
+      {serverAdmin && <AdminUsersPanel />}
 
       {serverAdmin && <AdminAccessPanel />}
 

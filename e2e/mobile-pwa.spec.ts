@@ -14,6 +14,28 @@ async function ensureServiceWorkerControls(page: import('@playwright/test').Page
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
 }
 
+function syntheticPdf(): Buffer {
+  const stream = ['BT', '/F1 16 Tf', '40 760 Td', '(Synthetic Song) Tj', '0 -24 Td', '(C G) Tj', '0 -24 Td', '(Test line) Tj', 'ET'].join('\n');
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${Buffer.byteLength(stream)} >>\nstream\n${stream}\nendstream`,
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets: number[] = [];
+  objects.forEach((object, index) => {
+    offsets.push(Buffer.byteLength(pdf));
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = Buffer.byteLength(pdf);
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  pdf += offsets.map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
+  return Buffer.from(pdf, 'ascii');
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto('./');
   const registration = page.getByRole('heading', { name: 'Jak vám máme říkat?' });
@@ -70,6 +92,19 @@ test('deep linky načtou píseň, setlist, import PDF, instalaci, offline obsah 
   await page.goto('help');
   await expect(page.getByRole('heading', { name: 'Jak používat zpěvník' })).toBeVisible();
   await expectNoPageOverflow(page);
+});
+
+test('syntetické PDF se na mobilu skutečně přečte a uloží', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-390x844', 'Import stačí provést v reprezentativním mobilním viewportu.');
+  await page.goto('import');
+  await page.getByRole('button', { name: 'Vybrat PDF ze zařízení' }).setInputFiles({
+    name: 'synthetic-song.pdf',
+    mimeType: 'application/pdf',
+    buffer: syntheticPdf(),
+  });
+
+  await expect(page.getByText(/Import dokončen: 1 osobních konceptů/)).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.device-song-open').filter({ hasText: 'Synthetic Song' })).toBeVisible();
 });
 
 test('stažená píseň funguje offline a nestažené noty zobrazí upozornění', async ({ page, context }) => {
