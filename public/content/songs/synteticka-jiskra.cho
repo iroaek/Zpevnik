@@ -1,0 +1,40 @@
+{id: synteticka-jiskra}
+{title: Syntetická jiskra}
+{sort_title: Syntetická jiskra}
+{alternative_title: Testovací píseň u ohně}
+{author: Vývojový tým projektu}
+{lyricist: Vývojový tým projektu}
+{composer: Vývojový tým projektu}
+{language: cs}
+{key: G}
+{time: 4/4}
+{tempo: 92}
+{capo: 0}
+{tags: tábor; syntetická ukázka; společný zpěv}
+{categories: táborová; ukázková}
+{difficulty: easy}
+{first_line: Jiskra kreslí kruh}
+{source: Syntetický obsah vytvořený výhradně pro tento projekt}
+{source_identifier: synthetic-demo-v1}
+{rights_status: synthetic}
+{license: CC0-1.0}
+{attribution: Syntetická ukázka projektu Český digitální zpěvník}
+{notes: Text ani melodie neodkazují na existující píseň.}
+{created_at: 2026-08-05T00:00:00.000Z}
+{updated_at: 2026-08-05T00:00:00.000Z}
+
+[G]Jiskra kreslí [C]kruh a [G]večer tiše [D]zní,
+[G]vymyšlený [C]verš se [D]rána nedot[G]kne.
+
+{start_of_chorus: Refrén}
+[C]Hej, jen testovací [G]hlas,
+[D]žádná známá píseň [G]v nás.
+{end_of_chorus}
+
+[G]Papírový [C]les má [G]čtyři zelené [D]stránky,
+[G]syntetický [C]rytmus [D]hlídá naše [G]řádky.
+
+{start_of_chorus: Refrén}
+[C]Hej, jen testovací [G]hlas,
+[D]žádná známá píseň [G]v nás.
+{end_of_chorus}

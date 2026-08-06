@@ -1,0 +1,11 @@
+{
+  "frameworkPreset": "Vite",
+  "rootDirectory": "/",
+  "buildCommand": "npm run build",
+  "buildOutputDirectory": "dist",
+  "environmentVariables": {
+    "NODE_VERSION": "24",
+    "VITE_PUBLIC_BASE_URL": "https://zpevnik.example.cz/"
+  },
+  "notes": "Tento soubor je dokumentační příklad. Hodnoty se nastavují v Cloudflare Pages > Settings > Builds & deployments."
+}

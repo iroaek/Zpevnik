@@ -1,0 +1,23 @@
+{
+  "melody.musicxml": {
+    "clef": "treble",
+    "arrangementType": "generated_draft",
+    "source": "Syntetická partitura vytvořená pro tento projekt",
+    "rightsStatus": "synthetic",
+    "license": "CC0-1.0"
+  },
+  "violin.musicxml": {
+    "clef": "treble",
+    "arrangementType": "generated_draft",
+    "source": "Syntetická partitura vytvořená pro tento projekt",
+    "rightsStatus": "synthetic",
+    "license": "CC0-1.0"
+  },
+  "cello.musicxml": {
+    "clef": "bass",
+    "arrangementType": "generated_draft",
+    "source": "Syntetická partitura vytvořená pro tento projekt",
+    "rightsStatus": "synthetic",
+    "license": "CC0-1.0"
+  }
+}

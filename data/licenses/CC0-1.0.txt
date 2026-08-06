@@ -1,0 +1,5 @@
+Ukázkový text a ukázkové partitury v tomto repozitáři jsou původní syntetická
+testovací data vytvořená pro projekt a jsou poskytnuta pod označením CC0-1.0.
+
+Úplné právní znění licence není v tomto souboru reprodukováno. Identifikátor:
+https://spdx.org/licenses/CC0-1.0.html

@@ -1,0 +1,12 @@
+{
+  "id": "synteticky-vecer",
+  "title": "Syntetický večer",
+  "description": "Veřejný ukázkový setlist tvořený výhradně syntetickým testovacím obsahem.",
+  "songIds": ["synteticka-jiskra"],
+  "source": "Syntetická data vytvořená pro tento projekt",
+  "rightsStatus": "synthetic",
+  "license": "CC0-1.0",
+  "attribution": "Syntetická ukázka projektu Český digitální zpěvník",
+  "createdAt": "2026-08-06T00:00:00.000Z",
+  "updatedAt": "2026-08-06T00:00:00.000Z"
+}

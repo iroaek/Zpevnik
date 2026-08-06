@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 3,
+  "version": "4d3f6f6526b2",
+  "generatedAt": "2026-08-06T10:03:20.813Z",
+  "songs": [
+    {
+      "id": "synteticka-jiskra",
+      "title": "Syntetická jiskra",
+      "sortTitle": "Syntetická jiskra",
+      "alternativeTitles": [
+        "Testovací píseň u ohně"
+      ],
+      "authors": [
+        "Vývojový tým projektu"
+      ],
+      "lyricists": [
+        "Vývojový tým projektu"
+      ],
+      "composers": [
+        "Vývojový tým projektu"
+      ],
+      "language": "cs",
+      "originalKey": "G",
+      "timeSignature": "4/4",
+      "tempo": 92,
+      "capo": 0,
+      "tags": [
+        "tábor",
+        "syntetická ukázka",
+        "společný zpěv"
+      ],
+      "categories": [
+        "táborová",
+        "ukázková"
+      ],
+      "difficulty": "easy",
+      "firstLine": "Jiskra kreslí kruh",
+      "chordProPath": "content/songs/synteticka-jiskra.cho",
+      "contentBytes": 1258,
+      "scoreAssets": [
+        {
+          "instrument": "melody",
+          "format": "musicxml",
+          "path": "content/scores/synteticka-jiskra/melody.musicxml",
+          "clef": "treble",
+          "arrangementType": "generated_draft",
+          "source": "Syntetická partitura vytvořená pro tento projekt",
+          "rightsStatus": "synthetic",
+          "license": "CC0-1.0",
+          "byteSize": 1433
+        },
+        {
+          "instrument": "violin",
+          "format": "musicxml",
+          "path": "content/scores/synteticka-jiskra/violin.musicxml",
+          "clef": "treble",
+          "arrangementType": "generated_draft",
+          "source": "Syntetická partitura vytvořená pro tento projekt",
+          "rightsStatus": "synthetic",
+          "license": "CC0-1.0",
+          "byteSize": 1447
+        },
+        {
+          "instrument": "cello",
+          "format": "musicxml",
+          "path": "content/scores/synteticka-jiskra/cello.musicxml",
+          "clef": "bass",
+          "arrangementType": "generated_draft",
+          "source": "Syntetická partitura vytvořená pro tento projekt",
+          "rightsStatus": "synthetic",
+          "license": "CC0-1.0",
+          "byteSize": 1231
+        }
+      ],
+      "source": "Syntetický obsah vytvořený výhradně pro tento projekt",
+      "sourceIdentifier": "synthetic-demo-v1",
+      "rightsStatus": "synthetic",
+      "license": "CC0-1.0",
+      "attribution": "Syntetická ukázka projektu Český digitální zpěvník",
+      "notes": "Text ani melodie neodkazují na existující píseň.",
+      "createdAt": "2026-08-05T00:00:00.000Z",
+      "updatedAt": "2026-08-05T00:00:00.000Z"
+    }
+  ],
+  "publicSetlists": [
+    {
+      "id": "synteticky-vecer",
+      "title": "Syntetický večer",
+      "description": "Veřejný ukázkový setlist tvořený výhradně syntetickým testovacím obsahem.",
+      "songIds": [
+        "synteticka-jiskra"
+      ],
+      "source": "Syntetická data vytvořená pro tento projekt",
+      "rightsStatus": "synthetic",
+      "license": "CC0-1.0",
+      "attribution": "Syntetická ukázka projektu Český digitální zpěvník",
+      "createdAt": "2026-08-06T00:00:00.000Z",
+      "updatedAt": "2026-08-06T00:00:00.000Z"
+    }
+  ]
+}
