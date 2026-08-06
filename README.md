@@ -46,7 +46,7 @@ Výstup je v `dist/`. Build automaticky:
 
 ## 3. Nasazení
 
-Nasaďte beze změny celý adresář `dist/` na statický HTTPS hosting. Hotový workflow pro GitHub Pages je v `.github/workflows/deploy-pages.yml`; příklad pro Cloudflare Pages je v `deploy/cloudflare-pages.example.json`. Přesný postup je v [DEPLOYMENT.md](DEPLOYMENT.md).
+Nasaďte beze změny celý adresář `dist/` na statický HTTPS hosting. Tento repozitář publikuje produkční kopii z `main/docs`; workflow `.github/workflows/deploy-pages.yml` při každém pushi ověří testy a sestavení. Příklad pro Cloudflare Pages je v `deploy/cloudflare-pages.example.json`. Přesný postup je v [DEPLOYMENT.md](DEPLOYMENT.md).
 
 Aktuální produkční instalace tohoto repozitáře: **https://iroaek.github.io/Zpevnik/**
 

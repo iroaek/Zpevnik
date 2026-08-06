@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Ikona zpěvníku">
+  <rect width="512" height="512" rx="104" fill="#7a321f"/>
+  <path d="M126 112h118c40 0 72 25 72 57v238c-17-15-41-23-72-23H126V112Z" fill="#fff7e9"/>
+  <path d="M386 112h-70v295c17-15 41-23 70-23V112Z" fill="#e3b45f"/>
+  <path d="M180 201h78M180 249h78M180 297h78" stroke="#7a321f" stroke-width="20" stroke-linecap="round"/>
+</svg>
