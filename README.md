@@ -48,6 +48,8 @@ Výstup je v `dist/`. Build automaticky:
 
 Nasaďte beze změny celý adresář `dist/` na statický HTTPS hosting. Hotový workflow pro GitHub Pages je v `.github/workflows/deploy-pages.yml`; příklad pro Cloudflare Pages je v `deploy/cloudflare-pages.example.json`. Přesný postup je v [DEPLOYMENT.md](DEPLOYMENT.md).
 
+Aktuální produkční instalace tohoto repozitáře: **https://iroaek.github.io/Zpevnik/**
+
 Kořen domény:
 
 ```powershell
