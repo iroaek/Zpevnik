@@ -171,7 +171,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
               <button type="button" className="icon-button" aria-label="Zvětšit písmo" onClick={() => updateSettings({ fontSize: Math.min(34, settings.fontSize + 2) })}>A+</button>
               {!isLayoutText && <button type="button" className="icon-button" aria-label={settings.showChords ? 'Skrýt akordy' : 'Zobrazit akordy'} aria-pressed={settings.showChords} onClick={() => updateSettings({ showChords: !settings.showChords })}>♯</button>}
               <button type="button" className="icon-button" aria-label="Celoobrazovkový režim" onClick={toggleFullscreen}>⛶</button>
-              <button type="button" className="icon-button fire-button" aria-label="Režim U ohně" aria-pressed={fireMode} onClick={() => void toggleFireMode()}>🔥</button>
+              <button type="button" className="icon-button fire-button" aria-label="Režim U ohně" aria-pressed={fireMode} onClick={() => void toggleFireMode()}>♨</button>
             </div>
           </section>
           {targetKey && capoOptions.length > 1 && <p className="capo-hint">Možnosti kapodastru: {capoOptions.map((option) => option.capo === 0 ? `bez kapodastru (${option.shapeKey})` : `${option.capo}. pražec, hraj ${option.shapeKey}`).join(' · ')}</p>}
