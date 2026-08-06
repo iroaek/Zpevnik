@@ -39,6 +39,12 @@ Příklad je v `deploy/cloudflare-pages.example.json`. Build vytváří `_redire
 
 Vždy nasaďte celý obsah `dist/` beze změny adresářové struktury. Hosting musí vracet `index.html` nebo vygenerovaný `404.html` pro klientské deep linky.
 
+## Soukromé účty a schvalování
+
+GitHub Pages je statický hosting a sám neumí bezpečně zpracovat hesla, schvalovat účty ani přijímat soubory. Pro soukromý režim nastavte v GitHub Actions také `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` a po dokončení serverové konfigurace `VITE_REQUIRE_SECURE_ACCESS=true`. Kompletní databázová migrace, privátní buckety, první administrátor a pořadí aktivace jsou popsány v [SECURE_ACCESS_SETUP.md](SECURE_ACCESS_SETUP.md).
+
+Do klientského buildu ani GitHub variables nikdy nevkládejte `service_role` nebo jiný tajný serverový klíč. Veřejná PWA smí obsahovat pouze instalační obálku a výslovně veřejný obsah; členské soubory se stahují z privátního bucketu až s platnou relací schváleného účtu.
+
 ## Bezpečnostní kontrola
 
 - web musí být dostupný výhradně přes HTTPS;

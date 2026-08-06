@@ -24,6 +24,7 @@
     "test:e2e": "npm run build && playwright test"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.112.1",
     "csv-parse": "7.0.2",
     "fast-xml-parser": "5.10.1",
     "iconv-lite": "0.7.3",

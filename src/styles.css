@@ -208,8 +208,9 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
 .switch-row input { width: 1.3rem; height: 1.3rem; }
 .backup-card, .privacy-card { margin-top: 1rem; padding: 1.1rem; border: 1px solid var(--border); border-radius: 15px; background: var(--surface); }
 .profile-card { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: 15px; background: var(--surface); }
-.profile-card > span:last-child { display: grid; gap: 0.2rem; }
+.profile-card > span:nth-child(2) { display: grid; gap: 0.2rem; }
 .profile-card small { color: var(--muted); }
+.profile-signout { margin-left: auto; }
 .profile-avatar { display: grid; place-items: center; width: 2.8rem; height: 2.8rem; flex: 0 0 auto; color: var(--surface); font-weight: 850; border-radius: 50%; background: var(--primary); }
 .personal-download-card { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
 .personal-download-card form { display: grid; gap: 0.45rem; }
@@ -271,6 +272,23 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
 .registration-card form { display: grid; gap: 0.65rem; }
 .registration-card label, .contribution-card label { display: grid; gap: 0.35rem; color: var(--muted); font-size: 0.82rem; font-weight: 700; }
 .registration-card small { color: var(--muted); line-height: 1.4; }
+.account-mode-switch { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; padding: 0.3rem; border: 1px solid var(--border); border-radius: 13px; background: var(--bg); }
+.account-mode-switch button { min-height: 2.8rem; color: var(--muted); font-weight: 750; border: 0; border-radius: 9px; background: transparent; }
+.account-mode-switch button.active { color: white; background: var(--primary); }
+.registration-consent { align-items: flex-start; line-height: 1.45; }
+.account-summary { display: grid; gap: 0.55rem; margin: 0; padding: 0.9rem; border: 1px solid var(--border); border-radius: 13px; background: var(--bg); }
+.account-summary div { display: grid; grid-template-columns: 5rem 1fr; gap: 0.7rem; }
+.account-summary dt { color: var(--muted); font-size: 0.8rem; font-weight: 750; }
+.account-summary dd { margin: 0; overflow-wrap: anywhere; }
+.admin-access-panel { border-color: var(--accent); }
+.admin-access-panel .results-heading > span { display: block; }
+.admin-access-panel .results-heading .eyebrow { margin-bottom: 0.25rem; }
+.admin-access-panel h3 { margin-top: 1.4rem; }
+.admin-review-list { display: grid; gap: 0.65rem; }
+.admin-review-list article { display: grid; gap: 0.8rem; padding: 0.9rem; border: 1px solid var(--border); border-radius: 13px; background: var(--bg); }
+.admin-review-list article > span:first-child { display: grid; gap: 0.2rem; }
+.admin-review-list small { color: var(--muted); overflow-wrap: anywhere; }
+.private-library-card { border-color: var(--primary); }
 .contribution-section { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
 .contribution-grid { display: grid; gap: 0.8rem; }
 .contribution-card { display: grid; gap: 0.7rem; padding: 1rem; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
@@ -310,6 +328,7 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
   .filter-grid, .settings-grid { grid-template-columns: repeat(2, 1fr); }
   .access-code-row { grid-template-columns: minmax(15rem, 1fr) auto; }
   .contribution-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-review-list article { grid-template-columns: 1fr auto; align-items: center; }
   .song-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .reader-header { margin: -1.6rem -2rem 0; padding: 2rem 2rem 3.2rem; border-radius: 0 0 25px 25px; }
   .song-facts { width: min(40rem, 90%); margin-inline: auto; }

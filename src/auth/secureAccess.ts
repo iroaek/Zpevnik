@@ -1,0 +1,241 @@
+import { createClient, type AuthChangeEvent, type Session } from '@supabase/supabase-js';
+import { z } from 'zod';
+import { importFullBackup } from '../storage/database';
+
+export const ACCOUNT_STATUSES = ['pending', 'approved', 'rejected', 'suspended'] as const;
+export const ACCOUNT_ROLES = ['member', 'admin'] as const;
+
+const secureProfileSchema = z.object({
+  id: z.string().uuid(),
+  email: z.string().email(),
+  display_name: z.string().trim().min(2).max(60),
+  status: z.enum(ACCOUNT_STATUSES),
+  role: z.enum(ACCOUNT_ROLES),
+  created_at: z.string().datetime(),
+  reviewed_at: z.string().datetime().nullable(),
+});
+
+const remoteSubmissionSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  kind: z.enum(['request', 'upload']),
+  title: z.string(),
+  artist: z.string(),
+  notes: z.string(),
+  file_path: z.string().nullable(),
+  file_name: z.string().nullable(),
+  file_type: z.string().nullable(),
+  file_size: z.number().int().nonnegative(),
+  rights_status: z.literal('requires_review'),
+  license: z.string(),
+  attribution: z.string(),
+  status: z.enum(['pending_review', 'accepted_for_review', 'rejected', 'published']),
+  admin_note: z.string(),
+  created_at: z.string().datetime(),
+});
+
+export type SecureProfile = z.infer<typeof secureProfileSchema>;
+export type RemoteSongSubmission = z.infer<typeof remoteSubmissionSchema>;
+export type SecureSession = Session;
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? '';
+const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ?? '';
+
+export const secureAccessConfigured = Boolean(supabaseUrl && publishableKey);
+export const secureAccessRequired = import.meta.env.VITE_REQUIRE_SECURE_ACCESS === 'true';
+
+export const secureAccessConfigurationError = secureAccessRequired && !secureAccessConfigured
+  ? 'Soukromý server zatím není připojený. Správce musí doplnit adresu projektu a veřejný klientský klíč.'
+  : null;
+
+const client = secureAccessConfigured
+  ? createClient(supabaseUrl, publishableKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        flowType: 'pkce',
+        storageKey: 'cesky-zpevnik-auth',
+      },
+    })
+  : null;
+
+function requireClient() {
+  if (!client) throw new Error(secureAccessConfigurationError ?? 'Soukromý server není nakonfigurovaný.');
+  return client;
+}
+
+function appRedirectUrl(): string {
+  return new URL(import.meta.env.BASE_URL, window.location.origin).toString();
+}
+
+function readableError(error: { message?: string } | null, fallback: string): Error {
+  const message = error?.message?.toLowerCase() ?? '';
+  if (message.includes('invalid login credentials')) return new Error('E-mail nebo heslo není správné.');
+  if (message.includes('email not confirmed')) return new Error('Nejprve potvrďte e-mail pomocí odkazu, který vám přišel.');
+  if (message.includes('user already registered')) return new Error('Účet s tímto e-mailem už existuje.');
+  if (message.includes('password')) return new Error('Heslo nesplňuje bezpečnostní požadavky.');
+  return new Error(error?.message || fallback);
+}
+
+export function subscribeToSecureSession(callback: (event: AuthChangeEvent, session: SecureSession | null) => void): () => void {
+  const supabase = requireClient();
+  const { data } = supabase.auth.onAuthStateChange((event, session) => callback(event, session));
+  return () => data.subscription.unsubscribe();
+}
+
+export async function getSecureSession(): Promise<SecureSession | null> {
+  const { data, error } = await requireClient().auth.getSession();
+  if (error) throw readableError(error, 'Přihlášení se nepodařilo načíst.');
+  return data.session;
+}
+
+export async function registerSecureAccount(input: { displayName: string; email: string; password: string }): Promise<{ needsEmailConfirmation: boolean }> {
+  const { data, error } = await requireClient().auth.signUp({
+    email: input.email.trim().toLocaleLowerCase('cs'),
+    password: input.password,
+    options: {
+      emailRedirectTo: appRedirectUrl(),
+      data: { display_name: input.displayName.trim() },
+    },
+  });
+  if (error) throw readableError(error, 'Registraci se nepodařilo dokončit.');
+  return { needsEmailConfirmation: !data.session };
+}
+
+export async function signInSecureAccount(email: string, password: string): Promise<void> {
+  const { error } = await requireClient().auth.signInWithPassword({
+    email: email.trim().toLocaleLowerCase('cs'),
+    password,
+  });
+  if (error) throw readableError(error, 'Přihlášení se nepodařilo.');
+}
+
+export async function sendPasswordReset(email: string): Promise<void> {
+  const { error } = await requireClient().auth.resetPasswordForEmail(email.trim().toLocaleLowerCase('cs'), {
+    redirectTo: appRedirectUrl(),
+  });
+  if (error) throw readableError(error, 'Odkaz pro obnovu hesla se nepodařilo odeslat.');
+}
+
+export async function updateSecurePassword(password: string): Promise<void> {
+  if (password.length < 10) throw new Error('Heslo musí mít alespoň 10 znaků.');
+  const { error } = await requireClient().auth.updateUser({ password });
+  if (error) throw readableError(error, 'Nové heslo se nepodařilo uložit.');
+}
+
+export async function signOutSecureAccount(): Promise<void> {
+  const { error } = await requireClient().auth.signOut();
+  if (error) throw readableError(error, 'Odhlášení se nepodařilo.');
+}
+
+export async function loadSecureProfile(): Promise<SecureProfile | null> {
+  const supabase = requireClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) return null;
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id,email,display_name,status,role,created_at,reviewed_at')
+    .eq('id', userData.user.id)
+    .single();
+  if (error) throw readableError(error, 'Profil se nepodařilo načíst.');
+  return secureProfileSchema.parse(data);
+}
+
+export async function loadPendingProfiles(): Promise<SecureProfile[]> {
+  const { data, error } = await requireClient()
+    .from('profiles')
+    .select('id,email,display_name,status,role,created_at,reviewed_at')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true });
+  if (error) throw readableError(error, 'Čekající uživatele se nepodařilo načíst.');
+  return z.array(secureProfileSchema).parse(data ?? []);
+}
+
+export async function reviewSecureProfile(userId: string, decision: 'approved' | 'rejected'): Promise<void> {
+  const { error } = await requireClient().rpc('review_account', {
+    target_user_id: userId,
+    decision,
+  });
+  if (error) throw readableError(error, 'Rozhodnutí se nepodařilo uložit.');
+}
+
+function safeFileName(value: string): string {
+  const cleaned = value.normalize('NFKC').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+  return cleaned.slice(0, 120) || 'podklad';
+}
+
+export async function submitSecureSong(input: {
+  profile: SecureProfile;
+  kind: 'request' | 'upload';
+  title: string;
+  artist?: string;
+  notes?: string;
+  file?: File;
+}): Promise<RemoteSongSubmission> {
+  if (input.profile.status !== 'approved') throw new Error('Písně mohou navrhovat pouze schválení uživatelé.');
+  if (input.kind === 'upload' && !input.file) throw new Error('Vyberte soubor s písní.');
+  if (input.file && input.file.size > 25 * 1024 * 1024) throw new Error('Soubor je větší než povolených 25 MB.');
+
+  const supabase = requireClient();
+  const id = crypto.randomUUID();
+  let filePath: string | null = null;
+  if (input.file) {
+    filePath = `${input.profile.id}/${id}/${safeFileName(input.file.name)}`;
+    const { error } = await supabase.storage.from('song-submissions').upload(filePath, input.file, {
+      cacheControl: '0',
+      contentType: input.file.type || 'application/octet-stream',
+      upsert: false,
+    });
+    if (error) throw readableError(error, 'Soubor se nepodařilo bezpečně nahrát.');
+  }
+
+  const row = {
+    id,
+    user_id: input.profile.id,
+    kind: input.kind,
+    title: input.title.trim(),
+    artist: input.artist?.trim() ?? '',
+    notes: input.notes?.trim() ?? '',
+    file_path: filePath,
+    file_name: input.file?.name ?? null,
+    file_type: input.file?.type || null,
+    file_size: input.file?.size ?? 0,
+    rights_status: 'requires_review' as const,
+    license: 'UNVERIFIED - requires admin review',
+    attribution: input.profile.display_name,
+    status: 'pending_review' as const,
+    admin_note: '',
+  };
+  const { data, error } = await supabase.from('song_submissions').insert(row).select('*').single();
+  if (error) {
+    if (filePath) await supabase.storage.from('song-submissions').remove([filePath]);
+    throw readableError(error, 'Návrh se nepodařilo odeslat.');
+  }
+  return remoteSubmissionSchema.parse(data);
+}
+
+export async function loadRemoteSongSubmissions(): Promise<RemoteSongSubmission[]> {
+  const { data, error } = await requireClient()
+    .from('song_submissions')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw readableError(error, 'Frontu návrhů se nepodařilo načíst.');
+  return z.array(remoteSubmissionSchema).parse(data ?? []);
+}
+
+export async function reviewRemoteSongSubmission(submissionId: string, decision: 'accepted_for_review' | 'rejected', adminNote = ''): Promise<void> {
+  const { error } = await requireClient().rpc('review_song_submission', {
+    target_submission_id: submissionId,
+    decision,
+    note: adminNote.trim(),
+  });
+  if (error) throw readableError(error, 'Kontrolu návrhu se nepodařilo uložit.');
+}
+
+export async function downloadApprovedLibrary(): Promise<number> {
+  const { data, error } = await requireClient().storage.from('song-library').download('members/member-library.json');
+  if (error) throw readableError(error, 'Soukromá členská knihovna zatím není připravená.');
+  const imported = await importFullBackup(data);
+  return imported.personalSongCount;
+}

@@ -17,10 +17,12 @@ async function ensureServiceWorkerControls(page: import('@playwright/test').Page
 test.beforeEach(async ({ page }) => {
   await page.goto('./');
   const registration = page.getByRole('heading', { name: 'Jak vám máme říkat?' });
+  const library = page.getByRole('heading', { name: 'Co si dnes zazpíváme?' });
+  await expect(registration.or(library)).toBeVisible({ timeout: 15_000 });
   if (await registration.isVisible()) {
     await page.getByLabel('Jméno nebo přezdívka').fill('Mobilní test');
     await page.getByRole('button', { name: 'Vytvořit profil a pokračovat' }).click();
-    await expect(page.getByRole('heading', { name: 'Co si dnes zazpíváme?' })).toBeVisible();
+    await expect(library).toBeVisible();
   }
 });
 

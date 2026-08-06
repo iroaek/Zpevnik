@@ -165,14 +165,14 @@ const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
   },
 });
 
-export function createUserProfile(displayName: string): UserProfile {
+export function createUserProfile(displayName: string, identity?: { id: string; role: UserProfile['role'] }): UserProfile {
   const now = new Date().toISOString();
   return userProfileSchema.parse({
     schemaVersion: 1,
-    id: crypto.randomUUID(),
+    id: identity?.id ?? crypto.randomUUID(),
     displayName: displayName.trim(),
-    role: 'member',
-    monochromeMode: false,
+    role: identity?.role ?? 'member',
+    monochromeMode: identity?.role === 'admin',
     createdAt: now,
     updatedAt: now,
   });

@@ -1,6 +1,6 @@
 # Český digitální zpěvník
 
-Veřejně nasaditelná mobile-first Progressive Web App pro české táborové, trampské, folkové a další společně zpívané písně. Uživatel ji otevře běžným HTTPS odkazem nebo QR kódem, může ji přidat na domovskou obrazovku a před cestou stáhnout ověřený offline obsah. Nevyžaduje účet, backend, Google Play ani App Store.
+Mobile-first Progressive Web App pro české táborové, trampské, folkové a další společně zpívané písně. Uživatel ji otevře běžným HTTPS odkazem nebo QR kódem a může ji přidat na domovskou obrazovku bez Google Play či App Storu. Výchozí místní režim backend nevyžaduje; volitelný soukromý režim používá plnou e-mailovou registraci, ruční schválení administrátorem a privátní úložiště.
 
 Repozitář obsahuje pouze původní syntetickou ukázku. Žádný ukázkový text ani partitura nepochází z existující písně.
 
@@ -126,7 +126,7 @@ Generování je zcela lokální, s korekcí chyb a klidovým okrajem čtyř QR m
 - `/install` – instalace;
 - `/help` – jednoduchý návod pro táborníky.
 
-Soukromé setlisty a osobní písně zůstávají v IndexedDB a exportují se pouze na výslovný pokyn uživatele jako JSON.
+Soukromé setlisty a osobní importy zůstávají v IndexedDB a exportují se pouze na výslovný pokyn uživatele jako JSON. Schvalované víceuživatelské účty a privátní členskou knihovnu zapnete podle [SECURE_ACCESS_SETUP.md](SECURE_ACCESS_SETUP.md); bez serverové konfigurace aplikace zachová místní režim.
 
 ## Import vlastních dat
 

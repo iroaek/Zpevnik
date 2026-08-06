@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import type { SecureProfile } from '../auth/secureAccess';
 import type { ChordNotation } from '../domain/chords';
 import type { Song } from '../domain/song';
 import { removePersonalSong, savePersonalSongs, type UserProfile } from '../storage/database';
@@ -11,13 +12,15 @@ interface PdfImportPageProps {
   onLibraryChanged: () => Promise<void>;
   onOpenSong: (id: string) => void;
   userProfile: UserProfile;
+  secureProfile?: SecureProfile | null;
+  secureMode?: boolean;
 }
 
 function normalizedTitle(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-export function PdfImportPage({ allSongs, deviceSongs, defaultNotation, onLibraryChanged, onOpenSong, userProfile }: PdfImportPageProps) {
+export function PdfImportPage({ allSongs, deviceSongs, defaultNotation, onLibraryChanged, onOpenSong, userProfile, secureProfile = null, secureMode = false }: PdfImportPageProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [notation, setNotation] = useState<ChordNotation>(defaultNotation);
   const [chordsVerified, setChordsVerified] = useState(true);
@@ -123,7 +126,7 @@ export function PdfImportPage({ allSongs, deviceSongs, defaultNotation, onLibrar
         )}
         {deviceSongs.length > recentDeviceSongs.length && <p className="last-update">Zobrazeno posledních {recentDeviceSongs.length}; všechny importované písně najdete v části Písně.</p>}
       </section>
-      <SongContribution userProfile={userProfile} />
+      <SongContribution userProfile={userProfile} secureProfile={secureProfile} secureMode={secureMode} />
     </section>
   );
 }

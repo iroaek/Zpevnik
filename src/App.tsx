@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import catalogJson from './generated/catalog.json';
+import { AccountAccessPage } from './components/AccountAccessPage';
+import { ApprovalGate } from './components/ApprovalGate';
 import { HelpPage } from './components/HelpPage';
 import { InstallPage } from './components/InstallPage';
 import { Library } from './components/Library';
 import { OfflineContent } from './components/OfflineContent';
+import { PasswordRecoveryPage } from './components/PasswordRecoveryPage';
 import { PdfImportPage } from './components/PdfImportPage';
 import { PublicSetlistPage } from './components/PublicSetlistPage';
 import { RegistrationPage } from './components/RegistrationPage';
@@ -14,12 +17,13 @@ import { UpdateBanner } from './components/UpdateBanner';
 import { catalogSchema, type Catalog } from './domain/song';
 import { useConnectivity } from './hooks/useConnectivity';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
+import { useSecureAccount } from './hooks/useSecureAccount';
 import { useUserProfile } from './hooks/useUserProfile';
 import { useUserState } from './hooks/useUserState';
 import { loadLatestCatalog } from './pwa/contentCache';
 import { canonicalUrl, relativeRoute, routePath } from './pwa/paths';
 import { activateWaitingUpdate } from './pwa/updateManager';
-import { addRecent, loadPersonalSongs } from './storage/database';
+import { addRecent, createUserProfile, loadPersonalSongs } from './storage/database';
 import type { PersonalLibrarySummary } from './personalLibrary';
 
 type Route =
@@ -70,11 +74,25 @@ export default function App() {
   const [personalSummary, setPersonalSummary] = useState<PersonalLibrarySummary | null>(null);
   const [userState, setUserState, hydrated, storageError] = useUserState();
   const [userProfile, setUserProfile, profileHydrated, profileError] = useUserProfile();
+  const secureAccount = useSecureAccount();
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [systemMessage, setSystemMessage] = useState('');
   const libraryScroll = useRef(0);
   const online = useConnectivity();
   const installPrompt = useInstallPrompt();
+
+  useEffect(() => {
+    const serverProfile = secureAccount.profile;
+    if (!secureAccount.enabled || serverProfile?.status !== 'approved') return;
+    setUserProfile((current) => {
+      const role = serverProfile.role === 'admin' ? 'admin' : 'member';
+      if (current?.id === serverProfile.id && current.displayName === serverProfile.display_name && current.role === role) return current;
+      const synchronized = createUserProfile(serverProfile.display_name, { id: serverProfile.id, role });
+      return current?.id === serverProfile.id
+        ? { ...synchronized, monochromeMode: role === 'admin' ? (current.role === 'admin' ? current.monochromeMode : true) : false, createdAt: current.createdAt }
+        : synchronized;
+    });
+  }, [secureAccount.enabled, secureAccount.profile, setUserProfile]);
   const allSongs = useMemo(() => {
     const byId = new Map([...catalog.songs, ...devPersonalSongs, ...deviceSongs].map((song) => [song.id, song]));
     return [...byId.values()].sort((left, right) => left.sortTitle.localeCompare(right.sortTitle, 'cs'));
@@ -179,7 +197,17 @@ export default function App() {
 
   const navScreen = route.name === 'library' || route.name === 'setlists' || route.name === 'import' || route.name === 'settings' || route.name === 'offline' ? route.name : null;
 
-  if (!hydrated || !profileHydrated) return <main className="loading-screen"><span className="brand-mark" aria-hidden="true">♫</span><p>Otevírám zpěvník…</p></main>;
+  if (!hydrated || !profileHydrated || (secureAccount.enabled && !secureAccount.hydrated)) return <main className="loading-screen"><span className="brand-mark" aria-hidden="true">♫</span><p>Otevírám zpěvník…</p></main>;
+
+  if (secureAccount.required && !secureAccount.enabled) return <main className="app-main"><section className="registration-page"><div className="registration-card"><p className="eyebrow">Soukromý režim</p><h1>Server není připojený</h1><p className="lead">{secureAccount.error}</p><small>Žádné soukromé písně nebyly načteny. Tuto konfiguraci musí dokončit administrátor.</small></div></section></main>;
+
+  if (secureAccount.enabled && !secureAccount.session) return <main className="app-main"><AccountAccessPage canInstall={installPrompt.canPrompt} installed={installPrompt.installed} onInstall={installPrompt.install} />{secureAccount.error && <p className="global-warning" role="alert">{secureAccount.error}</p>}</main>;
+
+  if (secureAccount.enabled && secureAccount.passwordRecovery) return <PasswordRecoveryPage onComplete={secureAccount.finishPasswordRecovery} />;
+
+  if (secureAccount.enabled && secureAccount.session && !secureAccount.profile) return <main className="app-main"><section className="registration-page"><div className="registration-card"><p className="eyebrow">Ověření účtu</p><h1>Profil se nepodařilo načíst</h1><p className="lead">{secureAccount.error ?? 'Zkuste stav účtu načíst znovu.'}</p><button type="button" className="primary-button" onClick={() => void secureAccount.refresh()}>Načíst znovu</button></div></section></main>;
+
+  if (secureAccount.enabled && secureAccount.profile && secureAccount.profile.status !== 'approved') return <ApprovalGate profile={secureAccount.profile} onRefresh={secureAccount.refresh} />;
 
   if (!userProfile) return <main className="app-main"><RegistrationPage canInstall={installPrompt.canPrompt} installed={installPrompt.installed} onInstall={installPrompt.install} onRegister={setUserProfile} />{(storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}</main>;
 
@@ -195,8 +223,8 @@ export default function App() {
       <main id="main-content" className="app-main">
         {route.name === 'library' && <Library songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} onOpenSong={openSong} />}
         {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id) => navigate(`setlists/${id}`)} />}
-        {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} />}
-        {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
+        {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} />}
+        {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
         {route.name === 'offline' && <OfflineContent catalog={catalog} onNavigate={navigate} />}
         {route.name === 'install' && <InstallPage canPrompt={installPrompt.canPrompt} installed={installPrompt.installed} isIosLike={installPrompt.isIosLike} onInstall={installPrompt.install} onNavigate={navigate} />}
         {route.name === 'help' && <HelpPage onNavigate={navigate} />}
