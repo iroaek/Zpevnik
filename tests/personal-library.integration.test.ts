@@ -12,6 +12,7 @@ function createImport(root: string, name: string): string {
   const pages = join(directory, 'requires-review', 'pages');
   mkdirSync(pages, { recursive: true });
   writeFileSync(join(pages, 'synteticka-strana.txt'), 'C   G\nVymyšlená testovací věta', 'utf8');
+  writeFileSync(join(pages, 'synteticke-pokracovani.txt'), 'Ami\nDruhá vymyšlená věta', 'utf8');
   writeFileSync(join(directory, 'manual-review.json'), JSON.stringify({
     records: [
       {
@@ -39,7 +40,8 @@ function createImport(root: string, name: string): string {
         attribution: 'Test',
         status: 'requires_manual_review',
         pageType: 'continuation_candidate',
-        draftPath: 'requires-review/pages/synteticka-strana.txt',
+        parentCandidate: 'fixture.pdf#page=1',
+        draftPath: 'requires-review/pages/synteticke-pokracovani.txt',
       },
     ],
   }), 'utf8');
@@ -75,7 +77,22 @@ describe('osobní knihovna z PDF importu', () => {
     });
     expect(snapshot.summary).toMatchObject({ songCount: 1, totalPages: 2, continuationCandidates: 1, exactDuplicateGroups: 1 });
     expect(snapshot.contentBySongId.get('personal-synteticka-strana-p001')).toContain('[C]Vymy[G]šlená testovací věta');
+    expect(snapshot.contentBySongId.get('personal-synteticka-strana-p001')).toContain('[Ami]Druhá vymyšlená věta');
   }, 20_000);
+
+  it('neoznačí import jako ověřený, když chybí akordy nebo obsahuje neznámý znak', () => {
+    const root = mkdtempSync(join(tmpdir(), 'zpevnik-personal-test-'));
+    temporaryDirectories.push(root);
+    const latest = createImport(root, 'import-2026-08-06T00-00-00Z-song-documents');
+    writeFileSync(join(latest, 'requires-review', 'pages', 'synteticka-strana.txt'), 'Pouze vymyšlený text s � znakem', 'utf8');
+    writeFileSync(join(latest, 'requires-review', 'pages', 'synteticke-pokracovani.txt'), 'Druhá vymyšlená věta', 'utf8');
+
+    const snapshot = buildPersonalLibrary(latest);
+    expect(snapshot.catalog.songs[0]).toMatchObject({
+      chordsVerified: false,
+      reviewFlags: expect.arrayContaining(['missing_chords', 'unrecognized_glyphs']),
+    });
+  });
 
   it('upřednostní novější společný import PDF a DOCX', () => {
     const root = mkdtempSync(join(tmpdir(), 'zpevnik-personal-test-'));

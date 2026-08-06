@@ -76,6 +76,9 @@ function splitQuality(suffix: string): Pick<CanonicalChord, 'quality' | 'extensi
 
 function matchNote(input: string, notation: ChordNotation): [CanonicalPitch, string] | null {
   const source = notation === 'czech' ? CZECH_NOTES : INTERNATIONAL_NOTES;
+  if (notation === 'czech' && /^(?:A|E)sus/i.test(input)) {
+    return [{ ...source[input[0]] }, input.slice(1)];
+  }
   const names = Object.keys(source).sort((a, b) => b.length - a.length);
   const name = names.find((candidate) => input.startsWith(candidate));
   return name ? [{ ...source[name] }, input.slice(name.length)] : null;
@@ -83,14 +86,21 @@ function matchNote(input: string, notation: ChordNotation): [CanonicalPitch, str
 
 export function parseChord(input: string, notation: ChordNotation): CanonicalChord | null {
   const clean = input.trim();
-  const [head, ...bassParts] = clean.split('/');
-  if (!head || bassParts.length > 1) return null;
-  const rootMatch = matchNote(head, notation);
+  const rootMatch = matchNote(clean, notation);
   if (!rootMatch) return null;
-  const [root, suffix] = rootMatch;
-  const bassMatch = bassParts[0] ? matchNote(bassParts[0], notation) : null;
-  if (bassParts[0] && (!bassMatch || bassMatch[1] !== '')) return null;
-  return { root, ...splitQuality(suffix), bassNote: bassMatch?.[0] ?? null };
+  const [root, rawSuffix] = rootMatch;
+  const slashIndex = rawSuffix.lastIndexOf('/');
+  if (slashIndex < 0) return { root, ...splitQuality(rawSuffix), bassNote: null };
+
+  const bassOrExtension = rawSuffix.slice(slashIndex + 1);
+  const bassMatch = matchNote(bassOrExtension, notation);
+  if (bassMatch?.[1] === '') {
+    return { root, ...splitQuality(rawSuffix.slice(0, slashIndex)), bassNote: bassMatch[0] };
+  }
+  if (/^\d{1,2}(?:[+#b-])?$/.test(bassOrExtension)) {
+    return { root, ...splitQuality(rawSuffix), bassNote: null };
+  }
+  return null;
 }
 
 function normalizePitchClass(value: number): number {

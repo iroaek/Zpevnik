@@ -26,6 +26,14 @@ describe('transpozice českých a mezinárodních akordů', () => {
     expect(transposeChord(`G${suffix}`, 2, 'czech')).toBe(`A${suffix}`);
   });
 
+  it('rozliší české As od A-sus a zachová číselné lomítkové rozšíření', () => {
+    expect(transposeChord('As', 2, 'czech')).toBe('B');
+    expect(transposeChord('Asus4', 2, 'czech')).toBe('Hsus4');
+    expect(transposeChord('Esus4', 1, 'czech')).toBe('Fsus4');
+    expect(transposeChord('C6/4', 2, 'czech')).toBe('D6/4');
+    expect(transposeChord('A7/5+', 2, 'czech')).toBe('H7/5+');
+  });
+
   it('uchovává akord jako kanonické části', () => {
     expect(parseChord('Gmaj7/H', 'czech')).toEqual({
       root: { pitchClass: 7, accidental: 'natural' },

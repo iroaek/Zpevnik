@@ -12,6 +12,8 @@ export interface LayoutConversionResult {
   chordCount: number;
   firstLine: string;
   originalKey: string | null;
+  malformedChordTokens: string[];
+  containsUnknownGlyphs: boolean;
 }
 
 interface ChordMarker {
@@ -19,7 +21,9 @@ interface ChordMarker {
   index: number;
 }
 
-const SUFFIX_PATTERN = /^(?:(?:maj|min|mi|dim|aug|sus|add|no|m|M)|\d{1,2}|[#b+\-−°ø(),])*$/;
+const SUFFIX_PATTERN = /^(?:(?:maj|min|mi|dim|aug|sus|add|no|m|M)|\d{1,2}|[#b/+\-−°ø(),])*$/;
+const BEAT_SEPARATOR_PATTERN = /^(?:[-–—_.]+|[|:]+)$/;
+const UNKNOWN_GLYPH_PATTERN = /�|\(cid:\d+\)/;
 
 function normalizedHeader(value: string): string {
   return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -31,8 +35,9 @@ function metadataValue(value: string): string {
 
 export function recognizedChord(rawToken: string, notation: ChordNotation): string | null {
   let token = rawToken.trim().replaceAll('♯', '#').replaceAll('♭', 'b');
-  token = token.replace(/^[|:]+/, '').replace(/[|:,;]+$/, '');
+  token = token.replace(/^[|:]+/, '').replace(/[|:,;.]+$/, '');
   if (token.startsWith('(') && token.endsWith(')')) token = token.slice(1, -1);
+  token = token.replace(/^_+|[_*]+$/g, '').replace(/5-$/, 'b5');
   if (!token || token.length > 24) return null;
   const parsed = parseChord(token, notation);
   if (!parsed || !SUFFIX_PATTERN.test(`${parsed.quality}${parsed.extension}`)) return null;
@@ -40,16 +45,42 @@ export function recognizedChord(rawToken: string, notation: ChordNotation): stri
 }
 
 export function chordMarkers(line: string, notation: ChordNotation): ChordMarker[] {
-  return [...line.matchAll(/\S+/g)]
+  return [...line.matchAll(/[^\s|]+/g)]
     .map((match) => ({ chord: recognizedChord(match[0], notation), index: match.index ?? 0 }))
     .filter((marker): marker is ChordMarker => Boolean(marker.chord));
 }
 
 export function looksLikeChordLine(line: string, notation: ChordNotation): boolean {
-  const tokens = [...line.matchAll(/\S+/g)];
+  const tokens = [...line.matchAll(/[^\s|]+/g)].filter((match) => !BEAT_SEPARATOR_PATTERN.test(match[0]));
   if (tokens.length === 0) return false;
   const recognized = chordMarkers(line, notation).length;
   return recognized > 0 && recognized / tokens.length >= 0.6;
+}
+
+function likelyMalformedChordToken(rawToken: string, notation: ChordNotation): string | null {
+  const token = rawToken.trim().replace(/^[|:]+|[|:,;.]+$/g, '').replace(/^_+|[_*]+$/g, '');
+  if (!token || BEAT_SEPARATOR_PATTERN.test(token) || recognizedChord(token, notation)) return null;
+  const notePrefix = notation === 'czech'
+    ? /^(?:[A-H](?:is|es|[#b])?)/
+    : /^(?:[A-G](?:[#b])?)/;
+  const root = token.match(notePrefix)?.[0];
+  if (!root) return null;
+  const suffix = token.slice(root.length);
+  if (!suffix || !/(?:\d|[#b/()+\-−°ø]|maj|min|mi|dim|aug|sus|add|no)/i.test(suffix)) return null;
+  return token;
+}
+
+export function findLikelyMalformedChordTokens(source: string, notation: ChordNotation): string[] {
+  const malformed = new Set<string>();
+  for (const line of source.split('\n')) {
+    const tokens = [...line.matchAll(/[^\s|]+/g)].map((match) => match[0]);
+    const significantTokens = tokens.filter((token) => !BEAT_SEPARATOR_PATTERN.test(token));
+    const recognizedCount = significantTokens.filter((token) => recognizedChord(token, notation)).length;
+    const candidates = significantTokens.map((token) => likelyMalformedChordToken(token, notation)).filter(Boolean) as string[];
+    if (recognizedCount === 0 || (recognizedCount + candidates.length) / Math.max(significantTokens.length, 1) < 0.6) continue;
+    for (const candidate of candidates) malformed.add(candidate);
+  }
+  return [...malformed];
 }
 
 function inlineChordLine(chordLine: string, lyricLine: string, notation: ChordNotation): { line: string; markers: ChordMarker[] } {
@@ -131,5 +162,7 @@ export function convertLayoutTextToChordPro(source: string, options: LayoutConve
     chordCount: allMarkers.length,
     firstLine,
     originalKey,
+    malformedChordTokens: findLikelyMalformedChordTokens(sanitized, options.sourceNotation),
+    containsUnknownGlyphs: UNKNOWN_GLYPH_PATTERN.test(sanitized),
   };
 }

@@ -94,6 +94,11 @@ export async function importPdfFile(
 
       const metadata = detectPageMetadata(lines, file.name, pageNumber, options.sourceNotation);
       const converted = convertLayoutTextToChordPro(layoutText, { ...metadata, sourceNotation: options.sourceNotation });
+      const reviewFlags: NonNullable<Song['reviewFlags']> = [];
+      if (converted.chordCount === 0) reviewFlags.push('missing_chords');
+      if (converted.containsUnknownGlyphs) reviewFlags.push('unrecognized_glyphs');
+      if (converted.malformedChordTokens.length > 0) reviewFlags.push('malformed_chord_layout');
+      const chordsVerified = options.chordsVerified && reviewFlags.length === 0;
       const now = new Date().toISOString();
       const id = `personal-upload-${slug(metadata.title)}-${crypto.randomUUID()}`;
       const song: Song = {
@@ -117,17 +122,17 @@ export async function importPdfFile(
         contentBytes: new TextEncoder().encode(converted.chordPro).byteLength,
         contentFormat: 'chordpro',
         personalOnly: true,
-        chordsVerified: options.chordsVerified,
-        reviewFlags: [],
+        chordsVerified,
+        reviewFlags,
         scoreAssets: [],
         source: `Uživatelem nahrané PDF ${file.name}`,
         sourceIdentifier: `local-pdf:${file.name}#page=${pageNumber}`,
         rightsStatus: 'requires_review',
         license: 'PERSONAL-USE - user supplied; not for publication',
         attribution: metadata.artist || 'Autor neuveden',
-        notes: options.chordsVerified
-          ? 'Akordy označil uživatel jako zkontrolované; metadata a práva zůstávají ke kontrole.'
-          : 'Automaticky převedené akordy, metadata a práva vyžadují kontrolu.',
+        notes: chordsVerified
+          ? 'Akordy označil uživatel jako zkontrolované a import neodhalil vady; metadata a práva zůstávají ke kontrole.'
+          : `Automatický import vyžaduje kontrolu${converted.malformedChordTokens.length ? `; podezřelé akordy: ${converted.malformedChordTokens.join(', ')}` : ''}.`,
         createdAt: now,
         updatedAt: now,
       };

@@ -17,9 +17,11 @@ interface ReviewRecord {
   attribution: string;
   status: string;
   pageType: 'song_start' | 'continuation_candidate' | 'blank';
+  parentCandidate?: string | null;
   draftPath: string;
   duplicateGroups?: string[];
   chordsVerified?: boolean;
+  reviewFlags?: string[];
 }
 
 interface ManualReviewFile {
@@ -79,6 +81,11 @@ export function buildPersonalLibrary(importDirectory: string): PersonalLibrarySn
   const report = JSON.parse(readFileSync(reportPath, 'utf8')) as ImportReport;
   const generatedAt = new Date(report.createdAt).toISOString();
   const contentBySongId = new Map<string, string>();
+  const continuationsByParent = new Map<string, ReviewRecord[]>();
+  for (const record of review.records) {
+    if (record.pageType !== 'continuation_candidate' || !record.parentCandidate) continue;
+    continuationsByParent.set(record.parentCandidate, [...(continuationsByParent.get(record.parentCandidate) ?? []), record]);
+  }
 
   const songs = review.records
     .filter((record) => record.pageType === 'song_start' && record.rightsStatus === 'requires_review')
@@ -88,11 +95,29 @@ export function buildPersonalLibrary(importDirectory: string): PersonalLibrarySn
       if (!isInside(importDirectory, contentPath) || !existsSync(contentPath)) {
         throw new Error(`Neplatná cesta osobního obsahu: ${record.draftPath}`);
       }
-      const converted = convertLayoutTextToChordPro(readFileSync(contentPath, 'utf8'), {
+      const continuationText = (continuationsByParent.get(record.sourceIdentifier) ?? []).map((continuation) => {
+        const continuationPath = resolve(importDirectory, continuation.draftPath);
+        if (!isInside(importDirectory, continuationPath) || !existsSync(continuationPath)) {
+          throw new Error(`Neplatná cesta pokračování osobního obsahu: ${continuation.draftPath}`);
+        }
+        return readFileSync(continuationPath, 'utf8');
+      });
+      const sourceText = [readFileSync(contentPath, 'utf8'), ...continuationText].join('\n');
+      const converted = convertLayoutTextToChordPro(sourceText, {
         title: record.title.trim() || 'Bez názvu',
         artist: record.artist?.trim(),
         sourceNotation: 'czech',
       });
+      const reviewFlags = new Set(record.duplicateGroups?.length ? ['possible_duplicate'] : []);
+      for (const flag of record.reviewFlags ?? []) {
+        if (['possible_duplicate', 'missing_chords', 'unrecognized_glyphs', 'malformed_chord_layout', 'legacy_text_spacing'].includes(flag)) reviewFlags.add(flag);
+      }
+      if (converted.chordCount === 0) reviewFlags.add('missing_chords');
+      if (converted.containsUnknownGlyphs) reviewFlags.add('unrecognized_glyphs');
+      if (converted.malformedChordTokens.length > 0) reviewFlags.add('malformed_chord_layout');
+      const qualityBlocked = ['missing_chords', 'unrecognized_glyphs', 'malformed_chord_layout', 'legacy_text_spacing']
+        .some((flag) => reviewFlags.has(flag));
+      const chordsVerified = record.chordsVerified === true && !qualityBlocked;
       contentBySongId.set(id, converted.chordPro);
       return {
         id,
@@ -115,15 +140,17 @@ export function buildPersonalLibrary(importDirectory: string): PersonalLibrarySn
         contentBytes: Buffer.byteLength(converted.chordPro, 'utf8'),
         contentFormat: 'chordpro',
         personalOnly: true,
-        chordsVerified: record.chordsVerified === true,
-        reviewFlags: record.duplicateGroups?.length ? ['possible_duplicate'] : [],
+        chordsVerified,
+        reviewFlags: [...reviewFlags],
         scoreAssets: [],
         source: record.source,
         sourceIdentifier: record.sourceIdentifier,
         rightsStatus: record.rightsStatus,
         license: record.license,
         attribution: record.attribution || 'Autor neuveden',
-        notes: 'Akordy byly převedeny z uživatelem dodaného dokumentu a označeny uživatelem jako zkontrolované; metadata a práva zůstávají ke kontrole.',
+        notes: chordsVerified
+          ? 'Akordy byly převedeny z uživatelem dodaného dokumentu a prošly automatickou kontrolou importu; metadata a práva zůstávají ke kontrole.'
+          : `Import vyžaduje ruční kontrolu${converted.malformedChordTokens.length ? `; podezřelé akordy: ${converted.malformedChordTokens.join(', ')}` : ''}.`,
         createdAt: generatedAt,
         updatedAt: generatedAt,
       };

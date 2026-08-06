@@ -80,6 +80,25 @@ describe('soukromé knihovní balíky', () => {
     });
   });
 
+  it('ani s platným oprávněním nezpřístupní členům píseň zablokovanou kontrolou akordů', () => {
+    const source = snapshot();
+    source.catalog.songs[0] = { ...source.catalog.songs[0], chordsVerified: false, reviewFlags: ['missing_chords'] };
+    const granted = applyMemberLibraryGrant(source, {
+      schemaVersion: 1,
+      importDirectory: 'fixture',
+      grantedAt: '2026-08-06T00:00:00.000Z',
+      grantedBy: 'Oprávněný poskytovatel',
+      authorization: 'Souhlasím se zpřístupněním schváleným uživatelům.',
+      allowedAudience: 'approved_members',
+      allowOfflineDownload: true,
+      rightsStatus: 'licensed',
+      license: 'Soukromé členské oprávnění; další šíření zakázáno.',
+      inputSha256,
+    });
+
+    expect(createPrivateLibraryBackup(granted, 'members').personalSongs).toHaveLength(0);
+  });
+
   it('odmítne oprávnění pro jiné nebo změněné dokumenty', () => {
     expect(() => applyMemberLibraryGrant(snapshot(), {
       schemaVersion: 1,

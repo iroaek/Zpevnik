@@ -10,7 +10,6 @@ import unicodedata
 import xml.etree.ElementTree as ET
 import zipfile
 from collections import defaultdict
-from contextlib import nullcontext
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -21,11 +20,55 @@ from pypdf import PdfReader
 ROOT = Path.cwd().resolve()
 INPUT_ROOT = (ROOT / "songs_data").resolve()
 NORMALIZED_ROOT = (ROOT / "data" / "normalized").resolve()
+IMPORTER_VERSION = 8
 FOOTER_MARKERS = ("pisnicky-akordy.cz", "srovnavac.cz")
 WORD_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 DC_NS = "http://purl.org/dc/elements/1.1/"
 CID_PATTERN = re.compile(r"\(cid:(\d+)\)")
-PLUMBER_GLYPH_REPLACEMENTS = str.maketrans({"Æ": "á", "¨": "Č", "„": "š", "Ł": "č", "ł": "ř", "’": "'"})
+PLUMBER_GLYPH_REPLACEMENTS = str.maketrans({
+    "Æ": "á", "¨": "Č", "„": "š", "Ł": "č", "ł": "ř", "’": "'",
+    "©": "Š", "ą": "š", "ľ": "ž", "Ø": "é", "ø": "ů", "»": "ť",
+    "ţ": "„", "˙": "“", "œ": "ú",
+})
+LEGACY_TEX_TITLE_REPLACEMENTS = str.maketrans({"©": "Š", "ą": "š", "ľ": "ž", "Ø": "é", "ø": "ů"})
+CECHOMOR_VERDANA_CID_MAP = {
+    3: " ", 36: "A", 46: "K", 49: "N", 51: "P", 55: "T", 56: "U", 57: "V",
+    68: "a", 69: "b", 71: "d", 72: "e", 73: "f", 75: "h", 76: "i", 79: "l",
+    80: "m", 81: "n", 82: "o", 83: "p", 87: "t", 89: "v", 116: "í", 253: "Č",
+    254: "č", 262: "Ď", 263: "ď", 268: "ě", 271: "Ľ", 272: "ľ", 278: "ň",
+    284: "ř", 290: "ť", 292: "ů",
+}
+ZPEVNIK_ARTISTS = {
+    "zpevnik_cechomor.pdf": "Čechomor",
+    "zpevnik_danek.pdf": "Wabi Daněk",
+    "zpevnik_devitka.pdf": "Devítka",
+    "zpevnik_dobes.pdf": "Pavel Dobeš",
+    "zpevnik_ebeni.pdf": "Bratři Ebenové",
+    "zpevnik_hoptrop.pdf": "Hop Trop",
+    "zpevnik_janousek.pdf": "Slávek Janoušek",
+    "zpevnik_kamelot.pdf": "Kamelot",
+    "zpevnik_klasika.pdf": "Různí interpreti",
+    "zpevnik_klic.pdf": "Klíč",
+    "zpevnik_krestan.pdf": "Robert Křesťan",
+    "zpevnik_kryl.pdf": "Karel Kryl",
+    "zpevnik_lokalka.pdf": "Lokálka",
+    "zpevnik_mladek.pdf": "Ivan Mládek",
+    "zpevnik_nedvedi.pdf": "Nedvědi",
+    "zpevnik_nerez.pdf": "Nerez",
+    "zpevnik_nezmari.pdf": "Nezmaři",
+    "zpevnik_nohavica.pdf": "Jaromír Nohavica",
+    "zpevnik_palecekjanik.pdf": "Paleček a Janík",
+    "zpevnik_plihal.pdf": "Karel Plíhal",
+    "zpevnik_redl.pdf": "Vlasta Redl",
+    "zpevnik_samson.pdf": "Jaroslav Samson Lenk",
+    "zpevnik_spiritual.pdf": "Spirituál kvintet",
+    "zpevnik_zalman.pdf": "Žalman & spol.",
+}
+STANDALONE_ARTISTS = {
+    "loď jménem batavia.pdf": "Břetislav Huleš",
+    "sedět a hrát.pdf": "Lenka Slabá",
+}
+LEGACY_REUSE_SAFE_FILES = {"zpevnik1.pdf", "zpevnik2.pdf", "zpevnik3.pdf"}
 
 
 def ensure_inside(path: Path, parent: Path) -> None:
@@ -67,7 +110,7 @@ def clean_text(value: str) -> str:
 
 def slugify(value: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", fold(value)).strip("-")
-    return slug[:80] or "bez-nazvu"
+    return slug[:80].rstrip("-") or "bez-nazvu"
 
 
 def repair_cp1250_mojibake(value: str) -> str:
@@ -94,6 +137,23 @@ def repair_pdfplumber_legacy_text(value: str) -> str:
         return "�"
 
     return unicodedata.normalize("NFC", CID_PATTERN.sub(replace_cid, value).translate(PLUMBER_GLYPH_REPLACEMENTS))
+
+
+def extract_cechomor_layout(page: object) -> str:
+    repaired_chars: list[dict[str, object]] = []
+    for raw_char in page.chars:  # type: ignore[attr-defined]
+        char = dict(raw_char)
+        match = CID_PATTERN.fullmatch(str(char.get("text", "")))
+        if match:
+            code = int(match.group(1))
+            font_name = str(char.get("fontname", "")).lower()
+            if "verdana" in font_name and code in CECHOMOR_VERDANA_CID_MAP:
+                char["text"] = CECHOMOR_VERDANA_CID_MAP[code]
+            else:
+                char["text"] = "�"
+        repaired_chars.append(char)
+    raw_text = pdfplumber.utils.extract_text(repaired_chars, layout=True, x_density=7.25, y_density=13)
+    return unicodedata.normalize("NFC", raw_text or "")
 
 
 def extract_header(page: object) -> tuple[str, str]:
@@ -134,15 +194,23 @@ def extract_header(page: object) -> tuple[str, str]:
     return repair_cp1250_mojibake(title), repair_cp1250_mojibake(artist or "Neuvedený interpret")
 
 
-def extract_numbered_spread_songs(plumber_page: object, reader_page: object) -> list[dict[str, object]]:
-    title_by_number: dict[int, str] = {}
+def extract_numbered_spread_songs(
+    plumber_page: object,
+    reader_page: object,
+    default_artist: str,
+) -> list[dict[str, object]]:
+    metadata_by_number: dict[int, tuple[str, str]] = {}
 
     def visitor(text: str, _cm: list[float], _tm: list[float], _font: object, font_size: float) -> None:
         if float(font_size) < 9.8:
             return
         match = re.match(r"^\s*(\d+)\.\s*(.+?)\s*$", text)
         if match:
-            title_by_number[int(match.group(1))] = repair_cp1250_mojibake(match.group(2))
+            raw_heading = repair_cp1250_mojibake(match.group(2)).translate(LEGACY_TEX_TITLE_REPLACEMENTS)
+            artist_match = re.match(r"^(.*?)\s*\(([^()]*)\)\s*$", raw_heading)
+            title = (artist_match.group(1) if artist_match else raw_heading).strip()
+            artist = (artist_match.group(2) if artist_match else default_artist).strip() or default_artist
+            metadata_by_number[int(match.group(1))] = (title, artist)
 
     reader_page.extract_text(visitor_text=visitor)  # type: ignore[attr-defined]
     words = plumber_page.extract_words(extra_attrs=["size"], keep_blank_chars=False)  # type: ignore[attr-defined]
@@ -152,7 +220,7 @@ def extract_numbered_spread_songs(plumber_page: object, reader_page: object) -> 
         if not match or float(word["size"]) < 9.8:
             continue
         number = int(match.group(1))
-        if number in title_by_number:
+        if number in metadata_by_number:
             headings.append({"number": number, "x": float(word["x0"]), "top": float(word["top"])})
     headings.sort(key=lambda item: int(item["number"]))
 
@@ -177,9 +245,61 @@ def extract_numbered_spread_songs(plumber_page: object, reader_page: object) -> 
         cleaned = clean_text(repair_pdfplumber_legacy_text(raw_text))
         songs.append({
             "number": number,
-            "title": title_by_number[number],
-            "artist": "Nedvědi",
+            "title": metadata_by_number[number][0],
+            "artist": metadata_by_number[number][1],
             "content": cleaned,
+        })
+    return songs
+
+
+def extract_prominent_page_songs(plumber_page: object, artist: str) -> list[dict[str, object]]:
+    words = plumber_page.extract_words(extra_attrs=["size", "fontname"], keep_blank_chars=False)  # type: ignore[attr-defined]
+    if not words:
+        return []
+    maximum_size = max(float(word["size"]) for word in words)
+    if maximum_size < 16.0:
+        return []
+    title_words = [word for word in words if float(word["size"]) >= maximum_size - 0.6]
+    title_lines: list[dict[str, object]] = []
+    for word in sorted(title_words, key=lambda item: (float(item["top"]), float(item["x0"]))):
+        top = float(word["top"])
+        current = next((line for line in reversed(title_lines) if abs(float(line["top"]) - top) <= 1.8), None)
+        if current is None:
+            current = {"top": top, "words": []}
+            title_lines.append(current)
+        line_words = current["words"]
+        assert isinstance(line_words, list)
+        line_words.append(word)
+
+    headings: list[dict[str, object]] = []
+    for line in title_lines:
+        line_words = line["words"]
+        assert isinstance(line_words, list)
+        title = " ".join(str(word["text"]) for word in sorted(line_words, key=lambda item: float(item["x0"]))).strip()
+        if not title:
+            continue
+        top = float(line["top"])
+        if headings and top - float(headings[-1]["lastTop"]) <= 25.0:
+            headings[-1]["title"] = f"{headings[-1]['title']} {title}".strip()
+            headings[-1]["lastTop"] = top
+        else:
+            headings.append({"title": title, "top": top, "lastTop": top})
+
+    height = float(plumber_page.height)  # type: ignore[attr-defined]
+    width = float(plumber_page.width)  # type: ignore[attr-defined]
+    songs: list[dict[str, object]] = []
+    for index, heading in enumerate(headings):
+        top = max(0.0, float(heading["top"]) - 3.0)
+        bottom = float(headings[index + 1]["top"]) - 3.0 if index + 1 < len(headings) else height - 28.0
+        if bottom <= top + 12.0:
+            continue
+        crop = plumber_page.crop((24.0, top, width - 24.0, min(height, bottom)))  # type: ignore[attr-defined]
+        raw_text = crop.extract_text(layout=True, x_density=7.25, y_density=13) or ""
+        songs.append({
+            "number": index + 1,
+            "title": unicodedata.normalize("NFC", str(heading["title"])),
+            "artist": artist,
+            "content": clean_text(raw_text),
         })
     return songs
 
@@ -302,6 +422,7 @@ def seed_unchanged_pdf_records(
     previous_review_path = previous_root / "manual-review.json"
     report = json.loads(previous_report_path.read_text(encoding="utf-8"))
     review = json.loads(previous_review_path.read_text(encoding="utf-8"))
+    same_importer_version = report.get("importerVersion") == IMPORTER_VERSION
     previous_inputs = {str(item) for item in report.get("inputFiles", [])}
     prior_song_starts: defaultdict[str, int] = defaultdict(int)
     for record in review.get("records", []):
@@ -312,6 +433,7 @@ def seed_unchanged_pdf_records(
         path.relative_to(ROOT).as_posix()
         for path in current_pdf_paths
         if path.relative_to(ROOT).as_posix() in previous_inputs
+        and (same_importer_version or path.name.casefold() in LEGACY_REUSE_SAFE_FILES)
         and path.stat().st_mtime <= report_mtime
         and prior_song_starts[path.relative_to(ROOT).as_posix()] > 0
     }
@@ -342,7 +464,7 @@ def seed_unchanged_pdf_records(
         record["titleArtistKey"] = f"{normalized_key(title)}::{normalized_key(artist)}" if page_type == "song_start" else ""
         record["contentKey"] = compact_content_key(cleaned, title, artist) if page_type != "blank" else ""
         record["duplicateGroups"] = []
-        record["chordsVerified"] = True
+        record["chordsVerified"] = record.get("chordsVerified") is True
         transformations = list(record.get("transformations", []))
         transformations.append(f"reused unchanged source from {previous_root.name}")
         record["transformations"] = transformations
@@ -373,26 +495,48 @@ def main() -> int:
         ensure_inside(pdf_path.resolve(), INPUT_ROOT)
         reader = PdfReader(str(pdf_path))
         previous_song: dict[str, str] | None = None
-        with pdfplumber.open(pdf_path) if pdf_path.name.casefold() == "nedvedi.pdf" else nullcontext() as plumber_pdf:
+        lower_name = pdf_path.name.casefold()
+        uses_numbered_spreads = lower_name in {"nedvedi.pdf", "asonance.pdf"}
+        uses_prominent_headings = lower_name.startswith("zpevnik_") or lower_name in STANDALONE_ARTISTS
+        uses_cechomor_cid_repair = lower_name == "zpevnik6-cechomor.pdf"
+        needs_plumber = uses_numbered_spreads or uses_prominent_headings or uses_cechomor_cid_repair
+        plumber_context = pdfplumber.open(pdf_path) if needs_plumber else None
+        try:
             for page_index, reader_page in enumerate(reader.pages, start=1):
                 page_songs: list[dict[str, object]] = []
-                if plumber_pdf is not None:
+                plumber_page = plumber_context.pages[page_index - 1] if plumber_context is not None else None
+                if uses_numbered_spreads and plumber_page is not None:
                     try:
-                        page_songs = extract_numbered_spread_songs(plumber_pdf.pages[page_index - 1], reader_page)
+                        default_artist = "Nedvědi" if lower_name == "nedvedi.pdf" else "Asonance"
+                        page_songs = extract_numbered_spread_songs(plumber_page, reader_page, default_artist)
+                    except Exception as error:
+                        issues.append({"file": pdf_path.name, "page": page_index, "message": str(error)})
+                elif uses_prominent_headings and plumber_page is not None:
+                    try:
+                        artist = ZPEVNIK_ARTISTS.get(lower_name, STANDALONE_ARTISTS.get(lower_name, "Neuvedený interpret"))
+                        page_songs = extract_prominent_page_songs(plumber_page, artist)
                     except Exception as error:
                         issues.append({"file": pdf_path.name, "page": page_index, "message": str(error)})
                 if page_songs:
-                    for song in page_songs:
+                    for song_index, song in enumerate(page_songs, start=1):
                         number = int(song["number"])
                         title = str(song["title"])
                         artist = str(song["artist"])
                         cleaned = str(song["content"])
-                        record_id = f"{slugify(title)}-{pdf_path.stem}-s{number:03d}"
+                        record_id = f"{slugify(title)}-{slugify(pdf_path.stem)}-p{page_index:03d}-s{song_index:02d}"
                         draft_relative = Path("requires-review") / "pages" / f"{record_id}.txt"
                         draft_path = output_root / draft_relative
                         ensure_inside(draft_path.resolve(), output_root)
                         draft_path.write_text(cleaned, encoding="utf-8", newline="\n")
-                        source_identifier = f"songs_data/{pdf_path.name}#page={page_index}&song={number}"
+                        source_identifier = f"songs_data/{pdf_path.name}#page={page_index}&song={song_index}"
+                        transformations = [
+                            "PDF page split into visually headed songs",
+                            "Unicode normalized to NFC",
+                            "control characters removed",
+                        ]
+                        if uses_numbered_spreads:
+                            transformations.insert(0, "two-column PDF page split into numbered songs")
+                            transformations.append("legacy Czech glyph encoding repaired where deterministic")
                         records.append({
                             "id": record_id,
                             "title": title,
@@ -412,22 +556,26 @@ def main() -> int:
                             "contentKey": compact_content_key(cleaned, title, artist),
                             "duplicateGroups": [],
                             "chordsVerified": True,
-                            "reviewFlags": ["legacy_pdf_encoding"],
-                            "transformations": [
-                                "two-column PDF page split into numbered songs",
-                                "legacy Czech glyph encoding repaired where deterministic",
-                                "Unicode normalized to NFC",
-                                "control characters removed",
-                            ],
+                            "reviewFlags": ["legacy_text_spacing"] if uses_numbered_spreads else [],
+                            "transformations": transformations,
                         })
+                        previous_song = {"title": title, "artist": artist, "sourceIdentifier": source_identifier}
                     continue
 
                 try:
-                    raw_text = reader_page.extract_text(extraction_mode="layout") or ""
-                    cleaned = clean_text(repair_cp1250_mojibake(raw_text))
+                    if uses_cechomor_cid_repair and plumber_page is not None:
+                        raw_text = extract_cechomor_layout(plumber_page)
+                        cleaned = clean_text(raw_text)
+                    else:
+                        raw_text = reader_page.extract_text(extraction_mode="layout") or ""
+                        cleaned = clean_text(repair_cp1250_mojibake(raw_text))
                     extracted_title, extracted_artist = extract_header(reader_page)
-                    if pdf_path.name.casefold() == "zpevnik6-cechomor.pdf" and page_index < 3:
+                    if uses_cechomor_cid_repair and page_index < 3:
                         extracted_title = ""
+                    elif uses_cechomor_cid_repair and extracted_title:
+                        first_content_line = next((line.strip() for line in cleaned.splitlines() if line.strip()), "")
+                        if first_content_line and len(first_content_line) <= 120:
+                            extracted_title = first_content_line
                 except Exception as error:  # A single damaged page must not stop the audit.
                     cleaned = ""
                     extracted_title = ""
@@ -477,7 +625,7 @@ def main() -> int:
                     "contentKey": compact_content_key(cleaned, title, artist) if page_type != "blank" else "",
                     "duplicateGroups": [],
                     "chordsVerified": True,
-                    "reviewFlags": ["legacy_pdf_encoding"] if pdf_path.name.casefold() == "zpevnik6-cechomor.pdf" else [],
+                    "reviewFlags": ["unrecognized_glyphs"] if "�" in cleaned or CID_PATTERN.search(cleaned) else [],
                     "transformations": [
                         "PDF page text extracted in layout mode",
                         "Unicode normalized to NFC",
@@ -485,6 +633,9 @@ def main() -> int:
                         "source-site footer removed from draft",
                     ],
                 })
+        finally:
+            if plumber_context is not None:
+                plumber_context.close()
 
     for docx_path in docx_paths:
         ensure_inside(docx_path.resolve(), INPUT_ROOT)
@@ -545,6 +696,7 @@ def main() -> int:
     blank_pages = sum(record["pageType"] == "blank" for record in records)
     report = {
         "schemaVersion": 1,
+        "importerVersion": IMPORTER_VERSION,
         "createdAt": created_at,
         "inputFiles": [path.relative_to(ROOT).as_posix() for path in pdf_paths + docx_paths],
         "inputSha256": {

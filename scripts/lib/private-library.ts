@@ -64,7 +64,7 @@ export function applyMemberLibraryGrant(
     ...snapshot,
     catalog: {
       ...snapshot.catalog,
-      songs: snapshot.catalog.songs.map((song) => ({
+      songs: snapshot.catalog.songs.filter((song) => song.chordsVerified === true).map((song) => ({
         ...song,
         rightsStatus: grant.rightsStatus,
         license: grant.license,
