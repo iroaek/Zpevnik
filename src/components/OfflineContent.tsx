@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { downloadApprovedLibrary, type SecureProfile } from '../auth/secureAccess';
 import type { Catalog } from '../domain/song';
 import { useConnectivity } from '../hooks/useConnectivity';
 import {
@@ -18,11 +19,27 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function OfflineContent({ catalog, onNavigate }: { catalog: Catalog; onNavigate: (path: string) => void }) {
+interface OfflineContentProps {
+  catalog: Catalog;
+  secureProfile?: SecureProfile | null;
+  secureMode?: boolean;
+  personalSongCount?: number;
+  onPersonalLibraryChanged?: () => Promise<void>;
+  onNavigate: (path: string) => void;
+}
+
+export function OfflineContent({
+  catalog,
+  secureProfile = null,
+  secureMode = false,
+  personalSongCount = 0,
+  onPersonalLibraryChanged,
+  onNavigate,
+}: OfflineContentProps) {
   const online = useConnectivity();
   const [stats, setStats] = useState<OfflineContentStats | null>(null);
   const [progress, setProgress] = useState<DownloadProgress | null>(null);
-  const [operation, setOperation] = useState<'songs' | 'scores' | 'remove' | null>(null);
+  const [operation, setOperation] = useState<'member-library' | 'songs' | 'scores' | 'remove' | null>(null);
   const [message, setMessage] = useState('');
   const [confirmRemove, setConfirmRemove] = useState(false);
   const scoreEstimate = useMemo(() => catalog.songs.flatMap((song) => song.scoreAssets).reduce((sum, asset) => sum + asset.byteSize, 0), [catalog]);
@@ -71,6 +88,21 @@ export function OfflineContent({ catalog, onNavigate }: { catalog: Catalog; onNa
     }
   };
 
+  const downloadMemberLibrary = async () => {
+    setOperation('member-library');
+    setMessage('Stahuji soukromou členskou knihovnu…');
+    try {
+      if (!secureProfile || secureProfile.status !== 'approved') throw new Error('Členský účet není schválený nebo se nepodařilo načíst jeho profil.');
+      const count = await downloadApprovedLibrary(secureProfile);
+      await onPersonalLibraryChanged?.();
+      setMessage(`Hotovo: do tohoto zařízení bylo bezpečně uloženo ${count} ${secureProfile.role === 'admin' ? 'správcovských' : 'členských'} písní.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? `Členskou knihovnu nelze stáhnout: ${error.message}` : 'Členskou knihovnu nelze stáhnout.');
+    } finally {
+      setOperation(null);
+    }
+  };
+
   const busy = operation !== null;
   const ready = Boolean(stats?.allSongsVerified);
   return (
@@ -92,9 +124,10 @@ export function OfflineContent({ catalog, onNavigate }: { catalog: Catalog; onNa
       <p className="last-update">Poslední změna offline obsahu: {stats?.lastUpdated ? new Date(stats.lastUpdated).toLocaleString('cs-CZ') : 'zatím žádná'}</p>
 
       {progress && <div className="download-progress" aria-live="polite"><div className="results-heading"><strong>{progress.currentLabel}</strong><span>{progress.completed}/{progress.total}</span></div><progress max={progress.total} value={progress.completed} /><small>{formatBytes(progress.downloadedBytes)} z odhadovaných {formatBytes(progress.estimatedBytes)}</small></div>}
-      {message && <p className={message.includes('nezdař') ? 'error-message' : 'success-message'} role="status">{message}</p>}
+      {message && <p className={message.includes('nezdař') || message.includes('nelze') ? 'error-message' : 'success-message'} role="status">{message}</p>}
 
       <div className="offline-actions">
+        {secureMode && <article className="member-library-download"><div><h2>{secureProfile?.role === 'admin' ? 'Soukromá správcovská knihovna' : 'Soukromá členská knihovna'}</h2><p>{personalSongCount > 0 ? `${personalSongCount} písní je uložených v tomto zařízení.` : 'V zařízení zatím nejsou stažené žádné členské písně.'}</p><small>Balíček je dostupný pouze přihlášenému a schválenému účtu. Po stažení fungují písně bez internetu.</small></div><button className="primary-button" type="button" disabled={busy || !online || !secureProfile} onClick={() => void downloadMemberLibrary()}>{operation === 'member-library' ? 'Stahuji…' : personalSongCount > 0 ? 'Obnovit členské písně' : 'Stáhnout členské písně'}</button></article>}
         <article><div><h2>Texty a akordy</h2><p>{catalog.songs.length} písní · přibližně {formatBytes(songEstimate)}</p></div><button className="primary-button" type="button" disabled={busy || !online} onClick={() => void runDownload('songs')}>{stats?.allSongsVerified ? 'Ověřit a stáhnout znovu' : 'Stáhnout celý zpěvník'}</button></article>
         <article><div><h2>Notové party</h2><p>{stats?.totalScores ?? 0} partů · přibližně {formatBytes(scoreEstimate)} · stahují se zvlášť</p></div><button className="secondary-button" type="button" disabled={busy || !online || scoreEstimate === 0} onClick={() => void runDownload('scores')}>{stats?.allScoresVerified ? 'Ověřit noty znovu' : 'Stáhnout všechny notové party'}</button></article>
         <article><div><h2>Nová verze</h2><p>Aktualizace se neaktivuje bez vašeho potvrzení.</p></div><button className="secondary-button" type="button" disabled={!online || busy} onClick={() => void updateCheck()}>Zkontrolovat aktualizaci</button></article>

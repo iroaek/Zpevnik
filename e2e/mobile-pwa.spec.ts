@@ -43,7 +43,9 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await page.getByRole('button', { name: 'Automatický posun' }).click();
   await expect(page.getByRole('button', { name: 'Zastavit posun' })).toBeVisible();
   await page.locator('.fire-tap-zone').click();
-  await expect(page.getByRole('button', { name: 'Automatický posun' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Zastavit posun' })).toBeVisible();
+  await expect(page.getByText('žádná známá píseň')).toBeVisible();
+  await page.getByRole('button', { name: 'Zastavit posun' }).click();
 
   await page.getByRole('button', { name: 'Režim U ohně' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-fire-mode', 'true');

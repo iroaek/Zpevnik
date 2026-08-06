@@ -16,5 +16,6 @@ describe('ChordPro parser', () => {
 
   it('odstraní řídicí znaky a zachová českou diakritiku', () => {
     expect(sanitizeImportedText('\uFEFFŽluťoučký\u0000\r\nřádek')).toBe('Žluťoučký\nřádek');
+    expect(sanitizeImportedText('C\u030cesky\u0301 r\u030ca\u0301dek')).toBe('Český řádek');
   });
 });

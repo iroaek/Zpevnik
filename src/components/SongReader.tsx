@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { metadataValue, parseChordPro } from '../domain/chordpro';
+import { metadataValue, parseChordPro, sanitizeImportedText } from '../domain/chordpro';
 import { calculateCapoOptions, parseChord, renderPitch, transposeCanonicalChord } from '../domain/chords';
 import type { Song } from '../domain/song';
 import { fetchContent } from '../pwa/contentCache';
@@ -43,7 +43,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
         if (!response.ok) throw new Error(`Soubor písně se nepodařilo načíst (${response.status}).`);
         return response.text();
       })
-      .then(setSource)
+      .then((text) => setSource(sanitizeImportedText(text)))
       .catch((error: unknown) => {
         if ((error as Error).name !== 'AbortError') setLoadError(error instanceof Error ? error.message : 'Píseň je nečitelná.');
       });
@@ -54,14 +54,20 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
     if (!autoScroll) return;
     let frame = 0;
     let previous = performance.now();
+    const root = document.documentElement;
+    const previousScrollBehavior = root.style.scrollBehavior;
+    root.style.scrollBehavior = 'auto';
     const tick = (now: number) => {
       const elapsed = now - previous;
       previous = now;
-      window.scrollBy(0, settings.autoScrollSpeed * elapsed / 1000);
+      window.scrollBy({ top: settings.autoScrollSpeed * elapsed / 1000, left: 0, behavior: 'auto' });
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      root.style.scrollBehavior = previousScrollBehavior;
+    };
   }, [autoScroll, settings.autoScrollSpeed]);
 
   useEffect(() => () => { void wakeLock?.release(); }, [wakeLock]);
@@ -178,7 +184,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
           {song.chordsVerified && <p className="verified-chords-note">✓ Akordy jsou označené jako zkontrolované. Transpozice i návrhy kapodastru jsou aktivní.</p>}
           {loadError && <p className="error-message" role="alert">{loadError}</p>}
           {!source && !loadError && <p role="status">Načítám píseň…</p>}
-          {source && <div className="fire-tap-zone" onPointerDown={() => { if (autoScroll) setAutoScroll(false); }}>
+          {source && <div className="fire-tap-zone">
             {isLayoutText
               ? <pre className="layout-song-sheet" style={{ '--song-font-size': `${fireMode ? Math.max(settings.fontSize, 28) : settings.fontSize}px` } as React.CSSProperties}>{source}</pre>
               : <ChordSheet source={source} semitones={semitones} notation={settings.notation} sourceNotation={sourceNotation} showChords={settings.showChords} collapseRepeatedChoruses={settings.collapseRepeatedChoruses} fontSize={fireMode ? Math.max(settings.fontSize, 28) : settings.fontSize} />}
