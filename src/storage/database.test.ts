@@ -31,19 +31,38 @@ describe('migrace IndexedDB', () => {
     legacy.close();
   });
 
-  it('povýší databázi na verzi 3, převede stav na schéma 2 a zachová uživatelská data', async () => {
+  it('povýší databázi na verzi 4, převede stav na schéma 2 a zachová uživatelská data', async () => {
     const databaseModule = await import('./database');
     const loaded = await databaseModule.loadUserState();
-    expect(databaseModule.DATABASE_VERSION).toBe(3);
+    expect(databaseModule.DATABASE_VERSION).toBe(4);
     expect(loaded.schemaVersion).toBe(2);
     expect(loaded.favorites).toEqual(legacyState.favorites);
     expect(loaded.setlists).toEqual(legacyState.setlists);
     expect(loaded.settings.autoScrollSpeed).toBe(31);
-    const upgraded = await openDB('cesky-zpevnik', 3);
+    const upgraded = await openDB('cesky-zpevnik', 4);
     expect([...upgraded.objectStoreNames]).toContain('metadata');
     expect([...upgraded.objectStoreNames]).toContain('personalSongs');
     expect([...upgraded.objectStoreNames]).toContain('personalSongContent');
+    expect([...upgraded.objectStoreNames]).toContain('account');
+    expect([...upgraded.objectStoreNames]).toContain('songSubmissions');
+    expect([...upgraded.objectStoreNames]).toContain('songSubmissionFiles');
     upgraded.close();
+  });
+
+  it('uloží místní profil a návrh písně vždy označí ke kontrole', async () => {
+    const databaseModule = await import('./database');
+    const profile = databaseModule.createUserProfile('Testovací hráč');
+    await databaseModule.saveUserProfile(profile);
+    expect(await databaseModule.loadUserProfile()).toMatchObject({ displayName: 'Testovací hráč', role: 'member' });
+
+    const submission = await databaseModule.saveSongSubmission({
+      profile,
+      kind: 'request',
+      title: 'Vymyšlená žádost',
+      notes: 'Pouze syntetický test',
+    });
+    expect(submission).toMatchObject({ rightsStatus: 'requires_review', status: 'queued_local' });
+    expect(await databaseModule.loadSongSubmissions()).toContainEqual(submission);
   });
 
   it('uloží osobní píseň i její ChordPro obsah odděleně', async () => {

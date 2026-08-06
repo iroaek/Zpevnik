@@ -15,6 +15,7 @@
     "finalize:dist": "tsx scripts/finalize-dist.ts",
     "import:data": "tsx scripts/import-data.ts",
     "import:pdf-songbooks": "python scripts/import-pdf-songbooks.py",
+    "encrypt:personal-library": "tsx scripts/encrypt-personal-library.ts",
     "lint": "eslint .",
     "typecheck": "tsc -b",
     "test": "npm run test:unit && npm run test:integration",

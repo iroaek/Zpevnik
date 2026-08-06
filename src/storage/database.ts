@@ -30,6 +30,64 @@ export interface UserState {
   settings: UserSettings;
 }
 
+export interface UserProfile {
+  schemaVersion: 1;
+  id: string;
+  displayName: string;
+  role: 'member' | 'admin';
+  monochromeMode: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SongSubmission {
+  schemaVersion: 1;
+  id: string;
+  kind: 'request' | 'upload';
+  submitterId: string;
+  submitterName: string;
+  title: string;
+  artist: string;
+  notes: string;
+  fileName: string | null;
+  fileType: string | null;
+  fileSize: number;
+  rightsStatus: 'requires_review';
+  license: string;
+  attribution: string;
+  status: 'queued_local';
+  createdAt: string;
+}
+
+const songSubmissionSchema = z.object({
+  schemaVersion: z.literal(1),
+  id: z.string().uuid(),
+  kind: z.enum(['request', 'upload']),
+  submitterId: z.string().uuid(),
+  submitterName: z.string().trim().min(2).max(40),
+  title: z.string().trim().min(1).max(160),
+  artist: z.string().trim().max(160),
+  notes: z.string().trim().max(2_000),
+  fileName: z.string().max(255).nullable(),
+  fileType: z.string().max(120).nullable(),
+  fileSize: z.number().int().min(0).max(25 * 1024 * 1024),
+  rightsStatus: z.literal('requires_review'),
+  license: z.string().min(1),
+  attribution: z.string().min(1),
+  status: z.literal('queued_local'),
+  createdAt: z.string().datetime(),
+});
+
+const userProfileSchema = z.object({
+  schemaVersion: z.literal(1),
+  id: z.string().uuid(),
+  displayName: z.string().trim().min(2).max(40),
+  role: z.enum(['member', 'admin']),
+  monochromeMode: z.boolean(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
 const settingsSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']),
   fontSize: z.number().min(14).max(34),
@@ -89,7 +147,7 @@ const personalSongEntrySchema = z.object({
 
 const personalSongBackupSchema = z.array(personalSongEntrySchema).max(5_000);
 
-export const DATABASE_VERSION = 3;
+export const DATABASE_VERSION = 4;
 
 const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
   upgrade(database, oldVersion) {
@@ -99,8 +157,83 @@ const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
       database.createObjectStore('personalSongs');
       database.createObjectStore('personalSongContent');
     }
+    if (oldVersion < 4) {
+      database.createObjectStore('account');
+      database.createObjectStore('songSubmissions');
+      database.createObjectStore('songSubmissionFiles');
+    }
   },
 });
+
+export function createUserProfile(displayName: string): UserProfile {
+  const now = new Date().toISOString();
+  return userProfileSchema.parse({
+    schemaVersion: 1,
+    id: crypto.randomUUID(),
+    displayName: displayName.trim(),
+    role: 'member',
+    monochromeMode: false,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+export async function loadUserProfile(): Promise<UserProfile | null> {
+  const database = await databasePromise;
+  const parsed = userProfileSchema.safeParse(await database.get('account', 'profile'));
+  return parsed.success ? parsed.data : null;
+}
+
+export async function saveUserProfile(profile: UserProfile): Promise<void> {
+  const validated = userProfileSchema.parse({ ...profile, updatedAt: new Date().toISOString() });
+  const database = await databasePromise;
+  await database.put('account', validated, 'profile');
+}
+
+export async function saveSongSubmission(input: {
+  profile: UserProfile;
+  kind: 'request' | 'upload';
+  title: string;
+  artist?: string;
+  notes?: string;
+  file?: File;
+}): Promise<SongSubmission> {
+  if (input.kind === 'upload' && !input.file) throw new Error('Vyberte soubor s písní.');
+  if (input.file && input.file.size > 25 * 1024 * 1024) throw new Error('Soubor je větší než povolených 25 MB.');
+  const submission = songSubmissionSchema.parse({
+    schemaVersion: 1,
+    id: crypto.randomUUID(),
+    kind: input.kind,
+    submitterId: input.profile.id,
+    submitterName: input.profile.displayName,
+    title: input.title,
+    artist: input.artist ?? '',
+    notes: input.notes ?? '',
+    fileName: input.file?.name ?? null,
+    fileType: input.file?.type || null,
+    fileSize: input.file?.size ?? 0,
+    rightsStatus: 'requires_review',
+    license: 'UNVERIFIED - requires admin review',
+    attribution: input.profile.displayName,
+    status: 'queued_local',
+    createdAt: new Date().toISOString(),
+  });
+  const database = await databasePromise;
+  const transaction = database.transaction(['songSubmissions', 'songSubmissionFiles'], 'readwrite');
+  await transaction.objectStore('songSubmissions').put(submission, submission.id);
+  if (input.file) await transaction.objectStore('songSubmissionFiles').put(input.file, submission.id);
+  await transaction.done;
+  return submission;
+}
+
+export async function loadSongSubmissions(): Promise<SongSubmission[]> {
+  const database = await databasePromise;
+  const stored = await database.getAll('songSubmissions') as unknown[];
+  return stored.flatMap((value) => {
+    const parsed = songSubmissionSchema.safeParse(value);
+    return parsed.success ? [parsed.data] : [];
+  }).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+}
 
 function parseUserState(stored: unknown): UserState | null {
   const current = userStateSchema.safeParse(stored);
@@ -194,7 +327,7 @@ export async function exportFullBackup(state: UserState, personalSongs: Song[]):
   return entries.length;
 }
 
-export async function importFullBackup(file: File): Promise<BackupImportResult> {
+export async function importFullBackup(file: Blob): Promise<BackupImportResult> {
   if (file.size > 50 * 1024 * 1024) throw new Error('Záloha je větší než povolených 50 MB.');
   const parsed = JSON.parse(await file.text()) as { application?: string; data?: unknown; personalSongs?: unknown };
   if (parsed.application !== 'cesky-digitalni-zpevnik') throw new Error('Soubor není záloha této aplikace.');

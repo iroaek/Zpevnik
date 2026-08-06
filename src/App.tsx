@@ -6,6 +6,7 @@ import { Library } from './components/Library';
 import { OfflineContent } from './components/OfflineContent';
 import { PdfImportPage } from './components/PdfImportPage';
 import { PublicSetlistPage } from './components/PublicSetlistPage';
+import { RegistrationPage } from './components/RegistrationPage';
 import { Setlists } from './components/Setlists';
 import { Settings } from './components/Settings';
 import { SongReader } from './components/SongReader';
@@ -13,6 +14,7 @@ import { UpdateBanner } from './components/UpdateBanner';
 import { catalogSchema, type Catalog } from './domain/song';
 import { useConnectivity } from './hooks/useConnectivity';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
+import { useUserProfile } from './hooks/useUserProfile';
 import { useUserState } from './hooks/useUserState';
 import { loadLatestCatalog } from './pwa/contentCache';
 import { canonicalUrl, relativeRoute, routePath } from './pwa/paths';
@@ -67,6 +69,7 @@ export default function App() {
   const [deviceSongs, setDeviceSongs] = useState<Catalog['songs']>([]);
   const [personalSummary, setPersonalSummary] = useState<PersonalLibrarySummary | null>(null);
   const [userState, setUserState, hydrated, storageError] = useUserState();
+  const [userProfile, setUserProfile, profileHydrated, profileError] = useUserProfile();
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [systemMessage, setSystemMessage] = useState('');
   const libraryScroll = useRef(0);
@@ -137,14 +140,15 @@ export default function App() {
     const root = document.documentElement;
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const applyTheme = () => {
+      const monochrome = userProfile?.role === 'admin' && userProfile.monochromeMode;
       const dark = userState.settings.theme === 'dark' || (userState.settings.theme === 'system' && media.matches);
-      root.dataset.theme = dark ? 'dark' : 'light';
-      root.style.colorScheme = dark ? 'dark' : 'light';
+      root.dataset.theme = monochrome ? 'monochrome' : dark ? 'dark' : 'light';
+      root.style.colorScheme = monochrome || dark ? 'dark' : 'light';
     };
     applyTheme();
     media.addEventListener('change', applyTheme);
     return () => media.removeEventListener('change', applyTheme);
-  }, [userState.settings.theme]);
+  }, [userProfile?.monochromeMode, userProfile?.role, userState.settings.theme]);
 
   useEffect(() => {
     document.body.dataset.printSize = userState.settings.printSize;
@@ -175,7 +179,9 @@ export default function App() {
 
   const navScreen = route.name === 'library' || route.name === 'setlists' || route.name === 'import' || route.name === 'settings' || route.name === 'offline' ? route.name : null;
 
-  if (!hydrated) return <main className="loading-screen"><span className="brand-mark" aria-hidden="true">♫</span><p>Otevírám zpěvník…</p></main>;
+  if (!hydrated || !profileHydrated) return <main className="loading-screen"><span className="brand-mark" aria-hidden="true">♫</span><p>Otevírám zpěvník…</p></main>;
+
+  if (!userProfile) return <main className="app-main"><RegistrationPage canInstall={installPrompt.canPrompt} installed={installPrompt.installed} onInstall={installPrompt.install} onRegister={setUserProfile} />{(storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}</main>;
 
   return (
     <div className="app-shell">
@@ -184,13 +190,13 @@ export default function App() {
         <button type="button" className={`connection-badge ${online ? 'online' : 'offline'}`} onClick={() => navigate('offline')} aria-label={`${online ? 'Online' : 'Offline'}; otevřít stav offline obsahu`}><span aria-hidden="true" />{online ? 'Online' : 'Offline'}</button>
       </header>
       {updateAvailable && <UpdateBanner onUpdate={() => void activateWaitingUpdate()} onLater={() => setUpdateAvailable(false)} />}
-      {storageError && <p className="global-warning" role="alert">{storageError}</p>}
+      {(storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}
       {systemMessage && <div className="system-message" role="status"><span>{systemMessage}</span><button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemMessage('')}>×</button></div>}
       <main id="main-content" className="app-main">
         {route.name === 'library' && <Library songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} onOpenSong={openSong} />}
         {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id) => navigate(`setlists/${id}`)} />}
-        {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} />}
-        {route.name === 'settings' && <Settings userState={userState} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
+        {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} />}
+        {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
         {route.name === 'offline' && <OfflineContent catalog={catalog} onNavigate={navigate} />}
         {route.name === 'install' && <InstallPage canPrompt={installPrompt.canPrompt} installed={installPrompt.installed} isIosLike={installPrompt.isIosLike} onInstall={installPrompt.install} onNavigate={navigate} />}
         {route.name === 'help' && <HelpPage onNavigate={navigate} />}
@@ -201,7 +207,7 @@ export default function App() {
       {route.name !== 'song' && <nav className="bottom-nav bottom-nav--five" aria-label="Hlavní navigace">
         <button type="button" className={navScreen === 'library' ? 'active' : ''} aria-current={navScreen === 'library' ? 'page' : undefined} onClick={() => navigate('')}><span aria-hidden="true">⌕</span>Písně</button>
         <button type="button" className={navScreen === 'setlists' ? 'active' : ''} aria-current={navScreen === 'setlists' ? 'page' : undefined} onClick={() => navigate('setlists')}><span aria-hidden="true">☷</span>Setlisty</button>
-        <button type="button" className={navScreen === 'import' ? 'active' : ''} aria-current={navScreen === 'import' ? 'page' : undefined} onClick={() => navigate('import')}><span aria-hidden="true">＋</span>Import PDF</button>
+        <button type="button" className={navScreen === 'import' ? 'active' : ''} aria-current={navScreen === 'import' ? 'page' : undefined} onClick={() => navigate('import')}><span aria-hidden="true">＋</span>Přidat</button>
         <button type="button" className={navScreen === 'offline' ? 'active' : ''} aria-current={navScreen === 'offline' ? 'page' : undefined} onClick={() => navigate('offline')}><span aria-hidden="true">⇩</span>Offline</button>
         <button type="button" className={navScreen === 'settings' ? 'active' : ''} aria-current={navScreen === 'settings' ? 'page' : undefined} onClick={() => navigate('settings')}><span aria-hidden="true">⚙</span>Nastavení</button>
       </nav>}

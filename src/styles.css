@@ -32,6 +32,39 @@
   --shadow: 0 16px 42px rgba(0, 0, 0, 0.3);
 }
 
+:root[data-theme="monochrome"] {
+  --bg: #090909;
+  --surface: #151515;
+  --surface-strong: #202020;
+  --text: #f5f5f5;
+  --muted: #bdbdbd;
+  --primary: #f5f5f5;
+  --primary-strong: #ffffff;
+  --accent: #a0a0a0;
+  --chord: #ff8a00;
+  --border: #4b4b4b;
+  --shadow: 0 14px 36px rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="monochrome"] body { background: var(--bg); }
+:root[data-theme="monochrome"] .hero-card,
+:root[data-theme="monochrome"] .reader-header,
+:root[data-theme="monochrome"] .update-banner { color: #fff; background: #101010; }
+:root[data-theme="monochrome"] .hero-card .eyebrow,
+:root[data-theme="monochrome"] .reader-header .eyebrow,
+:root[data-theme="monochrome"] .reader-header p:last-child { color: #d2d2d2; }
+:root[data-theme="monochrome"] .search-box { color: #eee; background: #252525; }
+:root[data-theme="monochrome"] .search-box input { color: #fff; }
+:root[data-theme="monochrome"] .connection-badge span,
+:root[data-theme="monochrome"] .status-dot,
+:root[data-theme="monochrome"] .connection-badge.online span,
+:root[data-theme="monochrome"] .connection-badge.offline span { background: #d0d0d0; box-shadow: 0 0 0 3px #5a5a5a; }
+:root[data-theme="monochrome"] .global-warning,
+:root[data-theme="monochrome"] .error-message,
+:root[data-theme="monochrome"] .success-message,
+:root[data-theme="monochrome"] .verified-chords-note { color: var(--text); background: var(--surface); border-color: #8a8a8a; }
+:root[data-theme="monochrome"] .chord { color: var(--chord); }
+
 * { box-sizing: border-box; min-width: 0; }
 html { min-height: 100%; max-width: 100%; overflow-x: hidden; background: var(--bg); scroll-behavior: smooth; }
 body { margin: 0; min-width: 0; max-width: 100%; min-height: 100vh; overflow-x: hidden; color: var(--text); background: radial-gradient(circle at 100% 0, color-mix(in srgb, var(--accent) 14%, transparent), transparent 28rem), var(--bg); }
@@ -174,6 +207,15 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
 .switch-row { display: flex !important; align-items: center; min-height: 3rem; color: var(--text) !important; font-size: 1rem !important; }
 .switch-row input { width: 1.3rem; height: 1.3rem; }
 .backup-card, .privacy-card { margin-top: 1rem; padding: 1.1rem; border: 1px solid var(--border); border-radius: 15px; background: var(--surface); }
+.profile-card { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: 15px; background: var(--surface); }
+.profile-card > span:last-child { display: grid; gap: 0.2rem; }
+.profile-card small { color: var(--muted); }
+.profile-avatar { display: grid; place-items: center; width: 2.8rem; height: 2.8rem; flex: 0 0 auto; color: var(--surface); font-weight: 850; border-radius: 50%; background: var(--primary); }
+.personal-download-card { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.personal-download-card form { display: grid; gap: 0.45rem; }
+.personal-download-card label { color: var(--muted); font-size: 0.82rem; font-weight: 700; }
+.access-code-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.55rem; }
+.access-code-row input { min-height: 46px; width: 100%; padding: 0.72rem 0.85rem; border: 1px solid var(--border); border-radius: 12px; color: var(--text); background: var(--bg); font: inherit; letter-spacing: 0.08em; }
 .file-button { display: inline-grid; place-items: center; cursor: pointer; }
 .file-button input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .settings-links { display: grid; grid-template-columns: 1fr; gap: 0.7rem; margin-top: 1rem; }
@@ -224,6 +266,18 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
 .pdf-import-card .file-button { width: 100%; color: white; }
 .pdf-import-card .file-button.disabled { cursor: wait; opacity: 0.65; }
 .pdf-import-card > small { color: var(--muted); line-height: 1.45; }
+.registration-page { display: grid; place-items: center; min-height: calc(100vh - 2.2rem); }
+.registration-card { display: grid; gap: 0.9rem; width: min(100%, 34rem); padding: clamp(1.2rem, 5vw, 2rem); border: 1px solid var(--border); border-radius: 22px; background: var(--surface); box-shadow: var(--shadow); }
+.registration-card form { display: grid; gap: 0.65rem; }
+.registration-card label, .contribution-card label { display: grid; gap: 0.35rem; color: var(--muted); font-size: 0.82rem; font-weight: 700; }
+.registration-card small { color: var(--muted); line-height: 1.4; }
+.contribution-section { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+.contribution-grid { display: grid; gap: 0.8rem; }
+.contribution-card { display: grid; gap: 0.7rem; padding: 1rem; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+.contribution-card textarea { min-height: 6rem; resize: vertical; padding: 0.7rem; color: var(--text); border: 1px solid var(--border); border-radius: 10px; background: var(--surface-strong); font: inherit; }
+.contribution-rights { line-height: 1.4; }
+.submission-list { display: grid; gap: 0.35rem; margin-top: 1rem; padding: 0.9rem; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.submission-list span { color: var(--muted); font-size: 0.85rem; }
 .device-library { margin-top: 1.5rem; }
 .device-song-list { display: grid; gap: 0.6rem; margin-top: 0.8rem; }
 .device-song-list > article { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.5rem; padding: 0.5rem; border: 1px solid var(--border); border-radius: 13px; background: var(--surface); }
@@ -254,6 +308,8 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
 @media (min-width: 44rem) {
   .app-main { padding: 1.6rem 2rem; }
   .filter-grid, .settings-grid { grid-template-columns: repeat(2, 1fr); }
+  .access-code-row { grid-template-columns: minmax(15rem, 1fr) auto; }
+  .contribution-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .song-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .reader-header { margin: -1.6rem -2rem 0; padding: 2rem 2rem 3.2rem; border-radius: 0 0 25px 25px; }
   .song-facts { width: min(40rem, 90%); margin-inline: auto; }

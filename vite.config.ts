@@ -57,6 +57,7 @@ export default defineConfig(({ mode }) => {
             'content/catalog.json',
             'content/songs/**/*',
             'content/scores/**/*',
+            'personal-library/**/*',
             'assets/opensheetmusicdisplay*.js',
             'assets/jszip*.js',
           ],

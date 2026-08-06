@@ -20,7 +20,8 @@ export function InstallPage({ canPrompt, installed, isIosLike, onInstall, onNavi
           {isIosLike && <article className="instruction-card"><h2>iPhone a iPad</h2><ol><li>Otevřete stránku v Safari.</li><li>Klepněte na <strong>Sdílet</strong>.</li><li>Zvolte <strong>Přidat na plochu</strong>.</li><li>Zapněte <strong>Otevřít jako webovou aplikaci</strong> a potvrďte.</li></ol></article>}
         </>
       )}
-      <article className="instruction-card"><h2>Vlastní PDF v telefonu</h2><p>Po otevření aplikace zvolte v dolní navigaci <strong>Import PDF</strong>. Soubor se zpracuje a zůstane pouze v daném zařízení.</p><button className="primary-button" type="button" onClick={() => onNavigate('import')}>Otevřít Import PDF</button></article>
+      <article className="instruction-card"><h2>Po instalaci stáhněte své písně</h2><p>GitHub už otevírat nemusíte. V aplikaci přejděte do <strong>Nastavení → Stáhnout moje písně</strong> a zadejte svůj osobní přístupový kód.</p><button className="primary-button" type="button" onClick={() => onNavigate('settings')}>Přejít ke stažení písní</button></article>
+      <article className="instruction-card"><h2>Vlastní PDF v telefonu</h2><p>Po otevření aplikace zvolte v dolní navigaci <strong>Import PDF</strong>. Soubor se zpracuje a zůstane pouze v daném zařízení.</p><button className="secondary-button" type="button" onClick={() => onNavigate('import')}>Otevřít Import PDF</button></article>
       <article className="instruction-card"><h2>Než vyrazíte bez signálu</h2><p>Samotná instalace automaticky nestáhne všechny písně ani noty. Otevřete Offline obsah a zvolte, co chcete uložit.</p><button className="secondary-button" type="button" onClick={() => onNavigate('offline')}>Přejít na Offline obsah</button></article>
     </section>
   );
