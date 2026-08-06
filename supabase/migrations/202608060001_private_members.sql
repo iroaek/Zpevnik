@@ -1,6 +1,8 @@
 -- Soukromé účty, ruční schvalování a fronta písní.
 -- Tento soubor spusťte v novém projektu Supabase jako jednu migraci.
 
+begin;
+
 create type public.account_status as enum ('pending', 'approved', 'rejected', 'suspended');
 create type public.app_role as enum ('member', 'admin');
 create type public.song_submission_kind as enum ('request', 'upload');
@@ -239,3 +241,5 @@ using (
 
 comment on table public.profiles is 'Server-authoritative account status. Client code cannot grant roles or approval.';
 comment on table public.song_submissions is 'Every submitted song starts as requires_review and is never published automatically.';
+
+commit;

@@ -27,6 +27,7 @@ function createImport(root: string, name: string): string {
         pageType: 'song_start',
         draftPath: 'requires-review/pages/synteticka-strana.txt',
         duplicateGroups: ['exact-0001'],
+        chordsVerified: true,
       },
       {
         id: 'pokracovani-p002',
@@ -75,4 +76,13 @@ describe('osobní knihovna z PDF importu', () => {
     expect(snapshot.summary).toMatchObject({ songCount: 1, totalPages: 2, continuationCandidates: 1, exactDuplicateGroups: 1 });
     expect(snapshot.contentBySongId.get('personal-synteticka-strana-p001')).toContain('[C]Vymy[G]šlená testovací věta');
   }, 20_000);
+
+  it('upřednostní novější společný import PDF a DOCX', () => {
+    const root = mkdtempSync(join(tmpdir(), 'zpevnik-personal-test-'));
+    temporaryDirectories.push(root);
+    createImport(root, 'import-2026-08-06T00-00-00Z-pdf-songbooks');
+    const latest = createImport(root, 'import-2026-08-06T01-00-00Z-song-documents');
+
+    expect(findLatestPersonalImport(root)).toBe(latest);
+  });
 });

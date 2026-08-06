@@ -19,6 +19,7 @@ interface ReviewRecord {
   pageType: 'song_start' | 'continuation_candidate' | 'blank';
   draftPath: string;
   duplicateGroups?: string[];
+  chordsVerified?: boolean;
 }
 
 interface ManualReviewFile {
@@ -62,7 +63,7 @@ function isInside(parent: string, candidate: string): boolean {
 export function findLatestPersonalImport(normalizedRoot: string): string | null {
   if (!existsSync(normalizedRoot)) return null;
   const candidates = readdirSync(normalizedRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name.endsWith('-pdf-songbooks'))
+    .filter((entry) => entry.isDirectory() && /-(?:pdf-songbooks|song-documents)$/.test(entry.name))
     .map((entry) => resolve(normalizedRoot, entry.name))
     .filter((directory) => existsSync(resolve(directory, 'manual-review.json')))
     .sort((left, right) => right.localeCompare(left));
@@ -112,7 +113,7 @@ export function buildPersonalLibrary(importDirectory: string): PersonalLibrarySn
         contentBytes: Buffer.byteLength(converted.chordPro, 'utf8'),
         contentFormat: 'chordpro',
         personalOnly: true,
-        chordsVerified: true,
+        chordsVerified: record.chordsVerified === true,
         reviewFlags: record.duplicateGroups?.length ? ['possible_duplicate'] : [],
         scoreAssets: [],
         source: record.source,
@@ -120,7 +121,7 @@ export function buildPersonalLibrary(importDirectory: string): PersonalLibrarySn
         rightsStatus: record.rightsStatus,
         license: record.license,
         attribution: record.attribution || 'Autor neuveden',
-        notes: 'Akordy byly převedeny z uživatelem dodaného PDF a označeny uživatelem jako zkontrolované; metadata a práva zůstávají ke kontrole.',
+        notes: 'Akordy byly převedeny z uživatelem dodaného dokumentu a označeny uživatelem jako zkontrolované; metadata a práva zůstávají ke kontrole.',
         createdAt: generatedAt,
         updatedAt: generatedAt,
       };

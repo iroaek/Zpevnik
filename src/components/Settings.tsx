@@ -87,9 +87,10 @@ export function Settings({
     setBackupBusy(true);
     setMessage('Stahuji soukromou členskou knihovnu…');
     try {
-      const count = await downloadApprovedLibrary();
+      if (!secureProfile) throw new Error('Chybí profil přihlášeného účtu.');
+      const count = await downloadApprovedLibrary(secureProfile);
       await onPersonalLibraryChanged();
-      setMessage(`Do tohoto zařízení bylo bezpečně uloženo ${count} členských písní.`);
+      setMessage(`Do tohoto zařízení bylo bezpečně uloženo ${count} ${serverAdmin ? 'správcovských' : 'členských'} písní.`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Členskou knihovnu nelze stáhnout.');
     } finally {
@@ -115,7 +116,7 @@ export function Settings({
         {localAdmin && <label className="switch-row"><input type="checkbox" checked={userProfile.monochromeMode} onChange={(event) => onUserProfileChange((current) => current ? { ...current, monochromeMode: event.target.checked, updatedAt: new Date().toISOString() } : current)} /> Monochromatický administrátorský režim – barevné pouze akordy</label>}
       </div>
 
-      {secureMode && <section className="backup-card private-library-card"><h2>Soukromá členská knihovna</h2><p>Server soubor vydá pouze přihlášenému a schválenému účtu. Do členského balíčku smějí jen písně s ověřenými právy.</p><button type="button" className="primary-button" disabled={backupBusy} onClick={() => void downloadMemberLibrary()}>{backupBusy ? 'Stahuji…' : 'Stáhnout do tohoto zařízení'}</button></section>}
+      {secureMode && <section className="backup-card private-library-card"><h2>{serverAdmin ? 'Soukromá správcovská knihovna' : 'Soukromá členská knihovna'}</h2><p>{serverAdmin ? 'Server vydá tento balík pouze schválenému administrátorovi. Obsah ke kontrole se nedostane běžným členům.' : 'Server soubor vydá pouze přihlášenému a schválenému účtu. Do členského balíčku smějí jen písně s ověřenými právy.'}</p><button type="button" className="primary-button" disabled={backupBusy} onClick={() => void downloadMemberLibrary()}>{backupBusy ? 'Stahuji…' : 'Stáhnout do tohoto zařízení'}</button></section>}
 
       {!secureMode && <section className="backup-card personal-download-card"><h2>{userProfile.role === 'admin' ? 'Stáhnout moji osobní knihovnu' : 'Aktivovat správcovské zařízení'}</h2><p>Balíček je na serveru pouze v zašifrované podobě. Správný osobní kód odemkne písně v tomto zařízení a aktivuje administrátorské funkce.</p><form onSubmit={(event) => { event.preventDefault(); void downloadLegacyLibrary(); }}><label htmlFor="library-access-code">Osobní administrátorský kód</label><div className="access-code-row"><input id="library-access-code" type="password" autoComplete="off" spellCheck={false} value={accessCode} onChange={(event) => setAccessCode(event.target.value)} placeholder="XXXX-XXXX-XXXX-XXXX" disabled={backupBusy} /><button type="submit" className="primary-button" disabled={backupBusy || !accessCode.trim()}>{backupBusy ? 'Stahuji…' : 'Odemknout a stáhnout'}</button></div></form></section>}
 

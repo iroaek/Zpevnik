@@ -10,9 +10,9 @@
 - ZIP obsahující podporované formáty
 - prostý text (`.txt`) jako návrh vyžadující ruční kontrolu
 
-## Vícestránkové PDF zpěvníky
+## PDF zpěvníky a jednotlivé písně v DOCX
 
-PDF se záměrně nezpracovávají běžným publikovatelným importem. Dodané soubory vložte do `songs_data/` a nainstalujte lokální PDF závislost:
+PDF a DOCX se záměrně nezpracovávají běžným publikovatelným importem. Dodané soubory vložte do `songs_data/` a nainstalujte lokální PDF závislost:
 
 ```powershell
 python -m pip install -r requirements-pdf.txt
@@ -22,11 +22,12 @@ npm run import:pdf-songbooks
 Skript:
 
 - ponechá `songs_data` beze změny;
-- vytvoří nový `data/normalized/import-<čas>-pdf-songbooks/`;
+- vytvoří nový `data/normalized/import-<čas>-song-documents/`;
 - rozliší začátek písně, možnou pokračovací stránku a prázdnou stránku;
+- z každého DOCX vytvoří jeden samostatný návrh a zachová tabulátory i buňky tabulek;
 - zachová monospaced rozložení textu a akordů v `requires-review/pages/`;
 - vytvoří `duplicate-report.json` a `duplicate-report.csv` pro přesné i pravděpodobné duplicity;
-- nastaví každému záznamu `rightsStatus: requires_review` a nic nepřidá do veřejného katalogu.
+- označí akordy jako uživatelem zkontrolované, ale nastaví každému záznamu `rightsStatus: requires_review` a nic nepřidá do veřejného katalogu.
 
 Stejný název nebo interpret je pouze kandidát ke kontrole. Pokračovací strany obsahují `parentCandidate`, ale skript je automaticky nespojuje s předchozí stránkou.
 

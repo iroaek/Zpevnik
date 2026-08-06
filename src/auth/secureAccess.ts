@@ -233,9 +233,11 @@ export async function reviewRemoteSongSubmission(submissionId: string, decision:
   if (error) throw readableError(error, 'Kontrolu návrhu se nepodařilo uložit.');
 }
 
-export async function downloadApprovedLibrary(): Promise<number> {
-  const { data, error } = await requireClient().storage.from('song-library').download('members/member-library.json');
-  if (error) throw readableError(error, 'Soukromá členská knihovna zatím není připravená.');
+export async function downloadApprovedLibrary(profile: SecureProfile): Promise<number> {
+  const admin = profile.role === 'admin';
+  const path = admin ? 'admin/admin-library.json' : 'members/member-library.json';
+  const { data, error } = await requireClient().storage.from('song-library').download(path);
+  if (error) throw readableError(error, admin ? 'Soukromá správcovská knihovna zatím není připravená.' : 'Soukromá členská knihovna zatím není připravená.');
   const imported = await importFullBackup(data);
   return imported.personalSongCount;
 }
