@@ -1,6 +1,7 @@
 import { createClient, type AuthChangeEvent, type Session } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { importFullBackup } from '../storage/database';
+import { createUuid } from '../domain/browserCompatibility';
 
 export const ACCOUNT_STATUSES = ['pending', 'approved', 'rejected', 'suspended'] as const;
 export const ACCOUNT_ROLES = ['member', 'admin'] as const;
@@ -198,7 +199,7 @@ export async function submitSecureSong(input: {
   if (input.file && input.file.size > 25 * 1024 * 1024) throw new Error('Soubor je větší než povolených 25 MB.');
 
   const supabase = requireClient();
-  const id = crypto.randomUUID();
+  const id = createUuid();
   let filePath: string | null = null;
   if (input.file) {
     filePath = `${input.profile.id}/${id}/${safeFileName(input.file.name)}`;

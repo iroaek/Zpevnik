@@ -14,3 +14,18 @@ export async function readBlobBytes(blob: Blob): Promise<Uint8Array> {
     reader.readAsArrayBuffer(blob);
   });
 }
+
+export async function readBlobText(blob: Blob): Promise<string> {
+  if (typeof blob.text === 'function') return blob.text();
+
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') resolve(reader.result);
+      else reject(new Error('Vybraný soubor se nepodařilo přečíst.'));
+    };
+    reader.onerror = () => reject(reader.error ?? new Error('Vybraný soubor se nepodařilo přečíst.'));
+    reader.onabort = () => reject(new Error('Načítání souboru bylo zrušeno.'));
+    reader.readAsText(blob, 'utf-8');
+  });
+}

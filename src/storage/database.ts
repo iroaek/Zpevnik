@@ -2,6 +2,8 @@ import { openDB } from 'idb';
 import { z } from 'zod';
 import type { ChordNotation } from '../domain/chords';
 import { sanitizeImportedText } from '../domain/chordpro';
+import { createUuid } from '../domain/browserCompatibility';
+import { readBlobText } from '../domain/readBlobBytes';
 import { songSchema, type Song } from '../domain/song';
 
 export interface Setlist {
@@ -174,7 +176,7 @@ export function createUserProfile(displayName: string, identity?: { id: string; 
   const now = new Date().toISOString();
   return userProfileSchema.parse({
     schemaVersion: 1,
-    id: identity?.id ?? crypto.randomUUID(),
+    id: identity?.id ?? createUuid(),
     displayName: displayName.trim(),
     role: identity?.role ?? 'member',
     monochromeMode: identity?.role === 'admin',
@@ -207,7 +209,7 @@ export async function saveSongSubmission(input: {
   if (input.file && input.file.size > 25 * 1024 * 1024) throw new Error('Soubor je větší než povolených 25 MB.');
   const submission = songSubmissionSchema.parse({
     schemaVersion: 1,
-    id: crypto.randomUUID(),
+    id: createUuid(),
     kind: input.kind,
     submitterId: input.profile.id,
     submitterName: input.profile.displayName,
@@ -250,7 +252,13 @@ function parseUserState(stored: unknown): UserState | null {
 export async function loadUserState(): Promise<UserState> {
   const database = await databasePromise;
   const stored = await database.get('state', 'current') as unknown;
-  return parseUserState(stored) ?? structuredClone(defaultUserState);
+  return parseUserState(stored) ?? {
+    ...defaultUserState,
+    favorites: [],
+    recentSongIds: [],
+    setlists: [],
+    settings: { ...defaultUserState.settings },
+  };
 }
 
 export async function saveUserState(state: UserState): Promise<void> {
@@ -272,7 +280,7 @@ export function createSetlist(state: UserState, name: string): UserState {
   const now = new Date().toISOString();
   return {
     ...state,
-    setlists: [...state.setlists, { id: crypto.randomUUID(), name: name.trim(), songIds: [], createdAt: now, updatedAt: now }],
+    setlists: [...state.setlists, { id: createUuid(), name: name.trim(), songIds: [], createdAt: now, updatedAt: now }],
   };
 }
 
@@ -334,12 +342,12 @@ export async function exportFullBackup(state: UserState, personalSongs: Song[]):
 
 export function isDownloadedLibrarySong(song: Song): boolean {
   return song.personalOnly === true
-    && song.sourceIdentifier.replaceAll('\\', '/').startsWith('songs_data/');
+    && song.sourceIdentifier.replace(/\\/g, '/').startsWith('songs_data/');
 }
 
 export async function importFullBackup(file: Blob, options: BackupImportOptions = {}): Promise<BackupImportResult> {
   if (file.size > 50 * 1024 * 1024) throw new Error('Záloha je větší než povolených 50 MB.');
-  const parsed = JSON.parse(await file.text()) as { application?: string; data?: unknown; personalSongs?: unknown; libraryScope?: unknown };
+  const parsed = JSON.parse(await readBlobText(file)) as { application?: string; data?: unknown; personalSongs?: unknown; libraryScope?: unknown };
   if (parsed.application !== 'cesky-digitalni-zpevnik') throw new Error('Soubor není záloha této aplikace.');
   if (options.expectedLibraryScope && parsed.libraryScope !== options.expectedLibraryScope) {
     throw new Error('Stažený balíček neodpovídá oprávnění tohoto účtu.');

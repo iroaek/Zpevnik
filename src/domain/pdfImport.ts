@@ -6,6 +6,7 @@ import { reconstructPdfLines, type PositionedTextItem } from './pdfLayout';
 import type { ChordNotation } from './chords';
 import type { Song } from './song';
 import type { PersonalSongEntry } from '../storage/database';
+import { createUuid } from './browserCompatibility';
 
 GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
@@ -70,24 +71,25 @@ export async function importPdfFile(
   if (file.size > MAX_PDF_BYTES) throw new Error(`${file.name}: maximum je 80 MB na jeden soubor.`);
 
   const loadingTask = getDocument({ data: await readBlobBytes(file) });
-  const document = await loadingTask.promise;
-  const pageCount = document.numPages;
-  if (pageCount > MAX_PDF_PAGES) {
-    await loadingTask.destroy();
-    throw new Error(`${file.name}: maximum je ${MAX_PDF_PAGES} stran.`);
-  }
-
   const entries: PersonalSongEntry[] = [];
   let skippedPages = 0;
   try {
+    const document = await loadingTask.promise;
+    const pageCount = document.numPages;
+    if (pageCount > MAX_PDF_PAGES) throw new Error(`${file.name}: maximum je ${MAX_PDF_PAGES} stran.`);
+
     for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
       onProgress({ fileName: file.name, page: pageNumber, totalPages: document.numPages });
       const page = await document.getPage(pageNumber);
-      const textContent = await page.getTextContent();
+      let textContent;
+      try {
+        textContent = await page.getTextContent();
+      } finally {
+        page.cleanup();
+      }
       const items = textContent.items.filter((item): item is typeof item & PositionedTextItem => 'str' in item && typeof item.str === 'string');
       const lines = reconstructPdfLines(items);
       const layoutText = lines.join('\n').trim();
-      page.cleanup();
       if (!layoutText) {
         skippedPages += 1;
         continue;
@@ -101,7 +103,7 @@ export async function importPdfFile(
       if (converted.malformedChordTokens.length > 0) reviewFlags.push('malformed_chord_layout');
       const chordsVerified = options.chordsVerified && reviewFlags.length === 0;
       const now = new Date().toISOString();
-      const id = `personal-upload-${slug(metadata.title)}-${crypto.randomUUID()}`;
+      const id = `personal-upload-${slug(metadata.title)}-${createUuid()}`;
       const song: Song = {
         id,
         title: metadata.title,
@@ -139,10 +141,9 @@ export async function importPdfFile(
       };
       entries.push({ song, content: converted.chordPro });
     }
+    markDuplicateTitles(entries);
+    return { entries, pageCount, skippedPages };
   } finally {
     await loadingTask.destroy();
   }
-
-  markDuplicateTitles(entries);
-  return { entries, pageCount, skippedPages };
 }

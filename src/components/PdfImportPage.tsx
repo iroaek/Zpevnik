@@ -4,6 +4,7 @@ import type { ChordNotation } from '../domain/chords';
 import type { Song } from '../domain/song';
 import { removePersonalSong, savePersonalSongs, type UserProfile } from '../storage/database';
 import { SongContribution } from './SongContribution';
+import { describePdfImportError } from '../domain/pdfImportError';
 
 interface PdfImportPageProps {
   allSongs: Song[];
@@ -45,29 +46,37 @@ export function PdfImportPage({ allSongs, deviceSongs, defaultNotation, onLibrar
     let skipped = 0;
     let duplicates = 0;
     let firstId: string | null = null;
+    const failures: string[] = [];
     const knownTitles = new Set(allSongs.map((song) => normalizedTitle(song.title)));
     try {
       const { importPdfFile } = await import('../domain/pdfImport');
       for (const file of Array.from(files)) {
-        const result = await importPdfFile(file, { sourceNotation: notation, chordsVerified }, setProgress);
-        for (const entry of result.entries) {
-          const titleKey = normalizedTitle(entry.song.title);
-          if (knownTitles.has(titleKey)) {
-            entry.song.reviewFlags = ['possible_duplicate'];
-            duplicates += 1;
+        try {
+          const result = await importPdfFile(file, { sourceNotation: notation, chordsVerified }, setProgress);
+          for (const entry of result.entries) {
+            const titleKey = normalizedTitle(entry.song.title);
+            if (knownTitles.has(titleKey)) {
+              entry.song.reviewFlags = ['possible_duplicate'];
+              duplicates += 1;
+            }
+            knownTitles.add(titleKey);
           }
-          knownTitles.add(titleKey);
+          await savePersonalSongs(result.entries);
+          if (!firstId && result.entries[0]) firstId = result.entries[0].song.id;
+          imported += result.entries.length;
+          skipped += result.skippedPages;
+        } catch (error) {
+          failures.push(`${file.name}: ${describePdfImportError(error)}`);
         }
-        await savePersonalSongs(result.entries);
-        if (!firstId && result.entries[0]) firstId = result.entries[0].song.id;
-        imported += result.entries.length;
-        skipped += result.skippedPages;
       }
-      await onLibraryChanged();
+      if (imported > 0) await onLibraryChanged();
       setFirstImportedId(firstId);
-      setMessage(`Import dokončen: ${imported} osobních konceptů, ${skipped} prázdných stran přeskočeno${duplicates ? `, ${duplicates} možných duplicit označeno` : ''}.`);
+      const summary = `${imported} osobních konceptů, ${skipped} prázdných stran přeskočeno${duplicates ? `, ${duplicates} možných duplicit označeno` : ''}`;
+      setMessage(failures.length > 0
+        ? `Import se částečně nezdařil. Uloženo: ${summary}. Nezpracováno: ${failures.join(' | ')}`
+        : `Import dokončen: ${summary}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? `Import se nezdařil: ${error.message}` : 'Import se nezdařil.');
+      setMessage(`Import se nezdařil: ${describePdfImportError(error)}`);
     } finally {
       setBusy(false);
       setProgress(null);

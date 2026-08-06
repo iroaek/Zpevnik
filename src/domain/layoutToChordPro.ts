@@ -34,7 +34,7 @@ function metadataValue(value: string): string {
 }
 
 export function recognizedChord(rawToken: string, notation: ChordNotation): string | null {
-  let token = rawToken.trim().replaceAll('♯', '#').replaceAll('♭', 'b');
+  let token = rawToken.trim().replace(/♯/g, '#').replace(/♭/g, 'b');
   token = token.replace(/^[|:]+/, '').replace(/[|:,;.]+$/, '');
   if (token.startsWith('(') && token.endsWith(')')) token = token.slice(1, -1);
   token = token.replace(/^_+|[_*]+$/g, '').replace(/5-$/, 'b5');

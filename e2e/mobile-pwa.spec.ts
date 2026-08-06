@@ -96,6 +96,12 @@ test('deep linky načtou píseň, setlist, import PDF, instalaci, offline obsah 
 
 test('syntetické PDF se na mobilu skutečně přečte a uloží', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-390x844', 'Import stačí provést v reprezentativním mobilním viewportu.');
+  await page.addInitScript(() => {
+    Object.defineProperty(Crypto.prototype, 'randomUUID', { configurable: true, value: undefined });
+    Object.defineProperty(Blob.prototype, 'arrayBuffer', { configurable: true, value: undefined });
+    Object.defineProperty(Blob.prototype, 'text', { configurable: true, value: undefined });
+    Object.defineProperty(globalThis, 'structuredClone', { configurable: true, value: undefined });
+  });
   await page.goto('import');
   await page.getByRole('button', { name: 'Vybrat PDF ze zařízení' }).setInputFiles({
     name: 'synthetic-song.pdf',
