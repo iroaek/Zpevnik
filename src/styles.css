@@ -271,6 +271,14 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
 .offline-actions article { display: grid; gap: 0.75rem; margin: 0; }
 .offline-actions .member-library-download { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 7%, var(--surface)); }
 .member-library-download small { display: block; margin-top: 0.45rem; color: var(--muted); line-height: 1.45; }
+.downloaded-library-manager { overflow: hidden; border: 1px solid var(--primary); border-radius: 16px; background: var(--surface); }
+.downloaded-library-manager > summary { min-height: 2.9rem; padding: 0.85rem 1rem; color: var(--text); font-weight: 800; cursor: pointer; }
+.downloaded-library-manager[open] > summary { border-bottom: 1px solid var(--border); }
+.downloaded-library-manager__content { display: grid; gap: 0.8rem; padding: 1rem; }
+.downloaded-library-manager__content input { width: 100%; min-height: 2.9rem; padding: 0.65rem 0.8rem; color: var(--text); border: 1px solid var(--border); border-radius: 11px; background: var(--surface-strong); font: inherit; }
+.downloaded-song-label { display: grid; gap: 0.2rem; min-width: 0; padding: 0.35rem; }
+.downloaded-song-label strong, .downloaded-song-label small { overflow-wrap: anywhere; }
+.downloaded-song-label small { color: var(--muted); font-size: 0.82rem; }
 .offline-actions h2 { margin-bottom: 0.2rem; }
 .offline-actions p { margin: 0; color: var(--muted); line-height: 1.45; }
 .offline-actions button { width: 100%; }

@@ -23,7 +23,7 @@ import { useUserState } from './hooks/useUserState';
 import { loadLatestCatalog } from './pwa/contentCache';
 import { canonicalUrl, relativeRoute, routePath } from './pwa/paths';
 import { activateWaitingUpdate } from './pwa/updateManager';
-import { addRecent, createUserProfile, loadPersonalSongs } from './storage/database';
+import { addRecent, createUserProfile, isDownloadedLibrarySong, loadPersonalSongs } from './storage/database';
 import type { PersonalLibrarySummary } from './personalLibrary';
 
 type Route =
@@ -97,6 +97,10 @@ export default function App() {
     const byId = new Map([...catalog.songs, ...devPersonalSongs, ...deviceSongs].map((song) => [song.id, song]));
     return [...byId.values()].sort((left, right) => left.sortTitle.localeCompare(right.sortTitle, 'cs'));
   }, [catalog.songs, devPersonalSongs, deviceSongs]);
+  const downloadedLibrarySongs = useMemo(
+    () => deviceSongs.filter(isDownloadedLibrarySong),
+    [deviceSongs],
+  );
   const selectedSong = useMemo(() => route.name === 'song' ? allSongs.find((song) => song.id === route.id) : undefined, [allSongs, route]);
   const selectedPublicSetlist = useMemo(() => route.name === 'public-setlist' ? catalog.publicSetlists.find((setlist) => setlist.id === route.id) : undefined, [catalog, route]);
 
@@ -225,7 +229,7 @@ export default function App() {
         {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id) => navigate(`setlists/${id}`)} />}
         {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} />}
         {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
-        {route.name === 'offline' && <OfflineContent catalog={catalog} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} personalSongCount={deviceSongs.length} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
+        {route.name === 'offline' && <OfflineContent catalog={catalog} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} downloadedLibrarySongs={downloadedLibrarySongs} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
         {route.name === 'install' && <InstallPage canPrompt={installPrompt.canPrompt} installed={installPrompt.installed} isIosLike={installPrompt.isIosLike} onInstall={installPrompt.install} onNavigate={navigate} />}
         {route.name === 'help' && <HelpPage onNavigate={navigate} />}
         {route.name === 'song' && selectedSong && <SongReader key={selectedSong.id} song={selectedSong} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onBack={() => navigate('')} />}

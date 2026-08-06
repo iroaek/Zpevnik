@@ -140,6 +140,11 @@ export interface BackupImportResult {
   personalSongCount: number;
 }
 
+export interface BackupImportOptions {
+  replaceDownloadedLibrary?: boolean;
+  expectedLibraryScope?: 'admin' | 'members';
+}
+
 const personalSongEntrySchema = z.object({
   song: songSchema,
   content: z.string().max(2_000_000),
@@ -327,10 +332,18 @@ export async function exportFullBackup(state: UserState, personalSongs: Song[]):
   return entries.length;
 }
 
-export async function importFullBackup(file: Blob): Promise<BackupImportResult> {
+export function isDownloadedLibrarySong(song: Song): boolean {
+  return song.personalOnly === true
+    && song.sourceIdentifier.replaceAll('\\', '/').startsWith('songs_data/');
+}
+
+export async function importFullBackup(file: Blob, options: BackupImportOptions = {}): Promise<BackupImportResult> {
   if (file.size > 50 * 1024 * 1024) throw new Error('Záloha je větší než povolených 50 MB.');
-  const parsed = JSON.parse(await file.text()) as { application?: string; data?: unknown; personalSongs?: unknown };
+  const parsed = JSON.parse(await file.text()) as { application?: string; data?: unknown; personalSongs?: unknown; libraryScope?: unknown };
   if (parsed.application !== 'cesky-digitalni-zpevnik') throw new Error('Soubor není záloha této aplikace.');
+  if (options.expectedLibraryScope && parsed.libraryScope !== options.expectedLibraryScope) {
+    throw new Error('Stažený balíček neodpovídá oprávnění tohoto účtu.');
+  }
   const state = parseUserState(parsed.data);
   if (!state) throw new Error('Záloha má nepodporovaný nebo poškozený formát.');
   const parsedEntries = personalSongBackupSchema.safeParse(parsed.personalSongs ?? []);
@@ -347,7 +360,29 @@ export async function importFullBackup(file: Blob): Promise<BackupImportResult> 
       content: sanitized,
     };
   });
-  await savePersonalSongs(entries);
+  if (options.replaceDownloadedLibrary) {
+    if (entries.some(({ song }) => !isDownloadedLibrarySong(song))) {
+      throw new Error('Stažený balíček obsahuje píseň s neplatným původem.');
+    }
+    const database = await databasePromise;
+    const stored = await database.getAll('personalSongs') as unknown[];
+    const oldIds = stored.flatMap((value) => {
+      const parsedSong = songSchema.safeParse(value);
+      return parsedSong.success && isDownloadedLibrarySong(parsedSong.data) ? [parsedSong.data.id] : [];
+    });
+    const transaction = database.transaction(['personalSongs', 'personalSongContent'], 'readwrite');
+    for (const songId of oldIds) {
+      await transaction.objectStore('personalSongs').delete(songId);
+      await transaction.objectStore('personalSongContent').delete(songId);
+    }
+    for (const entry of entries) {
+      await transaction.objectStore('personalSongs').put(entry.song, entry.song.id);
+      await transaction.objectStore('personalSongContent').put(entry.content, entry.song.id);
+    }
+    await transaction.done;
+  } else {
+    await savePersonalSongs(entries);
+  }
   return { state, personalSongCount: entries.length };
 }
 
@@ -384,4 +419,21 @@ export async function removePersonalSong(songId: string): Promise<void> {
   await transaction.objectStore('personalSongs').delete(songId);
   await transaction.objectStore('personalSongContent').delete(songId);
   await transaction.done;
+}
+
+export async function removeDownloadedLibrarySongs(): Promise<number> {
+  const database = await databasePromise;
+  const stored = await database.getAll('personalSongs') as unknown[];
+  const songIds = stored.flatMap((value) => {
+    const parsed = songSchema.safeParse(value);
+    return parsed.success && isDownloadedLibrarySong(parsed.data) ? [parsed.data.id] : [];
+  });
+  if (songIds.length === 0) return 0;
+  const transaction = database.transaction(['personalSongs', 'personalSongContent'], 'readwrite');
+  for (const songId of songIds) {
+    await transaction.objectStore('personalSongs').delete(songId);
+    await transaction.objectStore('personalSongContent').delete(songId);
+  }
+  await transaction.done;
+  return songIds.length;
 }

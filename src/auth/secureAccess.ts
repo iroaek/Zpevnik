@@ -243,6 +243,9 @@ export async function downloadApprovedLibrary(profile: SecureProfile): Promise<n
   const path = admin ? 'admin/admin-library.json' : 'members/member-library.json';
   const { data, error } = await requireClient().storage.from('song-library').download(path);
   if (error) throw readableError(error, admin ? 'Soukromá správcovská knihovna zatím není připravená.' : 'Soukromá členská knihovna zatím není připravená.');
-  const imported = await importFullBackup(data);
+  const imported = await importFullBackup(data, {
+    replaceDownloadedLibrary: true,
+    expectedLibraryScope: admin ? 'admin' : 'members',
+  });
   return imported.personalSongCount;
 }

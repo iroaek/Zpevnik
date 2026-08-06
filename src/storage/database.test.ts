@@ -95,6 +95,61 @@ describe('migrace IndexedDB', () => {
     expect(await databaseModule.getPersonalSongContent(song.id)).toBe('[G]Novýsyntetický text');
   });
 
+  it('atomicky nahradí staženou členskou knihovnu a zachová vlastní PDF importy', async () => {
+    const databaseModule = await import('./database');
+    const oldDownloaded = {
+      ...personalSongFixture('personal-stara-clenska', 'Stará členská píseň'),
+      sourceIdentifier: 'songs_data/stary-zpevnik.pdf#page=1',
+    };
+    const localImport = {
+      ...personalSongFixture('personal-vlastni-pdf', 'Vlastní PDF píseň'),
+      source: 'Uživatelem nahrané PDF vlastni.pdf',
+      sourceIdentifier: 'local-pdf:vlastni.pdf#page=1',
+    };
+    await databaseModule.savePersonalSongs([
+      { song: oldDownloaded, content: '[C]Stará členská věta' },
+      { song: localImport, content: '[D]Vlastní věta' },
+    ]);
+
+    const newDownloaded = {
+      ...personalSongFixture('personal-nova-clenska', 'Nová členská píseň'),
+      sourceIdentifier: 'songs_data/novy-zpevnik.pdf#page=1',
+    };
+    const file = new File([JSON.stringify({
+      application: 'cesky-digitalni-zpevnik',
+      backupVersion: 2,
+      exportedAt: '2026-08-06T00:00:00.000Z',
+      libraryScope: 'members',
+      data: legacyState,
+      personalSongs: [{ song: newDownloaded, content: '[G]Nová členská věta' }],
+    })], 'member-library.json', { type: 'application/json' });
+
+    const imported = await databaseModule.importFullBackup(file, {
+      replaceDownloadedLibrary: true,
+      expectedLibraryScope: 'members',
+    });
+    const songs = await databaseModule.loadPersonalSongs();
+    expect(imported.personalSongCount).toBe(1);
+    expect(songs).not.toContainEqual(expect.objectContaining({ id: oldDownloaded.id }));
+    expect(songs).toContainEqual(expect.objectContaining({ id: newDownloaded.id }));
+    expect(songs).toContainEqual(expect.objectContaining({ id: localImport.id }));
+    expect(await databaseModule.getPersonalSongContent(oldDownloaded.id)).toBeNull();
+    expect(await databaseModule.getPersonalSongContent(localImport.id)).toBe('[D]Vlastní věta');
+  });
+
+  it('odstraní celou staženou členskou knihovnu, ale ponechá vlastní PDF importy', async () => {
+    const databaseModule = await import('./database');
+    const before = await databaseModule.loadPersonalSongs();
+    expect(before).toContainEqual(expect.objectContaining({ id: 'personal-nova-clenska' }));
+    expect(before).toContainEqual(expect.objectContaining({ id: 'personal-vlastni-pdf' }));
+
+    expect(await databaseModule.removeDownloadedLibrarySongs()).toBeGreaterThanOrEqual(1);
+
+    const after = await databaseModule.loadPersonalSongs();
+    expect(after).not.toContainEqual(expect.objectContaining({ id: 'personal-nova-clenska' }));
+    expect(after).toContainEqual(expect.objectContaining({ id: 'personal-vlastni-pdf' }));
+  });
+
   it('načte i starou zálohu bez osobních písní', async () => {
     const databaseModule = await import('./database');
     const file = new File([JSON.stringify({ application: 'cesky-digitalni-zpevnik', data: legacyState })], 'stara-zaloha.json', { type: 'application/json' });
