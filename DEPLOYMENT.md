@@ -14,9 +14,9 @@ Pro podadresář použijte například `https://example.cz/tabor/zpevnik/`. Z t�
 ## GitHub Pages
 
 1. Nahrajte projekt do GitHub repozitáře s výchozí větví `main`.
-2. V **Settings → Pages → Source** vyberte **Deploy from a branch**, větev `main` a adresář `/docs`.
-3. Produkční build vytvořte s `VITE_PUBLIC_BASE_URL=https://<vlastník>.github.io/<repozitář>/` a jeho obsah uložte do `docs/`.
-4. Workflow `.github/workflows/deploy-pages.yml` provede testy a kontrolní sestavení; samotné Pages publikuje GitHub přímo z `main/docs`.
+2. V **Settings → Pages → Source** vyberte **GitHub Actions**.
+3. Nastavte proměnnou `VITE_PUBLIC_BASE_URL=https://<vlastník>.github.io/<repozitář>/`.
+4. Workflow `.github/workflows/deploy-pages.yml` při každém pushi do `main` spustí testy, vytvoří produkční `dist` a teprve po úspěchu jej publikuje na GitHub Pages.
 5. `404.html` je kopií app shellu, takže obnovení `/songs/<id>` neskončí chybou aplikace.
 6. Vlastní doménu nastavte v **Settings → Pages → Custom domain**, upravte DNS a zároveň nastavte repository variable na finální HTTPS adresu.
 
