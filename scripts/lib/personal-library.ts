@@ -28,6 +28,7 @@ interface ManualReviewFile {
 
 interface ImportReport {
   createdAt: string;
+  inputSha256?: Record<string, string>;
   totals?: {
     pages?: number;
     songStarts?: number;
@@ -50,6 +51,7 @@ export interface PersonalLibrarySnapshot {
     totalPages: number;
     continuationCandidates: number;
     exactDuplicateGroups: number;
+    inputSha256: Record<string, string>;
   };
   contentBySongId: Map<string, string>;
 }
@@ -142,6 +144,7 @@ export function buildPersonalLibrary(importDirectory: string): PersonalLibrarySn
       totalPages: report.totals?.pages ?? review.records.length,
       continuationCandidates: report.totals?.continuationCandidates ?? 0,
       exactDuplicateGroups: report.totals?.exactDuplicateGroups ?? 0,
+      inputSha256: report.inputSha256 ?? {},
     },
     contentBySongId,
   };

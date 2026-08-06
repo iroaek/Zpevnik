@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "importDirectory": "import-2026-08-06T13-03-14-701376Z-song-documents",
+  "grantedAt": "2026-08-06T00:00:00.000Z",
+  "grantedBy": "Oprávněný poskytovatel uživatelského obsahu",
+  "authorization": "Potvrzuji, že jsem oprávněn zpřístupnit obsah všech nahraných písní schváleným uživatelům.",
+  "allowedAudience": "approved_members",
+  "allowOfflineDownload": true,
+  "rightsStatus": "licensed",
+  "license": "Soukromé zpřístupnění a offline uložení v aplikaci je povoleno pouze uživatelům schváleným administrátorem; další šíření není povoleno.",
+  "inputSha256": {
+    "songs_data/nedvedi.pdf": "0ddb2e735edf948130caf1bceaa297b17c609fafce8c1150a79915a849e0de2f",
+    "songs_data/zpevnik1.pdf": "208fa749a2ed7c642cdc4e732cb2d27101b5c08fa7ae68574749840a43851cac",
+    "songs_data/zpevnik2.pdf": "1b3f8a5eb23c1ccdee7090d0b81c347ffc08e2815c773ed98f2bb506b678b78a",
+    "songs_data/zpevnik3.pdf": "1664db69297cf4999fa23163e1be4b3a0b98a253c3d098d3fb4ef00681c2f4f2",
+    "songs_data/zpevnik6-cechomor.pdf": "806e4663ec60878f5bfc5743ffb0189db3adb9bf73248c70d7082879c78ba322",
+    "songs_data/Loď jménem Batavia.docx": "64e1924a688e19166250f4bdaeab35c1644add3b7f6088edacd992c3966b0679",
+    "songs_data/Sedět a hrát.docx": "e1ca8dfb0267541b2f0de65627b0ac1bf39661a2f23ec5e8a87fede5eb41785e"
+  }
+}

@@ -1,7 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { PersonalLibrarySnapshot } from '../scripts/lib/personal-library.js';
-import { createPrivateLibraryBackup } from '../scripts/lib/private-library.js';
+import { applyMemberLibraryGrant, createPrivateLibraryBackup } from '../scripts/lib/private-library.js';
+
+const inputSha256 = { 'songs_data/test.pdf': 'a'.repeat(64) };
 
 function snapshot(): PersonalLibrarySnapshot {
   const song = {
@@ -39,7 +41,7 @@ function snapshot(): PersonalLibrarySnapshot {
   };
   return {
     catalog: { schemaVersion: 3, version: 'synthetic-test', generatedAt: song.createdAt, songs: [song], publicSetlists: [] },
-    summary: { sourceDirectory: 'fixture', songCount: 1, totalPages: 1, continuationCandidates: 0, exactDuplicateGroups: 0 },
+    summary: { sourceDirectory: 'fixture', songCount: 1, totalPages: 1, continuationCandidates: 0, exactDuplicateGroups: 0, inputSha256 },
     contentBySongId: new Map([[song.id, '[C]Vymyšlený řádek']]),
   };
 }
@@ -53,5 +55,43 @@ describe('soukromé knihovní balíky', () => {
     expect(admin.personalSongs).toHaveLength(1);
     expect(admin.personalSongs[0].song.chordProPath).toBe('indexeddb:personal-synteticka-pisen');
     expect(members.personalSongs).toHaveLength(0);
+  });
+
+  it('zpřístupní členům jen přesně autorizovaný import a zachová atribuci', () => {
+    const source = applyMemberLibraryGrant(snapshot(), {
+      schemaVersion: 1,
+      importDirectory: 'fixture',
+      grantedAt: '2026-08-06T00:00:00.000Z',
+      grantedBy: 'Oprávněný poskytovatel',
+      authorization: 'Souhlasím se zpřístupněním schváleným uživatelům.',
+      allowedAudience: 'approved_members',
+      allowOfflineDownload: true,
+      rightsStatus: 'licensed',
+      license: 'Soukromé členské oprávnění; další šíření zakázáno.',
+      inputSha256,
+    });
+    const members = createPrivateLibraryBackup(source, 'members', '2026-08-06T00:00:00.000Z');
+
+    expect(members.personalSongs).toHaveLength(1);
+    expect(members.personalSongs[0].song).toMatchObject({
+      rightsStatus: 'licensed',
+      attribution: 'Testovací autor',
+      license: 'Soukromé členské oprávnění; další šíření zakázáno.',
+    });
+  });
+
+  it('odmítne oprávnění pro jiné nebo změněné dokumenty', () => {
+    expect(() => applyMemberLibraryGrant(snapshot(), {
+      schemaVersion: 1,
+      importDirectory: 'fixture',
+      grantedAt: '2026-08-06T00:00:00.000Z',
+      grantedBy: 'Oprávněný poskytovatel',
+      authorization: 'Souhlasím se zpřístupněním schváleným uživatelům.',
+      allowedAudience: 'approved_members',
+      allowOfflineDownload: true,
+      rightsStatus: 'licensed',
+      license: 'Soukromé členské oprávnění; další šíření zakázáno.',
+      inputSha256: { 'songs_data/test.pdf': 'b'.repeat(64) },
+    })).toThrow(/Otisky vstupních dokumentů/);
   });
 });
