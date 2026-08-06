@@ -5,14 +5,19 @@ import { importFullBackup } from '../storage/database';
 export const ACCOUNT_STATUSES = ['pending', 'approved', 'rejected', 'suspended'] as const;
 export const ACCOUNT_ROLES = ['member', 'admin'] as const;
 
-const secureProfileSchema = z.object({
+// PostgreSQL `timestamptz` values returned by Supabase include an explicit
+// offset (usually `+00:00`). Keep the value as a string, but accept that valid
+// ISO 8601 representation in addition to the `Z` form used by local data.
+export const databaseTimestampSchema = z.string().datetime({ offset: true });
+
+export const secureProfileSchema = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
   display_name: z.string().trim().min(2).max(60),
   status: z.enum(ACCOUNT_STATUSES),
   role: z.enum(ACCOUNT_ROLES),
-  created_at: z.string().datetime(),
-  reviewed_at: z.string().datetime().nullable(),
+  created_at: databaseTimestampSchema,
+  reviewed_at: databaseTimestampSchema.nullable(),
 });
 
 const remoteSubmissionSchema = z.object({
@@ -31,7 +36,7 @@ const remoteSubmissionSchema = z.object({
   attribution: z.string(),
   status: z.enum(['pending_review', 'accepted_for_review', 'rejected', 'published']),
   admin_note: z.string(),
-  created_at: z.string().datetime(),
+  created_at: databaseTimestampSchema,
 });
 
 export type SecureProfile = z.infer<typeof secureProfileSchema>;
