@@ -157,4 +157,16 @@ describe('migrace IndexedDB', () => {
     expect(imported.state.schemaVersion).toBe(2);
     expect(imported.personalSongCount).toBe(0);
   });
+
+  it('vytvoří, přejmenuje a odstraní soukromý setlist', async () => {
+    const databaseModule = await import('./database');
+    const created = databaseModule.createSetlist(databaseModule.defaultUserState, '  Večer u ohně  ', 'setlist-test');
+    expect(created.setlists).toEqual([expect.objectContaining({ id: 'setlist-test', name: 'Večer u ohně' })]);
+
+    const renamed = databaseModule.renameSetlist(created, 'setlist-test', '  Neděle  ');
+    expect(renamed.setlists[0].name).toBe('Neděle');
+
+    const removed = databaseModule.removeSetlist(renamed, 'setlist-test');
+    expect(removed.setlists).toHaveLength(0);
+  });
 });

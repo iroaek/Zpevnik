@@ -17,6 +17,7 @@ interface SettingsProps {
   onUserProfileChange: React.Dispatch<React.SetStateAction<UserProfile | null>>;
   onPersonalLibraryChanged: () => Promise<void>;
   onNavigate: (path: string) => void;
+  onRefreshSecureProfile?: () => Promise<void>;
 }
 
 export function Settings({
@@ -29,15 +30,32 @@ export function Settings({
   onUserProfileChange,
   onPersonalLibraryChanged,
   onNavigate,
+  onRefreshSecureProfile,
 }: SettingsProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState('');
   const [backupBusy, setBackupBusy] = useState(false);
   const [accessCode, setAccessCode] = useState('');
+  const [permissionBusy, setPermissionBusy] = useState(false);
+  const [permissionMessage, setPermissionMessage] = useState('');
   const settings = userState.settings;
   const serverAdmin = secureMode && secureProfile?.role === 'admin';
   const localAdmin = userProfile.role === 'admin' && (!secureMode || serverAdmin);
   const update = (change: Partial<UserState['settings']>) => onUserStateChange((current) => ({ ...current, settings: { ...current.settings, ...change } }));
+
+  const refreshPermissions = async () => {
+    if (!onRefreshSecureProfile) return;
+    setPermissionBusy(true);
+    setPermissionMessage('Obnovuji oprávnění účtu…');
+    try {
+      await onRefreshSecureProfile();
+      setPermissionMessage('Oprávnění účtu byla obnovena ze serveru.');
+    } catch (error) {
+      setPermissionMessage(error instanceof Error ? `Oprávnění nelze obnovit: ${error.message}` : 'Oprávnění nelze obnovit.');
+    } finally {
+      setPermissionBusy(false);
+    }
+  };
 
   const exportBackup = async () => {
     setBackupBusy(true);
@@ -93,6 +111,13 @@ export function Settings({
         <span><strong>{userProfile.displayName}</strong><small>{secureMode ? `${serverAdmin ? 'Administrátor' : 'Schválený člen'} · ${secureProfile?.email ?? ''}` : userProfile.role === 'admin' ? 'Administrátor tohoto zařízení' : 'Profil tohoto zařízení'}</small></span>
         {secureMode && <button type="button" className="secondary-button profile-signout" onClick={() => void signOutSecureAccount()}>Odhlásit</button>}
       </section>
+
+      {secureMode && <section className={`account-role-card ${serverAdmin ? 'account-role-card--admin' : ''}`} aria-label="Oprávnění účtu"><span><small>Serverové oprávnění</small><strong>{serverAdmin ? 'Administrátor · plná správa' : 'Schválený člen'}</strong><p>{serverAdmin ? 'Máte přístup k databázi uživatelů, schvalování i návrhům písní.' : 'Administrátorské nástroje se zobrazí pouze účtu s rolí admin na serveru.'}</p></span><button type="button" className="secondary-button" disabled={permissionBusy} onClick={() => void refreshPermissions()}>{permissionBusy ? 'Obnovuji…' : 'Obnovit oprávnění'}</button></section>}
+      {permissionMessage && <p className="info-message" role="status">{permissionMessage}</p>}
+
+      {serverAdmin && <section className="admin-dashboard" aria-labelledby="admin-dashboard-heading"><header><p className="eyebrow">Správa aplikace</p><h2 id="admin-dashboard-heading">Administrace</h2><p>Uživatelé, žádosti, návrhy písní a instalační QR kódy jsou pohromadě na jednom místě.</p><nav aria-label="Sekce administrace"><a href="#admin-users-heading">Databáze uživatelů</a><a href="#admin-access-heading">Schvalování</a><a href="#qr-generator-heading">QR kódy</a></nav></header><AdminUsersPanel /><AdminAccessPanel /><QrCodeGenerator /></section>}
+
+      <div className="results-heading settings-section-heading"><h2>Běžné nastavení</h2><span>Vzhled a čtečka</span></div>
       <div className="settings-grid">
         <label>Vzhled<select value={settings.theme} onChange={(event) => update({ theme: event.target.value as UserState['settings']['theme'] })}><option value="system">Podle zařízení</option><option value="light">Světlý</option><option value="dark">Tmavý – k ohni</option></select></label>
         <label>Značení akordů<select value={settings.notation} onChange={(event) => update({ notation: event.target.value as UserState['settings']['notation'] })}><option value="czech">České (H / B)</option><option value="international">Mezinárodní (B / Bb)</option></select></label>
@@ -105,11 +130,7 @@ export function Settings({
 
       {!secureMode && <section className="backup-card personal-download-card"><h2>{userProfile.role === 'admin' ? 'Stáhnout moji osobní knihovnu' : 'Aktivovat správcovské zařízení'}</h2><p>Balíček je na serveru pouze v zašifrované podobě. Správný osobní kód odemkne písně v tomto zařízení a aktivuje administrátorské funkce.</p><form onSubmit={(event) => { event.preventDefault(); void downloadLegacyLibrary(); }}><label htmlFor="library-access-code">Osobní administrátorský kód</label><div className="access-code-row"><input id="library-access-code" type="password" autoComplete="off" spellCheck={false} value={accessCode} onChange={(event) => setAccessCode(event.target.value)} placeholder="XXXX-XXXX-XXXX-XXXX" disabled={backupBusy} /><button type="submit" className="primary-button" disabled={backupBusy || !accessCode.trim()}>{backupBusy ? 'Stahuji…' : 'Odemknout a stáhnout'}</button></div></form></section>}
 
-      {serverAdmin && <AdminUsersPanel />}
-
-      {serverAdmin && <AdminAccessPanel />}
-
-      {localAdmin && <QrCodeGenerator />}
+      {localAdmin && !serverAdmin && <QrCodeGenerator />}
 
       <section className="backup-card"><h2>Přenos celého zpěvníku souborem</h2><p>Záloha obsahuje nastavení, oblíbené, setlisty i všechny osobní písně ({personalSongs.length}). Soubor zůstane u vás a lze jej ručně načíst v telefonu.</p><div className="button-row"><button type="button" className="secondary-button" disabled={backupBusy} onClick={() => void exportBackup()}>{backupBusy ? 'Pracuji…' : 'Exportovat celou zálohu'}</button><label className={backupBusy ? 'secondary-button file-button disabled' : 'secondary-button file-button'}>Importovat celou zálohu<input ref={fileRef} type="file" accept="application/json,.json" disabled={backupBusy} onChange={(event) => void importBackup(event.target.files?.[0])} /></label></div>{message && <p role="status">{message}</p>}</section>
       <section className="privacy-card"><h2>Soukromí a offline provoz</h2><p>{secureMode ? 'Účet, schválení a návrhy zpracovává zabezpečený server. Soukromé soubory podléhají pravidlům účtu; veřejná PWA je neobsahuje.' : 'V místním režimu se profil, importované písně ani návrhy ze zařízení neodesílají.'} Po stažení mohou vybrané písně fungovat offline.</p></section>

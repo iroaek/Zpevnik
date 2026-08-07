@@ -1,9 +1,19 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { activateWaitingUpdate, hasWaitingUpdate, registerPwa } from './updateManager';
+import { activateWaitingUpdate, checkForUpdate, hasWaitingUpdate, registerPwa } from './updateManager';
 
 interface RegistrationCallbacks {
   onNeedRefresh?: () => void;
   onRegisteredSW?: (url: string, registration: ServiceWorkerRegistration | undefined) => void;
+}
+
+function registrationMock(): ServiceWorkerRegistration {
+  return {
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    update: vi.fn(async () => undefined),
+    waiting: null,
+    installing: { state: 'installed' },
+  } as unknown as ServiceWorkerRegistration;
 }
 
 const pwaMock = vi.hoisted(() => ({
@@ -34,5 +44,15 @@ describe('správa aktualizace PWA', () => {
     await activateWaitingUpdate();
     expect(pwaMock.applyUpdate).toHaveBeenCalledWith(true);
     expect(hasWaitingUpdate()).toBe(false);
+  });
+
+  it('vrátí jasný výsledek, když je nainstalovaná verze aktuální', async () => {
+    vi.useFakeTimers();
+    const current = registrationMock();
+    registerPwa();
+    pwaMock.callbacks?.onRegisteredSW?.('/sw.js', current);
+
+    await expect(checkForUpdate()).resolves.toBe('up-to-date');
+    expect(current.update).toHaveBeenCalledOnce();
   });
 });

@@ -5,12 +5,17 @@ import { downloadApprovedLibrary, type SecureProfile } from '../auth/secureAcces
 import { catalogSchema } from '../domain/song';
 import catalogJson from '../generated/catalog.json';
 import { inspectOfflineContent } from '../pwa/contentCache';
+import { checkForUpdate } from '../pwa/updateManager';
 import { removeDownloadedLibrarySongs, removePersonalSong } from '../storage/database';
 import { OfflineContent } from './OfflineContent';
 
 vi.mock('../hooks/useConnectivity', () => ({ useConnectivity: () => true }));
 vi.mock('../auth/secureAccess', () => ({ downloadApprovedLibrary: vi.fn() }));
-vi.mock('../pwa/updateManager', () => ({ checkForUpdate: vi.fn() }));
+vi.mock('../pwa/updateManager', () => ({
+  activateWaitingUpdate: vi.fn(),
+  checkForUpdate: vi.fn(),
+  hasWaitingUpdate: vi.fn(() => false),
+}));
 vi.mock('../storage/database', () => ({
   removeDownloadedLibrarySongs: vi.fn(),
   removePersonalSong: vi.fn(),
@@ -21,6 +26,7 @@ vi.mock('../pwa/contentCache', () => ({
   downloadAllScores: vi.fn(),
   removeAllOfflineContent: vi.fn(),
   removeScores: vi.fn(),
+  removeSongs: vi.fn(),
 }));
 
 const catalog = catalogSchema.parse(catalogJson as unknown);
@@ -65,6 +71,7 @@ describe('Offline obsah', () => {
     vi.mocked(downloadApprovedLibrary).mockReset();
     vi.mocked(removeDownloadedLibrarySongs).mockReset().mockResolvedValue(1);
     vi.mocked(removePersonalSong).mockReset().mockResolvedValue(undefined);
+    vi.mocked(checkForUpdate).mockReset().mockResolvedValue('up-to-date');
   });
 
   it('nabídne schválenému členovi stažení knihovny a po importu obnoví seznam písní', async () => {
@@ -72,7 +79,7 @@ describe('Offline obsah', () => {
     vi.mocked(downloadApprovedLibrary).mockResolvedValue(485);
 
     render(<OfflineContent catalog={catalog} secureMode secureProfile={profile} downloadedLibrarySongs={[]} onPersonalLibraryChanged={refreshLibrary} onNavigate={vi.fn()} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Stáhnout členské písně' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Stáhnout knihovnu' }));
 
     await waitFor(() => expect(downloadApprovedLibrary).toHaveBeenCalledWith(profile));
     expect(refreshLibrary).toHaveBeenCalledOnce();
@@ -81,14 +88,14 @@ describe('Offline obsah', () => {
 
   it('v místním režimu soukromou členskou kartu nezobrazuje', () => {
     render(<OfflineContent catalog={catalog} onNavigate={vi.fn()} />);
-    expect(screen.queryByRole('heading', { name: 'Soukromá členská knihovna' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Soukromá knihovna' })).not.toBeInTheDocument();
   });
 
   it('odstraní vybranou členskou píseň pouze z tohoto zařízení', async () => {
     const refreshLibrary = vi.fn().mockResolvedValue(undefined);
     render(<OfflineContent catalog={catalog} secureMode secureProfile={profile} downloadedLibrarySongs={[downloadedSong]} onPersonalLibraryChanged={refreshLibrary} onNavigate={vi.fn()} />);
 
-    await userEvent.click(screen.getByText('Spravovat stažené písně (1)'));
+    await userEvent.click(screen.getByText('Odstranit jednotlivé písně (1)'));
     await userEvent.click(screen.getByRole('button', { name: 'Odstranit Stažená syntetická píseň z tohoto zařízení' }));
     await userEvent.click(screen.getByRole('button', { name: 'Potvrdit' }));
 
@@ -101,12 +108,20 @@ describe('Offline obsah', () => {
     const refreshLibrary = vi.fn().mockResolvedValue(undefined);
     render(<OfflineContent catalog={catalog} secureMode secureProfile={profile} downloadedLibrarySongs={[downloadedSong]} onPersonalLibraryChanged={refreshLibrary} onNavigate={vi.fn()} />);
 
-    await userEvent.click(screen.getByText('Spravovat stažené písně (1)'));
-    await userEvent.click(screen.getByRole('button', { name: 'Odstranit celou staženou knihovnu' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Odstranit knihovnu' }));
     await userEvent.click(screen.getByRole('button', { name: 'Ano, odstranit knihovnu' }));
 
     await waitFor(() => expect(removeDownloadedLibrarySongs).toHaveBeenCalledOnce());
     expect(refreshLibrary).toHaveBeenCalledOnce();
     expect(await screen.findByText('Stažená soukromá knihovna byla z tohoto zařízení odstraněna (1 písní). Vlastní PDF importy zůstaly zachované.')).toBeVisible();
+  });
+
+  it('zobrazí srozumitelný výsledek ruční kontroly aktualizace', async () => {
+    render(<OfflineContent catalog={catalog} onNavigate={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Zkontrolovat aktualizaci' }));
+
+    await waitFor(() => expect(checkForUpdate).toHaveBeenCalledOnce());
+    expect(await screen.findByText('Používáte nejnovější dostupnou verzi aplikace.')).toBeVisible();
   });
 });

@@ -58,7 +58,7 @@ export function AdminUsersPanel() {
 
   return (
     <section className="backup-card admin-users-panel" aria-labelledby="admin-users-heading">
-      <div className="results-heading"><span><p className="eyebrow">Pouze administrátor</p><h2 id="admin-users-heading">Uživatelé</h2></span><button type="button" className="secondary-button" disabled={loading} onClick={() => void refresh()}>{loading ? 'Načítám…' : 'Obnovit'}</button></div>
+      <div className="results-heading"><span><p className="eyebrow">Pouze administrátor</p><h2 id="admin-users-heading">Databáze uživatelů</h2></span><button type="button" className="secondary-button" disabled={loading} onClick={() => void refresh()}>{loading ? 'Načítám…' : 'Obnovit seznam'}</button></div>
       <div className="admin-user-metrics" aria-label="Souhrn uživatelů">
         <span><small>Registrovaných</small><strong>{profiles.length}</strong></span>
         <span><small>Online</small><strong>{onlineCount}</strong></span>
@@ -77,6 +77,7 @@ export function AdminUsersPanel() {
           </article>;
         })}
       </div>
+      {observedAt > 0 && <p className="last-update">Naposledy obnoveno {new Date(observedAt).toLocaleTimeString('cs-CZ')}.</p>}
       <p className="score-note">Online znamená aktivitu v aplikaci během posledních dvou minut. Stav se automaticky obnovuje každých 30 sekund.</p>
     </section>
   );

@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { createUuid } from '../domain/browserCompatibility';
 import type { PublicSetlist, Song } from '../domain/song';
 import { fetchContent } from '../pwa/contentCache';
-import { createSetlist, updateSetlistSongs, type UserState } from '../storage/database';
+import { createSetlist, removeSetlist, renameSetlist, updateSetlistSongs, type UserState } from '../storage/database';
 import { ChordSheet } from './ChordSheet';
 
 interface SetlistsProps {
@@ -19,14 +20,23 @@ export function Setlists({ songs, userState, onUserStateChange, onOpenSong, publ
   const [selectedId, setSelectedId] = useState(userState.setlists[0]?.id ?? '');
   const [printSources, setPrintSources] = useState<Record<string, string>>({});
   const [printMode, setPrintMode] = useState(false);
-  const effectiveSelectedId = selectedId || userState.setlists[0]?.id || '';
+  const [editingName, setEditingName] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [message, setMessage] = useState('');
+  const selectedIdExists = userState.setlists.some((setlist) => setlist.id === selectedId);
+  const effectiveSelectedId = selectedIdExists ? selectedId : userState.setlists[0]?.id ?? '';
   const selected = userState.setlists.find((setlist) => setlist.id === effectiveSelectedId);
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!name.trim()) return;
-    onUserStateChange((current) => createSetlist(current, name));
+    const id = createUuid();
+    const setlistName = name.trim();
+    onUserStateChange((current) => createSetlist(current, setlistName, id));
+    setSelectedId(id);
     setName('');
+    setMessage(`Setlist „${setlistName}“ byl vytvořen a je vybraný.`);
   };
 
   const move = (index: number, direction: -1 | 1) => {
@@ -41,6 +51,28 @@ export function Setlists({ songs, userState, onUserStateChange, onOpenSong, publ
   const remove = (songId: string) => {
     if (!selected) return;
     onUserStateChange((current) => updateSetlistSongs(current, selected.id, selected.songIds.filter((id) => id !== songId)));
+    setMessage('Píseň byla ze setlistu odebrána.');
+  };
+
+  const saveName = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selected || !editingName.trim()) return;
+    const nextName = editingName.trim();
+    onUserStateChange((current) => renameSetlist(current, selected.id, nextName));
+    setRenaming(false);
+    setMessage(`Setlist byl přejmenován na „${nextName}“.`);
+  };
+
+  const deleteSelected = () => {
+    if (!selected) return;
+    const deletedName = selected.name;
+    const remaining = userState.setlists.filter((setlist) => setlist.id !== selected.id);
+    onUserStateChange((current) => removeSetlist(current, selected.id));
+    setSelectedId(remaining[0]?.id ?? '');
+    setConfirmDelete(false);
+    setRenaming(false);
+    setPrintMode(false);
+    setMessage(`Setlist „${deletedName}“ byl odstraněn pouze z tohoto zařízení.`);
   };
 
   const preparePrint = async () => {
@@ -62,14 +94,18 @@ export function Setlists({ songs, userState, onUserStateChange, onOpenSong, publ
   return (
     <section className="setlists-page" aria-labelledby="setlists-heading">
       <div className="section-heading"><div><p className="eyebrow">Pořadí na večer</p><h1 id="setlists-heading">Setlisty</h1></div></div>
+      <p className="lead setlists-intro">Vytvořte si vlastní pořadí písní. Soukromé setlisty se automaticky ukládají v tomto zařízení.</p>
       {publicSetlists.length > 0 && <section className="public-setlists" aria-labelledby="public-setlists-heading"><div className="results-heading"><h2 id="public-setlists-heading">Veřejné setlisty</h2><span>Mají vlastní QR odkaz</span></div>{publicSetlists.map((setlist) => <button type="button" className="song-card" onClick={() => onOpenPublicSetlist(setlist.id)} key={setlist.id}><span className="song-card__main"><strong>{setlist.title}</strong><span>{setlist.description}</span></span><span className="song-card__meta">{setlist.songIds.length} ♫ <span aria-hidden="true">›</span></span></button>)}</section>}
       <div className="results-heading private-heading"><h2>Moje soukromé setlisty</h2><span>Jen v tomto zařízení</span></div>
       <form className="new-setlist" onSubmit={submit}><label>Název nového setlistu<input value={name} maxLength={100} onChange={(event) => setName(event.target.value)} placeholder="Např. Sobota u ohně" /></label><button className="primary-button" type="submit">Vytvořit</button></form>
+      {message && <p className="success-message" role="status">{message}</p>}
       {userState.setlists.length === 0 ? <p className="empty-state">Zatím nemáte žádný setlist.</p> : (
         <>
-          <div className="setlist-tabs" role="tablist" aria-label="Setlisty">{userState.setlists.map((setlist) => <button type="button" role="tab" aria-selected={setlist.id === effectiveSelectedId} className={setlist.id === effectiveSelectedId ? 'chip chip--active' : 'chip'} onClick={() => { setSelectedId(setlist.id); setPrintMode(false); }} key={setlist.id}>{setlist.name}</button>)}</div>
+          <div className="setlist-tabs" role="tablist" aria-label="Setlisty">{userState.setlists.map((setlist) => <button type="button" role="tab" aria-selected={setlist.id === effectiveSelectedId} className={setlist.id === effectiveSelectedId ? 'chip chip--active' : 'chip'} onClick={() => { setSelectedId(setlist.id); setPrintMode(false); setRenaming(false); setConfirmDelete(false); }} key={setlist.id}><span>{setlist.name}</span><small>{setlist.songIds.length} písní</small></button>)}</div>
           {selected && <div className="setlist-detail">
-            <div className="results-heading"><h2>{selected.name}</h2><button type="button" className="secondary-button" disabled={selected.songIds.length === 0} onClick={preparePrint}>Náhled a tisk</button></div>
+            <div className="setlist-detail-heading"><span><p className="eyebrow">Vybraný setlist</p><h2>{selected.name}</h2><small>{selected.songIds.length} písní</small></span><div className="button-row"><button type="button" className="secondary-button" onClick={() => { setEditingName(selected.name); setRenaming(true); setConfirmDelete(false); }}>Přejmenovat</button><button type="button" className="secondary-button" disabled={selected.songIds.length === 0} onClick={preparePrint}>Náhled a tisk</button><button type="button" className="danger-button" onClick={() => { setConfirmDelete(true); setRenaming(false); }}>Smazat setlist</button></div></div>
+            {renaming && <form className="setlist-inline-form" onSubmit={saveName}><label>Nový název<input value={editingName} maxLength={100} autoFocus onChange={(event) => setEditingName(event.target.value)} /></label><div className="button-row"><button type="submit" className="primary-button" disabled={!editingName.trim()}>Uložit název</button><button type="button" className="secondary-button" onClick={() => setRenaming(false)}>Zrušit</button></div></form>}
+            {confirmDelete && <div className="confirm-row setlist-delete-confirm" role="alert"><strong>Opravdu odstranit setlist „{selected.name}“?</strong><span>Písně zůstanou v knihovně; odstraní se pouze toto pořadí v tomto zařízení.</span><div className="button-row"><button type="button" className="danger-button" onClick={deleteSelected}>Ano, smazat setlist</button><button type="button" className="secondary-button" onClick={() => setConfirmDelete(false)}>Zrušit</button></div></div>}
             {selected.songIds.map((songId, index) => {
               const song = songs.find((candidate) => candidate.id === songId);
               if (!song) return null;

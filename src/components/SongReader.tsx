@@ -25,6 +25,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   const [fireMode, setFireMode] = useState(false);
   const [orientationLocked, setOrientationLocked] = useState(false);
   const [setlistId, setSetlistId] = useState(userState.setlists[0]?.id ?? '');
+  const [setlistMessage, setSetlistMessage] = useState('');
   const settings = userState.settings;
   const isLayoutText = song.contentFormat === 'layout_text';
 
@@ -88,6 +89,11 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   }, [song.originalKey, sourceNotation, semitones, settings.notation]);
   const capoOptions = targetKey ? calculateCapoOptions(targetKey, settings.notation) : [];
   const isFavorite = userState.favorites.includes(song.id);
+  const effectiveSetlistId = userState.setlists.some((setlist) => setlist.id === setlistId)
+    ? setlistId
+    : userState.setlists[0]?.id ?? '';
+  const selectedSetlist = userState.setlists.find((setlist) => setlist.id === effectiveSetlistId);
+  const alreadyInSetlist = Boolean(selectedSetlist?.songIds.includes(song.id));
 
   const updateSettings = (change: Partial<UserState['settings']>) => {
     onUserStateChange((current) => ({ ...current, settings: { ...current.settings, ...change } }));
@@ -110,12 +116,17 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   };
 
   const addToSetlist = () => {
-    if (!setlistId) return;
+    if (!effectiveSetlistId || !selectedSetlist) return;
+    if (alreadyInSetlist) {
+      setSetlistMessage(`Píseň už v setlistu „${selectedSetlist.name}“ je.`);
+      return;
+    }
     onUserStateChange((current) => {
-      const setlist = current.setlists.find((candidate) => candidate.id === setlistId);
+      const setlist = current.setlists.find((candidate) => candidate.id === effectiveSetlistId);
       if (!setlist || setlist.songIds.includes(song.id)) return current;
-      return updateSetlistSongs(current, setlistId, [...setlist.songIds, song.id]);
+      return updateSetlistSongs(current, effectiveSetlistId, [...setlist.songIds, song.id]);
     });
+    setSetlistMessage(`Píseň byla přidána do setlistu „${selectedSetlist.name}“.`);
   };
 
   const toggleFullscreen = async () => {
@@ -196,7 +207,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
             <button type="button" className="secondary-button" onClick={() => window.print()}>Tisk písně</button>
           </section>
           <section className="setlist-add" aria-label="Přidat do setlistu">
-            {userState.setlists.length > 0 ? <><label>Setlist<select value={setlistId} onChange={(event) => setSetlistId(event.target.value)}>{userState.setlists.map((setlist) => <option value={setlist.id} key={setlist.id}>{setlist.name}</option>)}</select></label><button type="button" className="primary-button" onClick={addToSetlist}>Přidat</button></> : <p>Setlist lze nejdřív vytvořit v části Setlisty.</p>}
+            {userState.setlists.length > 0 ? <><label>Vybrat setlist<select value={effectiveSetlistId} onChange={(event) => { setSetlistId(event.target.value); setSetlistMessage(''); }}>{userState.setlists.map((setlist) => <option value={setlist.id} key={setlist.id}>{setlist.name} ({setlist.songIds.length})</option>)}</select></label><button type="button" className="primary-button" disabled={alreadyInSetlist} onClick={addToSetlist}>{alreadyInSetlist ? 'Již přidáno' : 'Přidat do setlistu'}</button>{setlistMessage && <p className="setlist-add-message" role="status">{setlistMessage}</p>}</> : <p>Nejdřív vytvořte setlist v části <strong>Setlisty</strong>, potom se sem vraťte.</p>}
           </section>
           <footer className="rights-card"><strong>Práva a původ</strong><span>{song.source}</span><span>{song.personalOnly ? 'Ke kontrole · pouze osobní místní koncept' : song.rightsStatus} · {song.license}</span><span>{song.attribution}</span></footer>
           {fireMode && <div className="fire-dock" aria-label="Rychlé ovládání režimu U ohně"><button type="button" className={autoScroll ? 'primary-button' : 'secondary-button'} onClick={() => setAutoScroll((value) => !value)}>{autoScroll ? '■ Zastavit' : '▶ Posun'}</button>{screen.orientation.lock && <button type="button" className="secondary-button" aria-pressed={orientationLocked} onClick={() => void toggleOrientationLock()}>{orientationLocked ? 'Odemknout otočení' : 'Zamknout na výšku'}</button>}<button type="button" className="secondary-button" onClick={() => void toggleFireMode()}>Ukončit U ohně</button></div>}

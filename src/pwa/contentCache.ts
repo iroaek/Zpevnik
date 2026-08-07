@@ -193,10 +193,19 @@ export async function inspectOfflineContent(catalog: Catalog): Promise<OfflineCo
   };
 }
 
-export async function removeScores(catalog: Catalog): Promise<void> {
+async function removeContentKind(kind: ContentKind): Promise<void> {
   if (!cacheAvailable()) return;
-  await caches.delete(cacheName('scores', catalog.version));
+  const names = await caches.keys();
+  await Promise.all(names.filter((name) => name.startsWith(`${CACHE_PREFIX}-${kind}-`)).map((name) => caches.delete(name)));
   await markUpdated();
+}
+
+export async function removeSongs(): Promise<void> {
+  await removeContentKind('songs');
+}
+
+export async function removeScores(): Promise<void> {
+  await removeContentKind('scores');
 }
 
 export async function removeAllOfflineContent(): Promise<void> {

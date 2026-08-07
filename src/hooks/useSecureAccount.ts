@@ -65,6 +65,22 @@ export function useSecureAccount(): SecureAccountState {
   }, [enabled, refresh]);
 
   useEffect(() => {
+    if (!enabled || !session) return;
+    const refreshIfActive = () => {
+      if (document.visibilityState === 'hidden' || !navigator.onLine) return;
+      void refresh();
+    };
+    const polling = window.setInterval(refreshIfActive, 2 * 60_000);
+    window.addEventListener('focus', refreshIfActive);
+    document.addEventListener('visibilitychange', refreshIfActive);
+    return () => {
+      window.clearInterval(polling);
+      window.removeEventListener('focus', refreshIfActive);
+      document.removeEventListener('visibilitychange', refreshIfActive);
+    };
+  }, [enabled, refresh, session]);
+
+  useEffect(() => {
     if (!enabled || !session || !profile) return;
     const touchIfActive = () => {
       if (document.visibilityState === 'hidden' || !navigator.onLine) return;

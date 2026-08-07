@@ -276,12 +276,27 @@ export function toggleFavorite(state: UserState, songId: string): UserState {
   return { ...state, favorites: exists ? state.favorites.filter((id) => id !== songId) : [...state.favorites, songId] };
 }
 
-export function createSetlist(state: UserState, name: string): UserState {
+export function createSetlist(state: UserState, name: string, id = createUuid()): UserState {
   const now = new Date().toISOString();
   return {
     ...state,
-    setlists: [...state.setlists, { id: createUuid(), name: name.trim(), songIds: [], createdAt: now, updatedAt: now }],
+    setlists: [...state.setlists, { id, name: name.trim(), songIds: [], createdAt: now, updatedAt: now }],
   };
+}
+
+export function renameSetlist(state: UserState, setlistId: string, name: string): UserState {
+  const trimmed = name.trim();
+  if (!trimmed) return state;
+  return {
+    ...state,
+    setlists: state.setlists.map((setlist) => setlist.id === setlistId
+      ? { ...setlist, name: trimmed, updatedAt: new Date().toISOString() }
+      : setlist),
+  };
+}
+
+export function removeSetlist(state: UserState, setlistId: string): UserState {
+  return { ...state, setlists: state.setlists.filter((setlist) => setlist.id !== setlistId) };
 }
 
 export function updateSetlistSongs(state: UserState, setlistId: string, songIds: string[]): UserState {

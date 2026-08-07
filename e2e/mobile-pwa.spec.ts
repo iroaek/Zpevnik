@@ -117,8 +117,8 @@ test('stažená píseň funguje offline a nestažené noty zobrazí upozornění
   await page.goto('./');
   await ensureServiceWorkerControls(page);
   await page.goto('offline');
-  await page.getByRole('button', { name: /Stáhnout celý zpěvník|Ověřit a stáhnout znovu/ }).click();
-  await expect(page.getByText('Všechny písně byly staženy a ověřeny.')).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('button', { name: /Stáhnout ukázky|Ověřit znovu/ }).click();
+  await expect(page.getByText('Ukázkové písně byly staženy a ověřeny.')).toBeVisible({ timeout: 20_000 });
   await page.goto('songs/synteticka-jiskra');
   await expect(page.getByText('Jiskra kreslí')).toBeVisible();
   await context.setOffline(true);
@@ -134,7 +134,7 @@ test('výslovně stažené noty se vykreslí offline', async ({ page, context },
   await page.goto('./');
   await ensureServiceWorkerControls(page);
   await page.goto('offline');
-  await page.getByRole('button', { name: /Stáhnout všechny notové party|Ověřit noty znovu/ }).click();
+  await page.getByRole('button', { name: /Stáhnout noty|Ověřit znovu/ }).click();
   await expect(page.getByText('Všechny notové party byly staženy a ověřeny.')).toBeVisible({ timeout: 30_000 });
   await context.setOffline(true);
   await page.goto('songs/synteticka-jiskra');
@@ -150,8 +150,14 @@ test('oblíbené a soukromý setlist přežijí obnovení aplikace', async ({ pa
   await page.getByLabel('Název nového setlistu').fill('Aktualizační test');
   await page.getByRole('button', { name: 'Vytvořit' }).click();
   await page.reload();
-  await expect(page.getByRole('tab', { name: 'Aktualizační test' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: /Aktualizační test/ })).toBeVisible();
   await page.goto('./');
   await page.getByRole('button', { name: /Syntetická jiskra/ }).click();
   await expect(page.getByRole('button', { name: 'Odebrat z oblíbených' })).toBeVisible();
+  await page.goto('setlists');
+  await page.getByRole('button', { name: 'Smazat setlist' }).click();
+  await page.getByRole('button', { name: 'Ano, smazat setlist' }).click();
+  await expect(page.getByText('Zatím nemáte žádný setlist.')).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('tab', { name: /Aktualizační test/ })).toHaveCount(0);
 });

@@ -1,9 +1,12 @@
 import { registerSW } from 'virtual:pwa-register';
 
 type PwaEventName = 'zpevnik:update-available' | 'zpevnik:offline-shell-ready' | 'zpevnik:update-error';
+export type UpdateCheckResult = 'update-available' | 'up-to-date' | 'service-worker-unavailable';
+
 let applyUpdate: ((reloadPage?: boolean) => Promise<void>) | null = null;
 let registration: ServiceWorkerRegistration | undefined;
 let updatePending = false;
+const observedRegistrations = new WeakSet<ServiceWorkerRegistration>();
 
 function emit(name: PwaEventName, detail?: string): void {
   window.dispatchEvent(new CustomEvent(name, { detail }));
@@ -12,6 +15,72 @@ function emit(name: PwaEventName, detail?: string): void {
 function announceWaitingUpdate(): void {
   updatePending = true;
   emit('zpevnik:update-available');
+}
+
+function observeRegistration(current: ServiceWorkerRegistration): void {
+  if (observedRegistrations.has(current)) return;
+  observedRegistrations.add(current);
+  current.addEventListener('updatefound', () => {
+    const worker = current.installing;
+    if (!worker) return;
+    const stateChanged = () => {
+      if (worker.state === 'installed' && current.waiting && navigator.serviceWorker.controller) announceWaitingUpdate();
+    };
+    worker.addEventListener('statechange', stateChanged);
+  });
+}
+
+async function locateRegistration(): Promise<ServiceWorkerRegistration | undefined> {
+  if (registration) return registration;
+  if (!('serviceWorker' in navigator)) return undefined;
+  try {
+    registration = await navigator.serviceWorker.getRegistration();
+    if (registration) observeRegistration(registration);
+    return registration;
+  } catch {
+    return undefined;
+  }
+}
+
+async function waitForInstallingWorker(worker: ServiceWorker | null): Promise<void> {
+  if (!worker || worker.state === 'installed' || worker.state === 'redundant') return;
+  await new Promise<void>((resolve) => {
+    let timeout = 0;
+    const finish = () => {
+      window.clearTimeout(timeout);
+      worker.removeEventListener('statechange', stateChanged);
+      resolve();
+    };
+    const stateChanged = () => {
+      if (worker.state === 'installed' || worker.state === 'redundant') finish();
+    };
+    timeout = window.setTimeout(finish, 8_000);
+    worker.addEventListener('statechange', stateChanged);
+  });
+}
+
+async function requestRegistrationUpdate(current: ServiceWorkerRegistration): Promise<void> {
+  let resolveUpdateFound: (worker: ServiceWorker | null) => void = () => undefined;
+  let settled = false;
+  const updateFound = new Promise<ServiceWorker | null>((resolve) => { resolveUpdateFound = resolve; });
+  const finish = (worker: ServiceWorker | null) => {
+    if (settled) return;
+    settled = true;
+    window.clearTimeout(timeout);
+    current.removeEventListener('updatefound', found);
+    resolveUpdateFound(worker);
+  };
+  const found = () => finish(current.installing);
+  const timeout = window.setTimeout(() => finish(current.installing), 2_500);
+  current.addEventListener('updatefound', found);
+  try {
+    await current.update();
+    const worker = current.installing ?? await updateFound;
+    finish(worker);
+    await waitForInstallingWorker(worker);
+  } finally {
+    finish(null);
+  }
 }
 
 export function hasWaitingUpdate(): boolean {
@@ -25,23 +94,37 @@ export function registerPwa(): void {
     onOfflineReady: () => emit('zpevnik:offline-shell-ready'),
     onRegisteredSW: (_url, currentRegistration) => {
       registration = currentRegistration;
+      if (registration) observeRegistration(registration);
       if (registration?.waiting) announceWaitingUpdate();
-      window.addEventListener('online', () => { void registration?.update(); });
+      const requestUpdate = () => {
+        if (navigator.onLine && document.visibilityState === 'visible') void locateRegistration().then((current) => current?.update()).catch(() => undefined);
+      };
+      window.addEventListener('online', requestUpdate);
+      document.addEventListener('visibilitychange', requestUpdate);
       window.setInterval(() => {
-        if (navigator.onLine && document.visibilityState === 'visible') void registration?.update();
-      }, 60 * 60 * 1000);
+        requestUpdate();
+      }, 15 * 60 * 1000);
     },
     onRegisterError: (error) => emit('zpevnik:update-error', error instanceof Error ? error.message : 'Registrace offline režimu selhala.'),
   });
 }
 
 export async function activateWaitingUpdate(): Promise<void> {
+  if (!hasWaitingUpdate()) throw new Error('Nová verze zatím není připravená k instalaci.');
+  if (!applyUpdate) throw new Error('Aktualizační služba není připravená. Zavřete aplikaci a znovu ji otevřete.');
+  await applyUpdate(true);
   updatePending = false;
-  await applyUpdate?.(true);
 }
 
-export async function checkForUpdate(): Promise<void> {
+export async function checkForUpdate(): Promise<UpdateCheckResult> {
   if (!navigator.onLine) throw new Error('Aktualizaci nelze zkontrolovat bez připojení.');
-  await registration?.update();
-  if (registration?.waiting) announceWaitingUpdate();
+  if (hasWaitingUpdate()) return 'update-available';
+  const current = await locateRegistration();
+  if (!current) return 'service-worker-unavailable';
+  await requestRegistrationUpdate(current);
+  if (current.waiting || updatePending) {
+    announceWaitingUpdate();
+    return 'update-available';
+  }
+  return 'up-to-date';
 }
