@@ -75,6 +75,23 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await page.getByRole('button', { name: 'Ukončit U ohně' }).click();
 });
 
+test('vyhledávání zůstává uvnitř úvodního panelu na mobilu i desktopu', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-390x844', 'Geometrii stačí ověřit jednou pro oba reprezentativní viewporty.');
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1300, height: 1000 }]) {
+    await page.setViewportSize(viewport);
+    await page.goto('./');
+    const hero = await page.locator('.hero-card').boundingBox();
+    const search = await page.locator('.library-sticky-search').boundingBox();
+    expect(hero).not.toBeNull();
+    expect(search).not.toBeNull();
+    expect(search!.x).toBeGreaterThanOrEqual(hero!.x);
+    expect(search!.y).toBeGreaterThanOrEqual(hero!.y);
+    expect(search!.x + search!.width).toBeLessThanOrEqual(hero!.x + hero!.width + 1);
+    expect(search!.y + search!.height).toBeLessThanOrEqual(hero!.y + hero!.height + 1);
+    await expectNoPageOverflow(page);
+  }
+});
+
 test('deep linky načtou píseň, setlist, import PDF, instalaci, offline obsah a nápovědu', async ({ page }) => {
   await page.goto('songs/synteticka-jiskra');
   await expect(page.getByRole('heading', { name: 'Syntetická jiskra' })).toBeVisible();

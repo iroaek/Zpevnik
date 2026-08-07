@@ -383,7 +383,7 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
 .device-song-confirm button { min-height: 2.75rem; padding-inline: 0.6rem; }
 
 /* Knihovna: rychlé mobilní ovládání a postupné vykreslování velkých katalogů. */
-.library-sticky-search { position: sticky; z-index: 12; top: 4.35rem; margin: -2.15rem clamp(0.8rem, 4vw, 2.6rem) 1rem; box-shadow: var(--shadow); }
+.library-sticky-search { position: relative; z-index: 1; width: 100%; margin: 0; box-shadow: var(--shadow); }
 .library-quick-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.6rem; margin: 0.85rem 0; }
 .library-quick-actions button { display: flex; align-items: center; gap: 0.65rem; min-height: 4.2rem; padding: 0.7rem; color: var(--text); text-align: left; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
 .library-quick-actions button > span:first-child { display: grid; place-items: center; width: 2rem; height: 2rem; flex: 0 0 auto; color: var(--primary); border-radius: 50%; background: color-mix(in srgb, var(--primary) 12%, var(--surface)); }

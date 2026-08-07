@@ -120,12 +120,12 @@ export function Library({ songs, favorites, recent, setlistCount = 0, onOpenSong
       <div className="hero-card">
         <p className="eyebrow">Offline u ohně i doma</p>
         <h1 id="library-heading">Co si dnes zazpíváme?</h1>
+        <label className="search-box library-sticky-search">
+          <span className="visually-hidden">Hledat píseň</span><span aria-hidden="true">⌕</span>
+          <input type="search" value={view.query} onChange={(event) => updateView('query', event.target.value)} placeholder="Název, autor, první řádek…" />
+          {view.query && <button type="button" className="search-clear" aria-label="Vymazat hledání" onClick={() => updateView('query', '')}>×</button>}
+        </label>
       </div>
-      <label className="search-box library-sticky-search">
-        <span className="visually-hidden">Hledat píseň</span><span aria-hidden="true">⌕</span>
-        <input type="search" value={view.query} onChange={(event) => updateView('query', event.target.value)} placeholder="Název, autor, první řádek…" />
-        {view.query && <button type="button" className="search-clear" aria-label="Vymazat hledání" onClick={() => updateView('query', '')}>×</button>}
-      </label>
 
       <nav className="library-quick-actions" aria-label="Rychlé volby knihovny">
         {lastSong && <button type="button" onClick={() => onOpenSong(lastSong.id)}><span aria-hidden="true">▶</span><span><small>Pokračovat</small><strong>{lastSong.title}</strong></span></button>}
