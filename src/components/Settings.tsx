@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { signOutSecureAccount, type SecureProfile } from '../auth/secureAccess';
 import type { Song } from '../domain/song';
+import type { CloudSyncState } from '../hooks/useCloudUserState';
 import { downloadPersonalLibrary } from '../personalLibraryDownload';
 import { exportFullBackup, importFullBackup, type UserProfile, type UserState } from '../storage/database';
 import { AdminAccessPanel } from './AdminAccessPanel';
@@ -12,6 +13,7 @@ interface SettingsProps {
   userProfile: UserProfile;
   secureProfile?: SecureProfile | null;
   secureMode?: boolean;
+  cloudSync?: CloudSyncState;
   personalSongs: Song[];
   onUserStateChange: React.Dispatch<React.SetStateAction<UserState>>;
   onUserProfileChange: React.Dispatch<React.SetStateAction<UserProfile | null>>;
@@ -25,6 +27,7 @@ export function Settings({
   userProfile,
   secureProfile = null,
   secureMode = false,
+  cloudSync,
   personalSongs,
   onUserStateChange,
   onUserProfileChange,
@@ -114,6 +117,7 @@ export function Settings({
 
       {secureMode && <section className={`account-role-card ${serverAdmin ? 'account-role-card--admin' : ''}`} aria-label="Oprávnění účtu"><span><small>Serverové oprávnění</small><strong>{serverAdmin ? 'Administrátor · plná správa' : 'Schválený člen'}</strong><p>{serverAdmin ? 'Máte přístup k databázi uživatelů, schvalování i návrhům písní.' : 'Administrátorské nástroje se zobrazí pouze účtu s rolí admin na serveru.'}</p></span><button type="button" className="secondary-button" disabled={permissionBusy} onClick={() => void refreshPermissions()}>{permissionBusy ? 'Obnovuji…' : 'Obnovit oprávnění'}</button></section>}
       {permissionMessage && <p className="info-message" role="status">{permissionMessage}</p>}
+      {secureMode && cloudSync && <section className={`cloud-sync-card cloud-sync-card--${cloudSync.status}`} aria-label="Synchronizace mezi zařízeními"><span className="cloud-sync-icon" aria-hidden="true">↻</span><span><small>Synchronizace mezi zařízeními</small><strong>{cloudSync.status === 'synced' ? 'Všechny změny jsou synchronizované' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Synchronizuji změny…' : cloudSync.status === 'offline' ? 'Změny čekají na připojení' : cloudSync.status === 'error' ? 'Synchronizace potřebuje pozornost' : 'Synchronizace není aktivní'}</strong><p>{cloudSync.error ?? (cloudSync.lastSyncedAt ? `Naposledy ${new Date(cloudSync.lastSyncedAt).toLocaleString('cs-CZ')}. Setlisty, oblíbené a nastavení jsou dostupné na vašich zařízeních.` : 'Setlisty, oblíbené a nastavení se uloží do vašeho soukromého účtu.')}</p></span><button type="button" className="secondary-button" disabled={cloudSync.status === 'loading' || cloudSync.status === 'syncing'} onClick={() => void cloudSync.refresh()}>Synchronizovat nyní</button></section>}
 
       {serverAdmin && <section className="admin-dashboard" aria-labelledby="admin-dashboard-heading"><header><p className="eyebrow">Správa aplikace</p><h2 id="admin-dashboard-heading">Administrace</h2><p>Uživatelé, žádosti, návrhy písní a instalační QR kódy jsou pohromadě na jednom místě.</p><nav aria-label="Sekce administrace"><a href="#admin-users-heading">Databáze uživatelů</a><a href="#admin-access-heading">Schvalování</a><a href="#qr-generator-heading">QR kódy</a></nav></header><AdminUsersPanel /><AdminAccessPanel /><QrCodeGenerator /></section>}
 

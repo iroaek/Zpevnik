@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 const migration = readFileSync(resolve('supabase/migrations/202608060001_private_members.sql'), 'utf8');
 const presenceMigration = readFileSync(resolve('supabase/migrations/202608060002_admin_user_presence.sql'), 'utf8');
+const stateSyncMigration = readFileSync(resolve('supabase/migrations/202608070001_user_state_sync.sql'), 'utf8');
 
 describe('serverová pravidla soukromého přístupu', () => {
   it('vytváří účet jako čekající a schválení dovolí jen serverově ověřenému administrátorovi', () => {
@@ -33,5 +34,13 @@ describe('serverová pravidla soukromého přístupu', () => {
     expect(presenceMigration).toContain('revoke all on function public.touch_my_presence() from public');
     expect(presenceMigration).toContain('grant execute on function public.touch_my_presence() to authenticated');
     expect(presenceMigration).not.toContain('target_user_id');
+  });
+
+  it('synchronizuje pouze vlastní uživatelský stav a nikdy obsah písní', () => {
+    expect(stateSyncMigration).toContain('create table if not exists public.user_app_state');
+    expect(stateSyncMigration).toContain("jsonb_typeof(state) = 'object'");
+    expect(stateSyncMigration).toContain('user_id = (select auth.uid())');
+    expect(stateSyncMigration).toContain('public.is_approved_member()');
+    expect(stateSyncMigration).not.toContain('song_content');
   });
 });

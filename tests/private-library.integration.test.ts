@@ -55,6 +55,9 @@ describe('soukromé knihovní balíky', () => {
     expect(admin.personalSongs).toHaveLength(1);
     expect(admin.personalSongs[0].song.chordProPath).toBe('indexeddb:personal-synteticka-pisen');
     expect(members.personalSongs).toHaveLength(0);
+    expect(admin.libraryManifest).toMatchObject({ schemaVersion: 1, scope: 'admin', songCount: 1 });
+    expect(admin.libraryManifest.version).toMatch(/^[a-f0-9]{12}$/);
+    expect(members.libraryManifest).toMatchObject({ scope: 'members', songCount: 0 });
   });
 
   it('zpřístupní členům jen přesně autorizovaný import a zachová atribuci', () => {

@@ -31,11 +31,12 @@ describe('migrace IndexedDB', () => {
     legacy.close();
   });
 
-  it('povýší databázi na verzi 4, převede stav na schéma 2 a zachová uživatelská data', async () => {
+  it('povýší databázi na verzi 4, převede stav na schéma 3 a zachová uživatelská data', async () => {
     const databaseModule = await import('./database');
     const loaded = await databaseModule.loadUserState();
     expect(databaseModule.DATABASE_VERSION).toBe(4);
-    expect(loaded.schemaVersion).toBe(2);
+    expect(loaded.schemaVersion).toBe(3);
+    expect(loaded.updatedAt).toBe('2026-08-05T00:00:00.000Z');
     expect(loaded.favorites).toEqual(legacyState.favorites);
     expect(loaded.setlists).toEqual(legacyState.setlists);
     expect(loaded.settings.autoScrollSpeed).toBe(31);
@@ -86,7 +87,7 @@ describe('migrace IndexedDB', () => {
     })], 'zpevnik-zaloha.json', { type: 'application/json' });
 
     const imported = await databaseModule.importFullBackup(file);
-    expect(imported.state.schemaVersion).toBe(2);
+    expect(imported.state.schemaVersion).toBe(3);
     expect(imported.personalSongCount).toBe(1);
     expect(await databaseModule.loadPersonalSongs()).toContainEqual(expect.objectContaining({
       id: song.id,
@@ -154,7 +155,7 @@ describe('migrace IndexedDB', () => {
     const databaseModule = await import('./database');
     const file = new File([JSON.stringify({ application: 'cesky-digitalni-zpevnik', data: legacyState })], 'stara-zaloha.json', { type: 'application/json' });
     const imported = await databaseModule.importFullBackup(file);
-    expect(imported.state.schemaVersion).toBe(2);
+    expect(imported.state.schemaVersion).toBe(3);
     expect(imported.personalSongCount).toBe(0);
   });
 
@@ -166,7 +167,21 @@ describe('migrace IndexedDB', () => {
     const renamed = databaseModule.renameSetlist(created, 'setlist-test', '  Neděle  ');
     expect(renamed.setlists[0].name).toBe('Neděle');
 
-    const removed = databaseModule.removeSetlist(renamed, 'setlist-test');
-    expect(removed.setlists).toHaveLength(0);
+    const duplicated = databaseModule.duplicateSetlist(renamed, 'setlist-test', 'setlist-kopie');
+    expect(duplicated.setlists[1]).toMatchObject({ id: 'setlist-kopie', name: 'Neděle – kopie' });
+    expect(duplicated.setlists[1].songIds).not.toBe(duplicated.setlists[0].songIds);
+
+    const removed = databaseModule.removeSetlist(duplicated, 'setlist-test');
+    expect(removed.setlists).toHaveLength(1);
+  });
+
+  it('explicitně migruje stav schématu 2 pro cloudovou synchronizaci', async () => {
+    const databaseModule = await import('./database');
+    const versionTwo = { ...legacyState, schemaVersion: 2 as const };
+    expect(databaseModule.migrateUserState(versionTwo)).toMatchObject({
+      schemaVersion: 3,
+      updatedAt: '2026-08-05T00:00:00.000Z',
+      favorites: legacyState.favorites,
+    });
   });
 });

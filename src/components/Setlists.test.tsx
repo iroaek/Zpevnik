@@ -45,4 +45,24 @@ describe('soukromé setlisty', () => {
     expect(screen.queryByRole('tab', { name: /Nedělní setlist/ })).not.toBeInTheDocument();
     expect(screen.getByText('Zatím nemáte žádný setlist.')).toBeVisible();
   });
+
+  it('hromadně přidá píseň, vrátí odebrání a duplikuje setlist', async () => {
+    render(<SetlistsHarness />);
+    await userEvent.type(screen.getByLabelText('Název nového setlistu'), 'Večer');
+    await userEvent.click(screen.getByRole('button', { name: 'Vytvořit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Přidat více písní' }));
+
+    const firstSong = catalog.songs[0];
+    await userEvent.click(screen.getByRole('checkbox', { name: new RegExp(firstSong.title, 'i') }));
+    await userEvent.click(screen.getByRole('button', { name: 'Přidat vybrané (1)' }));
+    expect(screen.getByText(firstSong.title)).toBeVisible();
+
+    await userEvent.click(screen.getByRole('button', { name: `Odebrat ${firstSong.title}` }));
+    expect(screen.getByRole('button', { name: 'Vrátit zpět' })).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Vrátit zpět' }));
+    expect(screen.getByText(firstSong.title)).toBeVisible();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Duplikovat' }));
+    expect(screen.getByRole('tab', { name: /Večer – kopie/ })).toHaveAttribute('aria-selected', 'true');
+  });
 });

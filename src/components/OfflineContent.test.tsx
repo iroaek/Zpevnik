@@ -1,22 +1,23 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { downloadApprovedLibrary, type SecureProfile } from '../auth/secureAccess';
+import { downloadApprovedLibrary, loadApprovedLibraryManifest, type SecureProfile } from '../auth/secureAccess';
 import { catalogSchema } from '../domain/song';
 import catalogJson from '../generated/catalog.json';
 import { inspectOfflineContent } from '../pwa/contentCache';
 import { checkForUpdate } from '../pwa/updateManager';
-import { removeDownloadedLibrarySongs, removePersonalSong } from '../storage/database';
+import { loadDownloadedLibraryMetadata, removeDownloadedLibrarySongs, removePersonalSong } from '../storage/database';
 import { OfflineContent } from './OfflineContent';
 
 vi.mock('../hooks/useConnectivity', () => ({ useConnectivity: () => true }));
-vi.mock('../auth/secureAccess', () => ({ downloadApprovedLibrary: vi.fn() }));
+vi.mock('../auth/secureAccess', () => ({ downloadApprovedLibrary: vi.fn(), loadApprovedLibraryManifest: vi.fn() }));
 vi.mock('../pwa/updateManager', () => ({
   activateWaitingUpdate: vi.fn(),
   checkForUpdate: vi.fn(),
   hasWaitingUpdate: vi.fn(() => false),
 }));
 vi.mock('../storage/database', () => ({
+  loadDownloadedLibraryMetadata: vi.fn(),
   removeDownloadedLibrarySongs: vi.fn(),
   removePersonalSong: vi.fn(),
 }));
@@ -69,6 +70,8 @@ describe('Offline obsah', () => {
       serviceWorkerActive: true,
     });
     vi.mocked(downloadApprovedLibrary).mockReset();
+    vi.mocked(loadApprovedLibraryManifest).mockReset().mockResolvedValue(null);
+    vi.mocked(loadDownloadedLibraryMetadata).mockReset().mockResolvedValue(null);
     vi.mocked(removeDownloadedLibrarySongs).mockReset().mockResolvedValue(1);
     vi.mocked(removePersonalSong).mockReset().mockResolvedValue(undefined);
     vi.mocked(checkForUpdate).mockReset().mockResolvedValue('up-to-date');
@@ -76,14 +79,29 @@ describe('Offline obsah', () => {
 
   it('nabídne schválenému členovi stažení knihovny a po importu obnoví seznam písní', async () => {
     const refreshLibrary = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(downloadApprovedLibrary).mockResolvedValue(485);
+    vi.mocked(downloadApprovedLibrary).mockResolvedValue({ count: 485, changed: true, manifest: null });
 
     render(<OfflineContent catalog={catalog} secureMode secureProfile={profile} downloadedLibrarySongs={[]} onPersonalLibraryChanged={refreshLibrary} onNavigate={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: 'Stáhnout knihovnu' }));
 
-    await waitFor(() => expect(downloadApprovedLibrary).toHaveBeenCalledWith(profile));
+    await waitFor(() => expect(downloadApprovedLibrary).toHaveBeenCalledWith(profile, { localSongCount: 0 }));
     expect(refreshLibrary).toHaveBeenCalledOnce();
     expect(await screen.findByText('Hotovo: do tohoto zařízení bylo bezpečně uloženo 485 členských písní.')).toBeVisible();
+  });
+
+  it('rozpozná novější verzovaný balíček a nabídne bezpečnou aktualizaci', async () => {
+    vi.mocked(loadDownloadedLibraryMetadata).mockResolvedValue({
+      schemaVersion: 1, scope: 'members', version: 'a'.repeat(12), generatedAt: '2026-08-06T00:00:00.000Z',
+      songCount: 1, contentBytes: 100, downloadedAt: '2026-08-06T01:00:00.000Z',
+    });
+    vi.mocked(loadApprovedLibraryManifest).mockResolvedValue({
+      schemaVersion: 1, scope: 'members', version: 'b'.repeat(12), generatedAt: '2026-08-07T00:00:00.000Z',
+      songCount: 2, contentBytes: 200,
+    });
+    render(<OfflineContent catalog={catalog} secureMode secureProfile={profile} downloadedLibrarySongs={[downloadedSong]} onNavigate={vi.fn()} />);
+
+    expect(await screen.findByText('Je dostupná nová verze')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Nainstalovat novou knihovnu' })).toBeEnabled();
   });
 
   it('v místním režimu soukromou členskou kartu nezobrazuje', () => {

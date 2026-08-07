@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { defaultUserState, loadUserState, saveUserState, type UserState } from '../storage/database';
 
 export function useUserState(): [UserState, React.Dispatch<React.SetStateAction<UserState>>, boolean, string | null] {
@@ -18,5 +18,13 @@ export function useUserState(): [UserState, React.Dispatch<React.SetStateAction<
     saveUserState(state).catch(() => setError('Změny se nepodařilo uložit do místního úložiště.'));
   }, [hydrated, state]);
 
-  return [state, setState, hydrated, error];
+  const updateState = useCallback<React.Dispatch<React.SetStateAction<UserState>>>((change) => {
+    setState((current) => {
+      const next = typeof change === 'function' ? change(current) : change;
+      if (next === current) return current;
+      return { ...next, schemaVersion: 3, updatedAt: new Date().toISOString() };
+    });
+  }, []);
+
+  return [state, updateState, hydrated, error];
 }

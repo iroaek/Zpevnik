@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { createUuid } from '../domain/browserCompatibility';
 import type { PublicSetlist, Song } from '../domain/song';
 import { fetchContent } from '../pwa/contentCache';
-import { createSetlist, removeSetlist, renameSetlist, updateSetlistSongs, type UserState } from '../storage/database';
+import { createSetlist, duplicateSetlist, removeSetlist, renameSetlist, updateSetlistSongs, type UserState } from '../storage/database';
 import { ChordSheet } from './ChordSheet';
 
 interface SetlistsProps {
@@ -24,9 +24,22 @@ export function Setlists({ songs, userState, onUserStateChange, onOpenSong, publ
   const [renaming, setRenaming] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [message, setMessage] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
+  const [songQuery, setSongQuery] = useState('');
+  const [songsToAdd, setSongsToAdd] = useState<string[]>([]);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [undo, setUndo] = useState<{ setlistId: string; songId: string; index: number; title: string } | null>(null);
   const selectedIdExists = userState.setlists.some((setlist) => setlist.id === selectedId);
   const effectiveSelectedId = selectedIdExists ? selectedId : userState.setlists[0]?.id ?? '';
   const selected = userState.setlists.find((setlist) => setlist.id === effectiveSelectedId);
+  const songsById = useMemo(() => new Map(songs.map((song) => [song.id, song])), [songs]);
+  const addCandidates = useMemo(() => {
+    const needle = songQuery.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('cs');
+    return songs.filter((song) => {
+      const searchable = `${song.title} ${song.authors.join(' ')}`.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('cs');
+      return !needle || searchable.includes(needle);
+    }).slice(0, 60);
+  }, [songQuery, songs]);
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -48,10 +61,54 @@ export function Setlists({ songs, userState, onUserStateChange, onOpenSong, publ
     onUserStateChange((current) => updateSetlistSongs(current, selected.id, next));
   };
 
-  const remove = (songId: string) => {
+  const remove = (songId: string, index: number) => {
     if (!selected) return;
-    onUserStateChange((current) => updateSetlistSongs(current, selected.id, selected.songIds.filter((id) => id !== songId)));
+    const next = [...selected.songIds];
+    next.splice(index, 1);
+    onUserStateChange((current) => updateSetlistSongs(current, selected.id, next));
+    setUndo({ setlistId: selected.id, songId, index, title: songsById.get(songId)?.title ?? 'Píseň' });
     setMessage('Píseň byla ze setlistu odebrána.');
+  };
+
+  const restoreRemoved = () => {
+    if (!undo) return;
+    onUserStateChange((current) => {
+      const target = current.setlists.find((setlist) => setlist.id === undo.setlistId);
+      if (!target) return current;
+      const next = [...target.songIds];
+      next.splice(Math.min(undo.index, next.length), 0, undo.songId);
+      return updateSetlistSongs(current, undo.setlistId, next);
+    });
+    setMessage(`Píseň „${undo.title}“ byla vrácena.`);
+    setUndo(null);
+  };
+
+  const dropAt = (targetIndex: number) => {
+    if (!selected || draggedIndex === null || draggedIndex === targetIndex) return;
+    const next = [...selected.songIds];
+    const [moved] = next.splice(draggedIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    onUserStateChange((current) => updateSetlistSongs(current, selected.id, next));
+    setDraggedIndex(null);
+    setMessage('Pořadí setlistu bylo změněno.');
+  };
+
+  const addSelectedSongs = () => {
+    if (!selected || songsToAdd.length === 0) return;
+    const unique = songsToAdd.filter((id) => !selected.songIds.includes(id));
+    onUserStateChange((current) => updateSetlistSongs(current, selected.id, [...selected.songIds, ...unique]));
+    setSongsToAdd([]);
+    setSongQuery('');
+    setAddOpen(false);
+    setMessage(`${unique.length} písní bylo přidáno do setlistu.`);
+  };
+
+  const duplicateSelected = () => {
+    if (!selected) return;
+    const id = createUuid();
+    onUserStateChange((current) => duplicateSetlist(current, selected.id, id));
+    setSelectedId(id);
+    setMessage(`Setlist „${selected.name}“ byl duplikován.`);
   };
 
   const saveName = (event: React.FormEvent) => {
@@ -94,22 +151,24 @@ export function Setlists({ songs, userState, onUserStateChange, onOpenSong, publ
   return (
     <section className="setlists-page" aria-labelledby="setlists-heading">
       <div className="section-heading"><div><p className="eyebrow">Pořadí na večer</p><h1 id="setlists-heading">Setlisty</h1></div></div>
-      <p className="lead setlists-intro">Vytvořte si vlastní pořadí písní. Soukromé setlisty se automaticky ukládají v tomto zařízení.</p>
+      <p className="lead setlists-intro">Vytvořte si vlastní pořadí písní. Po přihlášení se setlisty synchronizují mezi vašimi zařízeními; bez připojení zůstávají bezpečně uložené zde.</p>
       {publicSetlists.length > 0 && <section className="public-setlists" aria-labelledby="public-setlists-heading"><div className="results-heading"><h2 id="public-setlists-heading">Veřejné setlisty</h2><span>Mají vlastní QR odkaz</span></div>{publicSetlists.map((setlist) => <button type="button" className="song-card" onClick={() => onOpenPublicSetlist(setlist.id)} key={setlist.id}><span className="song-card__main"><strong>{setlist.title}</strong><span>{setlist.description}</span></span><span className="song-card__meta">{setlist.songIds.length} ♫ <span aria-hidden="true">›</span></span></button>)}</section>}
-      <div className="results-heading private-heading"><h2>Moje soukromé setlisty</h2><span>Jen v tomto zařízení</span></div>
+      <div className="results-heading private-heading"><h2>Moje soukromé setlisty</h2><span>Offline i mezi zařízeními</span></div>
       <form className="new-setlist" onSubmit={submit}><label>Název nového setlistu<input value={name} maxLength={100} onChange={(event) => setName(event.target.value)} placeholder="Např. Sobota u ohně" /></label><button className="primary-button" type="submit">Vytvořit</button></form>
       {message && <p className="success-message" role="status">{message}</p>}
       {userState.setlists.length === 0 ? <p className="empty-state">Zatím nemáte žádný setlist.</p> : (
         <>
           <div className="setlist-tabs" role="tablist" aria-label="Setlisty">{userState.setlists.map((setlist) => <button type="button" role="tab" aria-selected={setlist.id === effectiveSelectedId} className={setlist.id === effectiveSelectedId ? 'chip chip--active' : 'chip'} onClick={() => { setSelectedId(setlist.id); setPrintMode(false); setRenaming(false); setConfirmDelete(false); }} key={setlist.id}><span>{setlist.name}</span><small>{setlist.songIds.length} písní</small></button>)}</div>
           {selected && <div className="setlist-detail">
-            <div className="setlist-detail-heading"><span><p className="eyebrow">Vybraný setlist</p><h2>{selected.name}</h2><small>{selected.songIds.length} písní</small></span><div className="button-row"><button type="button" className="secondary-button" onClick={() => { setEditingName(selected.name); setRenaming(true); setConfirmDelete(false); }}>Přejmenovat</button><button type="button" className="secondary-button" disabled={selected.songIds.length === 0} onClick={preparePrint}>Náhled a tisk</button><button type="button" className="danger-button" onClick={() => { setConfirmDelete(true); setRenaming(false); }}>Smazat setlist</button></div></div>
+            <div className="setlist-detail-heading"><span><p className="eyebrow">Vybraný setlist</p><h2>{selected.name}</h2><small>{selected.songIds.length} písní</small></span><div className="button-row"><button type="button" className="primary-button" onClick={() => setAddOpen((value) => !value)}>Přidat více písní</button><button type="button" className="secondary-button" onClick={duplicateSelected}>Duplikovat</button><button type="button" className="secondary-button" onClick={() => { setEditingName(selected.name); setRenaming(true); setConfirmDelete(false); }}>Přejmenovat</button><button type="button" className="secondary-button" disabled={selected.songIds.length === 0} onClick={preparePrint}>Náhled a tisk</button><button type="button" className="danger-button" onClick={() => { setConfirmDelete(true); setRenaming(false); }}>Smazat setlist</button></div></div>
+            {addOpen && <section className="setlist-multi-add" aria-labelledby="setlist-multi-add-heading"><div className="results-heading"><h3 id="setlist-multi-add-heading">Přidat více písní</h3><span>Vybráno {songsToAdd.length}</span></div><label>Hledat píseň<input type="search" value={songQuery} onChange={(event) => setSongQuery(event.target.value)} placeholder="Název nebo autor…" /></label><div className="setlist-song-picker">{addCandidates.map((song) => { const alreadyAdded = selected.songIds.includes(song.id); return <label key={song.id} className={alreadyAdded ? 'disabled' : ''}><input type="checkbox" checked={songsToAdd.includes(song.id) || alreadyAdded} disabled={alreadyAdded} onChange={(event) => setSongsToAdd((current) => event.target.checked ? [...current, song.id] : current.filter((id) => id !== song.id))} /><span><strong>{song.title}</strong><small>{alreadyAdded ? 'Už je v setlistu' : song.authors.join(', ') || 'Autor neuveden'}</small></span></label>; })}</div><div className="button-row"><button type="button" className="primary-button" disabled={songsToAdd.length === 0} onClick={addSelectedSongs}>Přidat vybrané ({songsToAdd.length})</button><button type="button" className="secondary-button" onClick={() => { setAddOpen(false); setSongsToAdd([]); }}>Zrušit</button></div></section>}
             {renaming && <form className="setlist-inline-form" onSubmit={saveName}><label>Nový název<input value={editingName} maxLength={100} autoFocus onChange={(event) => setEditingName(event.target.value)} /></label><div className="button-row"><button type="submit" className="primary-button" disabled={!editingName.trim()}>Uložit název</button><button type="button" className="secondary-button" onClick={() => setRenaming(false)}>Zrušit</button></div></form>}
             {confirmDelete && <div className="confirm-row setlist-delete-confirm" role="alert"><strong>Opravdu odstranit setlist „{selected.name}“?</strong><span>Písně zůstanou v knihovně; odstraní se pouze toto pořadí v tomto zařízení.</span><div className="button-row"><button type="button" className="danger-button" onClick={deleteSelected}>Ano, smazat setlist</button><button type="button" className="secondary-button" onClick={() => setConfirmDelete(false)}>Zrušit</button></div></div>}
+            {undo?.setlistId === selected.id && <div className="undo-bar" role="status"><span>„{undo.title}“ byla odebrána.</span><button type="button" className="secondary-button" onClick={restoreRemoved}>Vrátit zpět</button></div>}
             {selected.songIds.map((songId, index) => {
-              const song = songs.find((candidate) => candidate.id === songId);
+              const song = songsById.get(songId);
               if (!song) return null;
-              return <div className="setlist-row" key={`${songId}-${index}`}><span className="order-number">{index + 1}</span><button className="setlist-song" type="button" onClick={() => onOpenSong(songId)}>{song.title}</button><button type="button" className="icon-button" aria-label={`Posunout ${song.title} nahoru`} disabled={index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" className="icon-button" aria-label={`Posunout ${song.title} dolů`} disabled={index === selected.songIds.length - 1} onClick={() => move(index, 1)}>↓</button><button type="button" className="icon-button" aria-label={`Odebrat ${song.title}`} onClick={() => remove(songId)}>×</button></div>;
+              return <div className={`setlist-row ${draggedIndex === index ? 'setlist-row--dragging' : ''}`} draggable onDragStart={() => setDraggedIndex(index)} onDragEnd={() => setDraggedIndex(null)} onDragOver={(event) => event.preventDefault()} onDrop={() => dropAt(index)} key={`${songId}-${index}`}><span className="order-number" aria-label={`Pořadí ${index + 1}`}>{index + 1}</span><button className="setlist-song" type="button" onClick={() => onOpenSong(songId)}>{song.title}<small>Podržte a přetáhněte pro změnu pořadí</small></button><button type="button" className="icon-button" aria-label={`Posunout ${song.title} nahoru`} disabled={index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" className="icon-button" aria-label={`Posunout ${song.title} dolů`} disabled={index === selected.songIds.length - 1} onClick={() => move(index, 1)}>↓</button><button type="button" className="icon-button" aria-label={`Odebrat ${song.title}`} onClick={() => remove(songId, index)}>×</button></div>;
             })}
             {selected.songIds.length === 0 && <p className="empty-state">Písně přidáte z detailu skladby.</p>}
           </div>}

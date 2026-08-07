@@ -25,11 +25,27 @@ export interface UserSettings {
 }
 
 export interface UserState {
-  schemaVersion: 2;
+  schemaVersion: 3;
+  updatedAt: string;
   favorites: string[];
   recentSongIds: string[];
   setlists: Setlist[];
   settings: UserSettings;
+}
+
+export interface LibraryManifest {
+  schemaVersion: 1;
+  scope: 'admin' | 'members';
+  version: string;
+  generatedAt: string;
+  songCount: number;
+  contentBytes: number;
+  packageBytes?: number;
+  sha256?: string;
+}
+
+export interface DownloadedLibraryMetadata extends LibraryManifest {
+  downloadedAt: string;
 }
 
 export interface UserProfile {
@@ -114,10 +130,27 @@ const userStateFields = {
 };
 
 const legacyUserStateSchema = z.object({ schemaVersion: z.literal(1), ...userStateFields });
-export const userStateSchema = z.object({ schemaVersion: z.literal(2), ...userStateFields });
+const userStateV2Schema = z.object({ schemaVersion: z.literal(2), ...userStateFields });
+export const userStateSchema = z.object({ schemaVersion: z.literal(3), updatedAt: z.string().datetime(), ...userStateFields });
+
+export const libraryManifestSchema = z.object({
+  schemaVersion: z.literal(1),
+  scope: z.enum(['admin', 'members']),
+  version: z.string().regex(/^[a-f0-9]{12,64}$/),
+  generatedAt: z.string().datetime(),
+  songCount: z.number().int().nonnegative().max(5_000),
+  contentBytes: z.number().int().nonnegative(),
+  packageBytes: z.number().int().positive().optional(),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+});
+
+const downloadedLibraryMetadataSchema = libraryManifestSchema.extend({ downloadedAt: z.string().datetime() });
+
+const INITIAL_STATE_UPDATED_AT = '1970-01-01T00:00:00.000Z';
 
 export const defaultUserState: UserState = {
-  schemaVersion: 2,
+  schemaVersion: 3,
+  updatedAt: INITIAL_STATE_UPDATED_AT,
   favorites: [],
   recentSongIds: [],
   setlists: [],
@@ -242,17 +275,19 @@ export async function loadSongSubmissions(): Promise<SongSubmission[]> {
   }).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
-function parseUserState(stored: unknown): UserState | null {
+export function migrateUserState(stored: unknown): UserState | null {
   const current = userStateSchema.safeParse(stored);
   if (current.success) return current.data;
+  const versionTwo = userStateV2Schema.safeParse(stored);
+  if (versionTwo.success) return { ...versionTwo.data, schemaVersion: 3, updatedAt: versionTwo.data.setlists.reduce((latest, setlist) => setlist.updatedAt > latest ? setlist.updatedAt : latest, INITIAL_STATE_UPDATED_AT) };
   const legacy = legacyUserStateSchema.safeParse(stored);
-  return legacy.success ? { ...legacy.data, schemaVersion: 2 } : null;
+  return legacy.success ? { ...legacy.data, schemaVersion: 3, updatedAt: legacy.data.setlists.reduce((latest, setlist) => setlist.updatedAt > latest ? setlist.updatedAt : latest, INITIAL_STATE_UPDATED_AT) } : null;
 }
 
 export async function loadUserState(): Promise<UserState> {
   const database = await databasePromise;
   const stored = await database.get('state', 'current') as unknown;
-  return parseUserState(stored) ?? {
+  return migrateUserState(stored) ?? {
     ...defaultUserState,
     favorites: [],
     recentSongIds: [],
@@ -265,6 +300,24 @@ export async function saveUserState(state: UserState): Promise<void> {
   const validated = userStateSchema.parse(state);
   const database = await databasePromise;
   await database.put('state', validated, 'current');
+}
+
+export async function loadDownloadedLibraryMetadata(): Promise<DownloadedLibraryMetadata | null> {
+  const database = await databasePromise;
+  const parsed = downloadedLibraryMetadataSchema.safeParse(await database.get('metadata', 'downloadedLibrary'));
+  return parsed.success ? parsed.data : null;
+}
+
+export async function saveDownloadedLibraryMetadata(manifest: LibraryManifest): Promise<DownloadedLibraryMetadata> {
+  const metadata = downloadedLibraryMetadataSchema.parse({ ...manifest, downloadedAt: new Date().toISOString() });
+  const database = await databasePromise;
+  await database.put('metadata', metadata, 'downloadedLibrary');
+  return metadata;
+}
+
+export async function clearDownloadedLibraryMetadata(): Promise<void> {
+  const database = await databasePromise;
+  await database.delete('metadata', 'downloadedLibrary');
 }
 
 export function addRecent(state: UserState, songId: string): UserState {
@@ -297,6 +350,23 @@ export function renameSetlist(state: UserState, setlistId: string, name: string)
 
 export function removeSetlist(state: UserState, setlistId: string): UserState {
   return { ...state, setlists: state.setlists.filter((setlist) => setlist.id !== setlistId) };
+}
+
+export function duplicateSetlist(state: UserState, setlistId: string, id = createUuid()): UserState {
+  const source = state.setlists.find((setlist) => setlist.id === setlistId);
+  if (!source) return state;
+  const now = new Date().toISOString();
+  return {
+    ...state,
+    setlists: [...state.setlists, {
+      ...source,
+      id,
+      name: `${source.name} – kopie`,
+      songIds: [...source.songIds],
+      createdAt: now,
+      updatedAt: now,
+    }],
+  };
 }
 
 export function updateSetlistSongs(state: UserState, setlistId: string, songIds: string[]): UserState {
@@ -362,12 +432,12 @@ export function isDownloadedLibrarySong(song: Song): boolean {
 
 export async function importFullBackup(file: Blob, options: BackupImportOptions = {}): Promise<BackupImportResult> {
   if (file.size > 50 * 1024 * 1024) throw new Error('Záloha je větší než povolených 50 MB.');
-  const parsed = JSON.parse(await readBlobText(file)) as { application?: string; data?: unknown; personalSongs?: unknown; libraryScope?: unknown };
+  const parsed = JSON.parse(await readBlobText(file)) as { application?: string; data?: unknown; personalSongs?: unknown; libraryScope?: unknown; libraryManifest?: unknown };
   if (parsed.application !== 'cesky-digitalni-zpevnik') throw new Error('Soubor není záloha této aplikace.');
   if (options.expectedLibraryScope && parsed.libraryScope !== options.expectedLibraryScope) {
     throw new Error('Stažený balíček neodpovídá oprávnění tohoto účtu.');
   }
-  const state = parseUserState(parsed.data);
+  const state = migrateUserState(parsed.data);
   if (!state) throw new Error('Záloha má nepodporovaný nebo poškozený formát.');
   const parsedEntries = personalSongBackupSchema.safeParse(parsed.personalSongs ?? []);
   if (!parsedEntries.success) throw new Error('Záloha obsahuje neplatné osobní písně.');
@@ -403,6 +473,8 @@ export async function importFullBackup(file: Blob, options: BackupImportOptions 
       await transaction.objectStore('personalSongContent').put(entry.content, entry.song.id);
     }
     await transaction.done;
+    const manifest = libraryManifestSchema.safeParse(parsed.libraryManifest);
+    if (manifest.success) await saveDownloadedLibraryMetadata(manifest.data);
   } else {
     await savePersonalSongs(entries);
   }
@@ -451,12 +523,16 @@ export async function removeDownloadedLibrarySongs(): Promise<number> {
     const parsed = songSchema.safeParse(value);
     return parsed.success && isDownloadedLibrarySong(parsed.data) ? [parsed.data.id] : [];
   });
-  if (songIds.length === 0) return 0;
+  if (songIds.length === 0) {
+    await clearDownloadedLibraryMetadata();
+    return 0;
+  }
   const transaction = database.transaction(['personalSongs', 'personalSongContent'], 'readwrite');
   for (const songId of songIds) {
     await transaction.objectStore('personalSongs').delete(songId);
     await transaction.objectStore('personalSongContent').delete(songId);
   }
   await transaction.done;
+  await clearDownloadedLibraryMetadata();
   return songIds.length;
 }

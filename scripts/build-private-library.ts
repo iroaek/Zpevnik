@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { dirname, resolve } from 'node:path';
 import { buildPersonalLibrary, findLatestPersonalImport } from './lib/personal-library.js';
 import { applyMemberLibraryGrant, createPrivateLibraryBackup, type PrivateLibraryScope } from './lib/private-library.js';
@@ -28,5 +29,13 @@ if (scope === 'members') {
 const backup = createPrivateLibraryBackup(snapshot, scope);
 const outputPath = resolve(projectRoot, outputArgument);
 await mkdir(dirname(outputPath), { recursive: true });
-await writeFile(outputPath, `${JSON.stringify(backup)}\n`, 'utf8');
-console.log(`Vytvořen soukromý ${scope} balík: ${backup.personalSongs.length} písní (${outputPath}).`);
+const serialized = `${JSON.stringify(backup)}\n`;
+await writeFile(outputPath, serialized, 'utf8');
+const manifestPath = resolve(projectRoot, argument('--manifest') ?? outputPath.replace(/\.json$/i, '.manifest.json'));
+const manifest = {
+  ...backup.libraryManifest,
+  packageBytes: Buffer.byteLength(serialized, 'utf8'),
+  sha256: createHash('sha256').update(serialized).digest('hex'),
+};
+await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+console.log(`Vytvořen soukromý ${scope} balík: ${backup.personalSongs.length} písní (${outputPath}) a manifest ${manifestPath}.`);

@@ -16,6 +16,7 @@ import { SongReader } from './components/SongReader';
 import { UpdateBanner } from './components/UpdateBanner';
 import { catalogSchema, type Catalog } from './domain/song';
 import { useConnectivity } from './hooks/useConnectivity';
+import { useCloudUserState } from './hooks/useCloudUserState';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
 import { useSecureAccount } from './hooks/useSecureAccount';
 import { useUserProfile } from './hooks/useUserProfile';
@@ -75,6 +76,7 @@ export default function App() {
   const [userState, setUserState, hydrated, storageError] = useUserState();
   const [userProfile, setUserProfile, profileHydrated, profileError] = useUserProfile();
   const secureAccount = useSecureAccount();
+  const cloudSync = useCloudUserState(secureAccount.enabled, secureAccount.profile, hydrated, userState, setUserState);
   const [updateAvailable, setUpdateAvailable] = useState(hasWaitingUpdate);
   const [systemMessage, setSystemMessage] = useState('');
   const libraryScroll = useRef(0);
@@ -229,10 +231,10 @@ export default function App() {
       {(storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}
       {systemMessage && <div className="system-message" role="status"><span>{systemMessage}</span><button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemMessage('')}>×</button></div>}
       <main id="main-content" className="app-main">
-        {route.name === 'library' && <Library songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} onOpenSong={openSong} />}
+        {route.name === 'library' && <Library songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} setlistCount={userState.setlists.length} onOpenSong={openSong} onNavigate={navigate} />}
         {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id) => navigate(`setlists/${id}`)} />}
         {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} />}
-        {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} onRefreshSecureProfile={secureAccount.refresh} />}
+        {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} cloudSync={cloudSync} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} onRefreshSecureProfile={secureAccount.refresh} />}
         {route.name === 'offline' && <OfflineContent catalog={catalog} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} downloadedLibrarySongs={downloadedLibrarySongs} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
         {route.name === 'install' && <InstallPage canPrompt={installPrompt.canPrompt} installed={installPrompt.installed} isIosLike={installPrompt.isIosLike} onInstall={installPrompt.install} onNavigate={navigate} />}
         {route.name === 'help' && <HelpPage onNavigate={navigate} />}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { createHash } from 'node:crypto';
 import { isPublishable, songSchema, type Song } from '../../src/domain/song.js';
 import type { PersonalLibrarySnapshot } from './personal-library.js';
 
@@ -24,6 +25,14 @@ export interface PrivateLibraryBackup {
   backupVersion: 2;
   exportedAt: string;
   libraryScope: PrivateLibraryScope;
+  libraryManifest: {
+    schemaVersion: 1;
+    scope: PrivateLibraryScope;
+    version: string;
+    generatedAt: string;
+    songCount: number;
+    contentBytes: number;
+  };
   data: {
     schemaVersion: 2;
     favorites: never[];
@@ -98,12 +107,25 @@ export function createPrivateLibraryBackup(
     });
     return [{ song, content }];
   });
+  const contentBytes = personalSongs.reduce((sum, entry) => sum + Buffer.byteLength(entry.content, 'utf8'), 0);
+  const version = createHash('sha256')
+    .update(JSON.stringify(personalSongs.map(({ song, content }) => [song.id, song.updatedAt, Buffer.byteLength(content, 'utf8')])))
+    .digest('hex')
+    .slice(0, 12);
 
   return {
     application: 'cesky-digitalni-zpevnik',
     backupVersion: 2,
     exportedAt,
     libraryScope: scope,
+    libraryManifest: {
+      schemaVersion: 1,
+      scope,
+      version,
+      generatedAt: exportedAt,
+      songCount: personalSongs.length,
+      contentBytes,
+    },
     data: {
       schemaVersion: 2,
       favorites: [],
