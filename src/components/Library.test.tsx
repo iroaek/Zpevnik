@@ -21,7 +21,7 @@ describe('Knihovna', () => {
     render(<Library songs={[song]} favorites={[]} recent={[]} onOpenSong={onOpen} onNavigate={vi.fn()} />);
     expect(screen.getByRole('searchbox').closest('.hero-card')).not.toBeNull();
     await userEvent.type(screen.getByRole('searchbox'), 'zluta');
-    await userEvent.click(screen.getByRole('button', { name: /Žlutá zkouška/ }));
+    await userEvent.click(screen.getByRole('button', { name: /^Žlutá zkouška/ }));
     expect(onOpen).toHaveBeenCalledWith('synteticky-test');
   });
 

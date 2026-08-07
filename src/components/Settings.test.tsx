@@ -36,8 +36,9 @@ const secureAdmin: SecureProfile = {
 describe('administrátorské nastavení', () => {
   afterEach(cleanup);
 
-  it('zobrazí databázi uživatelů a umožní obnovit serverová oprávnění', async () => {
+  it('nabídne samostatnou administraci a umožní obnovit serverová oprávnění', async () => {
     const refresh = vi.fn().mockResolvedValue(undefined);
+    const navigate = vi.fn();
     render(<Settings
       userState={defaultUserState}
       userProfile={localProfile}
@@ -47,12 +48,12 @@ describe('administrátorské nastavení', () => {
       onUserStateChange={vi.fn()}
       onUserProfileChange={vi.fn()}
       onPersonalLibraryChanged={vi.fn().mockResolvedValue(undefined)}
-      onNavigate={vi.fn()}
+      onNavigate={navigate}
       onRefreshSecureProfile={refresh}
     />);
 
-    expect(screen.getByRole('heading', { name: 'Administrace' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Databáze uživatelů' })).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Otevřít administraci' }));
+    expect(navigate).toHaveBeenCalledWith('admin');
     await userEvent.click(screen.getByRole('button', { name: 'Obnovit oprávnění' }));
     expect(refresh).toHaveBeenCalledOnce();
     expect(await screen.findByText('Oprávnění účtu byla obnovena ze serveru.')).toBeVisible();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { metadataValue, parseChordPro, sanitizeImportedText } from '../domain/chordpro';
 import { calculateCapoOptions, parseChord, renderPitch, transposeCanonicalChord } from '../domain/chords';
 import type { Song } from '../domain/song';
@@ -13,9 +13,13 @@ interface SongReaderProps {
   onUserStateChange: React.Dispatch<React.SetStateAction<UserState>>;
   onBack: () => void;
   catalogVersion: string;
+  previousSong?: Song;
+  nextSong?: Song;
+  onPreviousSong?: () => void;
+  onNextSong?: () => void;
 }
 
-export function SongReader({ song, userState, onUserStateChange, onBack, catalogVersion }: SongReaderProps) {
+export function SongReader({ song, userState, onUserStateChange, onBack, catalogVersion, previousSong, nextSong, onPreviousSong, onNextSong }: SongReaderProps) {
   const [source, setSource] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [semitones, setSemitones] = useState(0);
@@ -26,6 +30,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   const [orientationLocked, setOrientationLocked] = useState(false);
   const [setlistId, setSetlistId] = useState(userState.setlists[0]?.id ?? '');
   const [setlistMessage, setSetlistMessage] = useState('');
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const settings = userState.settings;
   const isLayoutText = song.contentFormat === 'layout_text';
 
@@ -158,7 +163,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   };
 
   return (
-    <article className="song-reader">
+    <article className="song-reader" onPointerDown={(event) => { if (event.pointerType === 'touch') swipeStart.current = { x: event.clientX, y: event.clientY }; }} onPointerUp={(event) => { const start = swipeStart.current; swipeStart.current = null; if (!start || event.pointerType !== 'touch') return; const x = event.clientX - start.x; const y = event.clientY - start.y; if (Math.abs(x) < 70 || Math.abs(x) < Math.abs(y) * 1.5) return; if (x < 0) onNextSong?.(); else onPreviousSong?.(); }} onPointerCancel={() => { swipeStart.current = null; }}>
       <header className="reader-header">
         <button type="button" className="icon-button" aria-label="Zpět do seznamu" onClick={onBack}>‹</button>
         <div><p className="eyebrow">{song.categories.join(' · ')}</p><h1>{song.title}</h1><p>{song.authors.join(', ') || 'Autor neuveden'}</p></div>
@@ -210,6 +215,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
             {userState.setlists.length > 0 ? <><label>Vybrat setlist<select value={effectiveSetlistId} onChange={(event) => { setSetlistId(event.target.value); setSetlistMessage(''); }}>{userState.setlists.map((setlist) => <option value={setlist.id} key={setlist.id}>{setlist.name} ({setlist.songIds.length})</option>)}</select></label><button type="button" className="primary-button" disabled={alreadyInSetlist} onClick={addToSetlist}>{alreadyInSetlist ? 'Již přidáno' : 'Přidat do setlistu'}</button>{setlistMessage && <p className="setlist-add-message" role="status">{setlistMessage}</p>}</> : <p>Nejdřív vytvořte setlist v části <strong>Setlisty</strong>, potom se sem vraťte.</p>}
           </section>
           <footer className="rights-card"><strong>Práva a původ</strong><span>{song.source}</span><span>{song.personalOnly ? 'Ke kontrole · pouze osobní místní koncept' : song.rightsStatus} · {song.license}</span><span>{song.attribution}</span></footer>
+          {(previousSong || nextSong) && <nav className="reader-sequence-nav" aria-label="Pohyb v setlistu"><button type="button" className="secondary-button" disabled={!previousSong} onClick={onPreviousSong}><span aria-hidden="true">←</span><span><small>Předchozí</small><strong>{previousSong?.title ?? 'Začátek setlistu'}</strong></span></button><button type="button" className="secondary-button" disabled={!nextSong} onClick={onNextSong}><span><small>Další</small><strong>{nextSong?.title ?? 'Konec setlistu'}</strong></span><span aria-hidden="true">→</span></button><small>Na telefonu lze mezi písněmi také přejet prstem doleva nebo doprava.</small></nav>}
           {fireMode && <div className="fire-dock" aria-label="Rychlé ovládání režimu U ohně"><button type="button" className={autoScroll ? 'primary-button' : 'secondary-button'} onClick={() => setAutoScroll((value) => !value)}>{autoScroll ? '■ Zastavit' : '▶ Posun'}</button>{screen.orientation.lock && <button type="button" className="secondary-button" aria-pressed={orientationLocked} onClick={() => void toggleOrientationLock()}>{orientationLocked ? 'Odemknout otočení' : 'Zamknout na výšku'}</button>}<button type="button" className="secondary-button" onClick={() => void toggleFireMode()}>Ukončit U ohně</button></div>}
         </>
       ) : <ScoreViewer assets={song.scoreAssets} catalogVersion={catalogVersion} />}

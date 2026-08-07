@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { Song } from '../domain/song';
 import type { PersonalLibrarySummary } from '../personalLibrary';
+import type { Setlist } from '../storage/database';
 
 type CollectionMode = 'all' | 'favorites' | 'recent';
 
@@ -9,8 +10,12 @@ interface LibraryProps {
   favorites: string[];
   recent: string[];
   setlistCount?: number;
+  setlists?: Setlist[];
   onOpenSong: (id: string) => void;
   onNavigate: (path: string) => void;
+  onToggleFavorite?: (id: string) => void;
+  onAddToSetlist?: (songId: string, setlistId: string) => void;
+  onNotify?: (message: string) => void;
   personalSummary?: PersonalLibrarySummary | null;
   deviceSongCount?: number;
 }
@@ -25,16 +30,24 @@ interface LibraryViewState {
   scoreAvailability: string;
   instrument: string;
   letter: string;
+  sort: 'title' | 'author' | 'recent';
+  layout: 'cards' | 'compact';
 }
 
 const PAGE_SIZE = 60;
 const VIEW_STORAGE_KEY = 'zpevnik-library-view-v1';
-const initialView: LibraryViewState = { query: '', mode: 'all', key: '', difficulty: '', language: '', category: '', scoreAvailability: '', instrument: '', letter: '' };
+const initialView: LibraryViewState = { query: '', mode: 'all', key: '', difficulty: '', language: '', category: '', scoreAvailability: '', instrument: '', letter: '', sort: 'title', layout: 'cards' };
 
 function loadView(): LibraryViewState {
   try {
     const parsed = JSON.parse(sessionStorage.getItem(VIEW_STORAGE_KEY) ?? '') as Partial<LibraryViewState>;
-    return { ...initialView, ...parsed, mode: ['all', 'favorites', 'recent'].includes(parsed.mode ?? '') ? parsed.mode as CollectionMode : 'all' };
+    return {
+      ...initialView,
+      ...parsed,
+      mode: ['all', 'favorites', 'recent'].includes(parsed.mode ?? '') ? parsed.mode as CollectionMode : 'all',
+      sort: ['title', 'author', 'recent'].includes(parsed.sort ?? '') ? parsed.sort as LibraryViewState['sort'] : 'title',
+      layout: parsed.layout === 'compact' ? 'compact' : 'cards',
+    };
   } catch {
     return initialView;
   }
@@ -53,10 +66,14 @@ function reviewCount(song: Song): number {
   return new Set([...(song.reviewFlags ?? []), ...song.tags.filter((tag) => tag.startsWith('review:'))]).size;
 }
 
-export function Library({ songs, favorites, recent, setlistCount = 0, onOpenSong, onNavigate, personalSummary, deviceSongCount = 0 }: LibraryProps) {
+export function Library({ songs, favorites, recent, setlistCount = 0, setlists = [], onOpenSong, onNavigate, onToggleFavorite, onAddToSetlist, onNotify, personalSummary, deviceSongCount = 0 }: LibraryProps) {
   const [view, setView] = useState<LibraryViewState>(loadView);
   const [page, setPage] = useState({ signature: '', count: PAGE_SIZE });
+  const [quickSongId, setQuickSongId] = useState<string | null>(null);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<number | null>(null);
+  const longPressTriggered = useRef(false);
   const deferredQuery = useDeferredValue(view.query);
   const favoriteIds = useMemo(() => new Set(favorites), [favorites]);
 
@@ -66,6 +83,13 @@ export function Library({ songs, favorites, recent, setlistCount = 0, onOpenSong
   useEffect(() => {
     try { sessionStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify(view)); } catch { /* Soukromý režim může sessionStorage blokovat. */ }
   }, [view]);
+
+  useEffect(() => {
+    const update = () => setShowBackToTop(window.scrollY > 700);
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+    return () => window.removeEventListener('scroll', update);
+  }, []);
 
   const options = useMemo(() => ({
     keys: [...new Set(songs.map((song) => song.originalKey).filter(Boolean))] as string[],
@@ -87,7 +111,7 @@ export function Library({ songs, favorites, recent, setlistCount = 0, onOpenSong
       : view.mode === 'recent'
         ? recent.map((id) => songById.get(id)).filter((song): song is Song => Boolean(song))
         : songs;
-    return base.filter((song) => {
+    const matches = base.filter((song) => {
       const haystack = searchIndex.get(song.id) ?? '';
       return (!needle || haystack.includes(needle))
         && (!view.letter || firstLetter(song) === view.letter)
@@ -98,12 +122,50 @@ export function Library({ songs, favorites, recent, setlistCount = 0, onOpenSong
         && (!view.scoreAvailability || (view.scoreAvailability === 'yes' ? song.scoreAssets.length > 0 : song.scoreAssets.length === 0))
         && (!view.instrument || song.scoreAssets.some((asset) => asset.instrument === view.instrument));
     });
+    const recentOrder = new Map(recent.map((id, index) => [id, index]));
+    return [...matches].sort((left, right) => {
+      if (view.sort === 'author') return (left.authors[0] ?? '').localeCompare(right.authors[0] ?? '', 'cs') || left.sortTitle.localeCompare(right.sortTitle, 'cs');
+      if (view.sort === 'recent') return (recentOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (recentOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER) || left.sortTitle.localeCompare(right.sortTitle, 'cs');
+      return left.sortTitle.localeCompare(right.sortTitle, 'cs');
+    });
   }, [deferredQuery, favoriteIds, recent, searchIndex, songById, songs, view]);
 
   const filterSignature = JSON.stringify([deferredQuery, view.mode, view.letter, view.key, view.difficulty, view.language, view.category, view.scoreAvailability, view.instrument]);
   const visibleCount = page.signature === filterSignature ? page.count : PAGE_SIZE;
   const visibleSongs = filtered.slice(0, visibleCount);
   const activeFilterCount = [view.letter, view.key, view.difficulty, view.language, view.category, view.scoreAvailability, view.instrument].filter(Boolean).length;
+  const quickSong = quickSongId ? songById.get(quickSongId) : undefined;
+  const activeFilters = [
+    view.letter && { key: 'letter' as const, label: `Písmeno ${view.letter}` },
+    view.key && { key: 'key' as const, label: `Tónina ${view.key}` },
+    view.difficulty && { key: 'difficulty' as const, label: `Obtížnost: ${{ easy: 'snadná', medium: 'střední', hard: 'těžká', unknown: 'neuvedená' }[view.difficulty] ?? view.difficulty}` },
+    view.language && { key: 'language' as const, label: view.language },
+    view.category && { key: 'category' as const, label: view.category },
+    view.scoreAvailability && { key: 'scoreAvailability' as const, label: view.scoreAvailability === 'yes' ? 'Má noty' : 'Bez not' },
+    view.instrument && { key: 'instrument' as const, label: view.instrument },
+  ].filter(Boolean) as Array<{ key: keyof LibraryViewState; label: string }>;
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  };
+
+  const startLongPress = (id: string) => {
+    cancelLongPress();
+    longPressTriggered.current = false;
+    longPressTimer.current = window.setTimeout(() => {
+      longPressTriggered.current = true;
+      setQuickSongId(id);
+    }, 550);
+  };
+
+  const openFromCard = (id: string) => {
+    if (longPressTriggered.current) {
+      longPressTriggered.current = false;
+      return;
+    }
+    onOpenSong(id);
+  };
 
   useEffect(() => {
     const sentinel = sentinelRef.current;
@@ -128,19 +190,21 @@ export function Library({ songs, favorites, recent, setlistCount = 0, onOpenSong
       </div>
 
       <nav className="library-quick-actions" aria-label="Rychlé volby knihovny">
-        {lastSong && <button type="button" onClick={() => onOpenSong(lastSong.id)}><span aria-hidden="true">▶</span><span><small>Pokračovat</small><strong>{lastSong.title}</strong></span></button>}
+        {lastSong && <button type="button" className="library-primary-action" onClick={() => onOpenSong(lastSong.id)}><span aria-hidden="true">▶</span><span><small>Pokračovat</small><strong>{lastSong.title}</strong></span></button>}
         <button type="button" onClick={() => updateView('mode', 'favorites')}><span aria-hidden="true">★</span><span><small>Oblíbené</small><strong>{favorites.length} písní</strong></span></button>
         <button type="button" onClick={() => onNavigate('setlists')}><span aria-hidden="true">☷</span><span><small>Moje setlisty</small><strong>{setlistCount} seznamů</strong></span></button>
       </nav>
 
       {(personalSummary?.songCount || deviceSongCount > 0) && <aside className="personal-library-note" aria-label="Stav osobní knihovny"><span className="personal-library-note__icon" aria-hidden="true">⌂</span><span><strong>Osobní knihovna: {(personalSummary?.songCount ?? 0) + deviceSongCount} písní</strong><small>{deviceSongCount > 0 && `${deviceSongCount} uložených přímo v tomto zařízení. `}{personalSummary && `${personalSummary.songCount} z místního vývojového serveru.`}</small></span></aside>}
 
-      {recentSongs.length > 1 && view.mode === 'all' && !view.query && <section className="recent-strip" aria-labelledby="recent-strip-heading"><div className="results-heading"><h2 id="recent-strip-heading">Naposledy otevřené</h2><button type="button" className="text-button" onClick={() => updateView('mode', 'recent')}>Zobrazit vše</button></div><div>{recentSongs.map((song) => <button type="button" onClick={() => onOpenSong(song.id)} key={song.id}><strong>{song.title}</strong><small>{song.authors.join(', ') || 'Autor neuveden'}</small></button>)}</div></section>}
+      {recentSongs.length > 1 && view.mode === 'all' && !view.query && <section className="recent-strip" aria-labelledby="recent-strip-heading"><div className="results-heading"><h2 id="recent-strip-heading">Naposledy otevřené</h2><button type="button" className="text-button" onClick={() => updateView('mode', 'recent')}>Zobrazit vše</button></div><div className="scroll-strip">{recentSongs.map((song) => <button type="button" onClick={() => onOpenSong(song.id)} key={song.id}><strong>{song.title}</strong><small>{song.authors.join(', ') || 'Autor neuveden'}</small></button>)}</div></section>}
 
       <div className="library-tools">
         <div className="collection-tabs" role="group" aria-label="Sbírka písní">{([['all', 'Všechny'], ['favorites', `Oblíbené (${favorites.length})`], ['recent', 'Nedávné']] as const).map(([value, label]) => <button type="button" className={view.mode === value ? 'chip chip--active' : 'chip'} aria-pressed={view.mode === value} onClick={() => updateView('mode', value)} key={value}>{label}</button>)}</div>
-        <div className="alphabet-filter" aria-label="Rychlý výběr podle prvního písmene"><button type="button" className={!view.letter ? 'active' : ''} aria-pressed={!view.letter} onClick={() => updateView('letter', '')}>Vše</button>{options.letters.map((letter) => <button type="button" className={view.letter === letter ? 'active' : ''} aria-pressed={view.letter === letter} onClick={() => updateView('letter', letter)} key={letter}>{letter}</button>)}</div>
+        <div className="alphabet-filter scroll-strip" aria-label="Rychlý výběr podle prvního písmene"><button type="button" className={!view.letter ? 'active' : ''} aria-pressed={!view.letter} onClick={() => updateView('letter', '')}>Vše</button>{options.letters.map((letter) => <button type="button" className={view.letter === letter ? 'active' : ''} aria-pressed={view.letter === letter} onClick={() => updateView('letter', letter)} key={letter}>{letter}</button>)}</div>
       </div>
+
+      {activeFilters.length > 0 && <div className="active-filter-chips" aria-label="Aktivní filtry">{activeFilters.map((filter) => <button type="button" key={filter.key} onClick={() => updateView(filter.key, '' as never)} aria-label={`Odebrat filtr ${filter.label}`}>{filter.label}<span aria-hidden="true">×</span></button>)}<button type="button" className="clear-filter-chip" onClick={clearFilters}>Zrušit vše</button></div>}
 
       <details className="filters">
         <summary>Filtry{activeFilterCount > 0 && ` (${activeFilterCount})`} <span aria-hidden="true">⌄</span></summary>
@@ -155,12 +219,15 @@ export function Library({ songs, favorites, recent, setlistCount = 0, onOpenSong
         </div>
       </details>
 
-      <div className="results-heading"><h2>Písně</h2><span>{filtered.length} výsledků · zobrazeno {visibleSongs.length}</span></div>
-      <div className="song-list">
-        {visibleSongs.map((song) => <button type="button" className="song-card" onClick={() => onOpenSong(song.id)} key={song.id}><span className="song-card__main"><strong>{song.title}</strong><span>{song.authors.join(', ') || 'Autor neuveden'}</span>{song.personalOnly && reviewCount(song) > 0 && <span className="song-card__labels"><span>Ke kontrole · {reviewCount(song)}</span></span>}</span><span className="song-card__meta"><span>{song.originalKey ?? '—'}</span>{song.scoreAssets.length > 0 && <span aria-label="Obsahuje noty">♫</span>}{favoriteIds.has(song.id) && <span aria-label="Oblíbená">★</span>}<span aria-hidden="true">›</span></span></button>)}
+      <div className="catalog-heading"><div className="results-heading"><h2>Písně</h2><span>{filtered.length} výsledků · zobrazeno {visibleSongs.length}</span></div><div className="library-view-controls"><label><span className="visually-hidden">Řazení písní</span><select value={view.sort} onChange={(event) => updateView('sort', event.target.value as LibraryViewState['sort'])}><option value="title">Podle názvu</option><option value="author">Podle autora</option><option value="recent">Naposledy otevřené</option></select></label><div role="group" aria-label="Zobrazení katalogu"><button type="button" className={view.layout === 'cards' ? 'active' : ''} aria-pressed={view.layout === 'cards'} aria-label="Karty" onClick={() => updateView('layout', 'cards')}>▦</button><button type="button" className={view.layout === 'compact' ? 'active' : ''} aria-pressed={view.layout === 'compact'} aria-label="Kompaktní seznam" onClick={() => updateView('layout', 'compact')}>☷</button></div></div></div>
+      {deferredQuery !== view.query && <div className="catalog-skeleton" role="status" aria-label="Hledám v katalogu"><span /><span /><span /></div>}
+      <div className={`song-list song-list--${view.layout}`} aria-busy={deferredQuery !== view.query}>
+        {visibleSongs.map((song) => <article className="song-card-shell" key={song.id} onPointerDown={() => startLongPress(song.id)} onPointerUp={cancelLongPress} onPointerCancel={cancelLongPress} onPointerMove={cancelLongPress} onContextMenu={(event) => { event.preventDefault(); setQuickSongId(song.id); }}><button type="button" className="song-card song-card__open" onClick={() => openFromCard(song.id)}><span className="song-card__main"><strong>{song.title}</strong><span>{song.authors.join(', ') || 'Autor neuveden'}</span>{song.personalOnly && reviewCount(song) > 0 && <span className="song-card__labels"><span>Ke kontrole · {reviewCount(song)}</span></span>}</span><span className="song-card__meta"><span>{song.originalKey ?? '—'}</span>{song.chordProPath.startsWith('indexeddb:') && <span className="offline-song-badge" aria-label="Uloženo offline">⇩</span>}{song.scoreAssets.length > 0 && <span aria-label="Obsahuje noty">♫</span>}{favoriteIds.has(song.id) && <span aria-label="Oblíbená">★</span>}<span aria-hidden="true">›</span></span></button><button type="button" className="song-quick-button" aria-label="Rychlé akce" title={`Rychlé akce pro ${song.title}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => setQuickSongId(song.id)}>•••</button></article>)}
         {filtered.length === 0 && <p className="empty-state">Tomuto hledání neodpovídá žádná píseň. <button type="button" className="text-button" onClick={() => setView(initialView)}>Zrušit hledání a filtry</button></p>}
       </div>
       {visibleCount < filtered.length && <div ref={sentinelRef} className="load-more"><button type="button" className="secondary-button" onClick={() => setPage({ signature: filterSignature, count: visibleCount + PAGE_SIZE })}>Zobrazit dalších {Math.min(PAGE_SIZE, filtered.length - visibleCount)} písní</button></div>}
+      {showBackToTop && <button type="button" className="back-to-top" aria-label="Zpět nahoru" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>↑</button>}
+      {quickSong && <div className="quick-action-backdrop" role="presentation" onClick={() => setQuickSongId(null)}><section className="quick-action-sheet" role="dialog" aria-modal="true" aria-labelledby="quick-action-heading" onClick={(event) => event.stopPropagation()}><div><span><small>Rychlé akce</small><h2 id="quick-action-heading">{quickSong.title}</h2></span><button type="button" className="icon-button" aria-label="Zavřít" onClick={() => setQuickSongId(null)}>×</button></div><button type="button" className="secondary-button" onClick={() => { onToggleFavorite?.(quickSong.id); onNotify?.(favoriteIds.has(quickSong.id) ? 'Píseň byla odebrána z oblíbených.' : 'Píseň byla přidána do oblíbených.'); setQuickSongId(null); }}>{favoriteIds.has(quickSong.id) ? '☆ Odebrat z oblíbených' : '★ Přidat do oblíbených'}</button>{setlists.length > 0 && <label>Přidat do setlistu<select defaultValue="" onChange={(event) => { if (!event.target.value) return; onAddToSetlist?.(quickSong.id, event.target.value); onNotify?.('Píseň byla přidána do setlistu.'); setQuickSongId(null); }}><option value="" disabled>Vyberte setlist…</option>{setlists.map((setlist) => <option key={setlist.id} value={setlist.id} disabled={setlist.songIds.includes(quickSong.id)}>{setlist.name}{setlist.songIds.includes(quickSong.id) ? ' · již obsahuje' : ''}</option>)}</select></label>}<button type="button" className="primary-button" onClick={() => onOpenSong(quickSong.id)}>Otevřít píseň</button><small>{quickSong.chordProPath.startsWith('indexeddb:') ? 'Píseň je uložená offline v tomto zařízení.' : 'Offline dostupnost lze spravovat v části Offline.'}</small></section></div>}
     </section>
   );
 }

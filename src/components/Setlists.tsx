@@ -9,7 +9,7 @@ interface SetlistsProps {
   songs: Song[];
   userState: UserState;
   onUserStateChange: React.Dispatch<React.SetStateAction<UserState>>;
-  onOpenSong: (id: string) => void;
+  onOpenSong: (id: string, sequence?: string[]) => void;
   publicSetlists: PublicSetlist[];
   onOpenPublicSetlist: (id: string) => void;
   catalogVersion: string;
@@ -168,7 +168,7 @@ export function Setlists({ songs, userState, onUserStateChange, onOpenSong, publ
             {selected.songIds.map((songId, index) => {
               const song = songsById.get(songId);
               if (!song) return null;
-              return <div className={`setlist-row ${draggedIndex === index ? 'setlist-row--dragging' : ''}`} draggable onDragStart={() => setDraggedIndex(index)} onDragEnd={() => setDraggedIndex(null)} onDragOver={(event) => event.preventDefault()} onDrop={() => dropAt(index)} key={`${songId}-${index}`}><span className="order-number" aria-label={`Pořadí ${index + 1}`}>{index + 1}</span><button className="setlist-song" type="button" onClick={() => onOpenSong(songId)}>{song.title}<small>Podržte a přetáhněte pro změnu pořadí</small></button><button type="button" className="icon-button" aria-label={`Posunout ${song.title} nahoru`} disabled={index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" className="icon-button" aria-label={`Posunout ${song.title} dolů`} disabled={index === selected.songIds.length - 1} onClick={() => move(index, 1)}>↓</button><button type="button" className="icon-button" aria-label={`Odebrat ${song.title}`} onClick={() => remove(songId, index)}>×</button></div>;
+              return <div className={`setlist-row ${draggedIndex === index ? 'setlist-row--dragging' : ''}`} draggable onDragStart={() => setDraggedIndex(index)} onDragEnd={() => setDraggedIndex(null)} onDragOver={(event) => event.preventDefault()} onDrop={() => dropAt(index)} key={`${songId}-${index}`}><span className="order-number" aria-label={`Pořadí ${index + 1}`}>{index + 1}</span><button className="setlist-song" type="button" onClick={() => onOpenSong(songId, selected.songIds)}>{song.title}<small>Podržte a přetáhněte pro změnu pořadí</small></button><button type="button" className="icon-button" aria-label={`Posunout ${song.title} nahoru`} disabled={index === 0} onClick={() => move(index, -1)}>↑</button><button type="button" className="icon-button" aria-label={`Posunout ${song.title} dolů`} disabled={index === selected.songIds.length - 1} onClick={() => move(index, 1)}>↓</button><button type="button" className="icon-button" aria-label={`Odebrat ${song.title}`} onClick={() => remove(songId, index)}>×</button></div>;
             })}
             {selected.songIds.length === 0 && <p className="empty-state">Písně přidáte z detailu skladby.</p>}
           </div>}

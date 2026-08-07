@@ -4,8 +4,6 @@ import type { Song } from '../domain/song';
 import type { CloudSyncState } from '../hooks/useCloudUserState';
 import { downloadPersonalLibrary } from '../personalLibraryDownload';
 import { exportFullBackup, importFullBackup, type UserProfile, type UserState } from '../storage/database';
-import { AdminAccessPanel } from './AdminAccessPanel';
-import { AdminUsersPanel } from './AdminUsersPanel';
 import { QrCodeGenerator } from './QrCodeGenerator';
 
 interface SettingsProps {
@@ -119,7 +117,7 @@ export function Settings({
       {permissionMessage && <p className="info-message" role="status">{permissionMessage}</p>}
       {secureMode && cloudSync && <section className={`cloud-sync-card cloud-sync-card--${cloudSync.status}`} aria-label="Synchronizace mezi zařízeními"><span className="cloud-sync-icon" aria-hidden="true">↻</span><span><small>Synchronizace mezi zařízeními</small><strong>{cloudSync.status === 'synced' ? 'Všechny změny jsou synchronizované' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Synchronizuji změny…' : cloudSync.status === 'offline' ? 'Změny čekají na připojení' : cloudSync.status === 'error' ? 'Synchronizace potřebuje pozornost' : 'Synchronizace není aktivní'}</strong><p>{cloudSync.error ?? (cloudSync.lastSyncedAt ? `Naposledy ${new Date(cloudSync.lastSyncedAt).toLocaleString('cs-CZ')}. Setlisty, oblíbené a nastavení jsou dostupné na vašich zařízeních.` : 'Setlisty, oblíbené a nastavení se uloží do vašeho soukromého účtu.')}</p></span><button type="button" className="secondary-button" disabled={cloudSync.status === 'loading' || cloudSync.status === 'syncing'} onClick={() => void cloudSync.refresh()}>Synchronizovat nyní</button></section>}
 
-      {serverAdmin && <section className="admin-dashboard" aria-labelledby="admin-dashboard-heading"><header><p className="eyebrow">Správa aplikace</p><h2 id="admin-dashboard-heading">Administrace</h2><p>Uživatelé, žádosti, návrhy písní a instalační QR kódy jsou pohromadě na jednom místě.</p><nav aria-label="Sekce administrace"><a href="#admin-users-heading">Databáze uživatelů</a><a href="#admin-access-heading">Schvalování</a><a href="#qr-generator-heading">QR kódy</a></nav></header><AdminUsersPanel /><AdminAccessPanel /><QrCodeGenerator /></section>}
+      {serverAdmin && <section className="admin-entry-card" aria-label="Administrace"><span><small>Pouze administrátor</small><strong>Správa zpěvníku</strong><p>Uživatelé, žádosti, nové písně a provozní nástroje jsou nyní na samostatné stránce.</p></span><button type="button" className="primary-button" onClick={() => onNavigate('admin')}>Otevřít administraci</button></section>}
 
       <div className="results-heading settings-section-heading"><h2>Běžné nastavení</h2><span>Vzhled a čtečka</span></div>
       <div className="settings-grid">

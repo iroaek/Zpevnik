@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import catalogJson from './generated/catalog.json';
 import { AccountAccessPage } from './components/AccountAccessPage';
+import { AdminPage } from './components/AdminPage';
 import { ApprovalGate } from './components/ApprovalGate';
 import { HelpPage } from './components/HelpPage';
 import { InstallPage } from './components/InstallPage';
@@ -24,13 +25,14 @@ import { useUserState } from './hooks/useUserState';
 import { loadLatestCatalog } from './pwa/contentCache';
 import { canonicalUrl, relativeRoute, routePath } from './pwa/paths';
 import { activateWaitingUpdate, hasWaitingUpdate } from './pwa/updateManager';
-import { addRecent, createUserProfile, isDownloadedLibrarySong, loadPersonalSongs } from './storage/database';
+import { addRecent, createUserProfile, isDownloadedLibrarySong, loadPersonalSongs, toggleFavorite, updateSetlistSongs } from './storage/database';
 import type { PersonalLibrarySummary } from './personalLibrary';
 
 type Route =
   | { name: 'library' }
   | { name: 'setlists' }
   | { name: 'settings' }
+  | { name: 'admin' }
   | { name: 'import' }
   | { name: 'offline' }
   | { name: 'install' }
@@ -46,6 +48,7 @@ function parseRoute(pathname = window.location.pathname): Route {
   if (!relative) return { name: 'library' };
   if (relative === 'setlists') return { name: 'setlists' };
   if (relative === 'settings') return { name: 'settings' };
+  if (relative === 'admin') return { name: 'admin' };
   if (relative === 'import') return { name: 'import' };
   if (relative === 'offline') return { name: 'offline' };
   if (relative === 'install') return { name: 'install' };
@@ -79,6 +82,7 @@ export default function App() {
   const cloudSync = useCloudUserState(secureAccount.enabled, secureAccount.profile, hydrated, userState, setUserState);
   const [updateAvailable, setUpdateAvailable] = useState(hasWaitingUpdate);
   const [systemMessage, setSystemMessage] = useState('');
+  const [readerSequence, setReaderSequence] = useState<string[]>([]);
   const libraryScroll = useRef(0);
   const online = useConnectivity();
   const installPrompt = useInstallPrompt();
@@ -120,6 +124,12 @@ export default function App() {
       localStorage.setItem('zpevnik-catalog-version', latest.version);
     });
   }, [online]);
+
+  useEffect(() => {
+    if (!systemMessage) return;
+    const timer = window.setTimeout(() => setSystemMessage(''), 4500);
+    return () => window.clearTimeout(timer);
+  }, [systemMessage]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -186,7 +196,7 @@ export default function App() {
     const relative = routeRelativePath(route);
     const canonical = canonicalUrl(relative);
     document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.setAttribute('href', canonical);
-    const label = route.name === 'song' ? selectedSong?.title : route.name === 'public-setlist' ? selectedPublicSetlist?.title : ({ library: 'Písně', setlists: 'Setlisty', import: 'Import PDF', settings: 'Nastavení', offline: 'Offline obsah', install: 'Instalace', help: 'Nápověda', 'not-found': 'Nenalezeno' } as const)[route.name];
+    const label = route.name === 'song' ? selectedSong?.title : route.name === 'public-setlist' ? selectedPublicSetlist?.title : ({ library: 'Písně', setlists: 'Setlisty', import: 'Import PDF', settings: 'Nastavení', admin: 'Administrace', offline: 'Offline obsah', install: 'Instalace', help: 'Nápověda', 'not-found': 'Nenalezeno' } as const)[route.name];
     document.title = label ? `${label} · Český zpěvník` : 'Český digitální zpěvník';
     if (route.name === 'library') requestAnimationFrame(() => window.scrollTo({ top: libraryScroll.current }));
     else window.scrollTo({ top: 0 });
@@ -199,10 +209,19 @@ export default function App() {
     setRoute(parseRoute(destination));
   };
 
-  const openSong = (id: string) => {
+  const openSong = (id: string, sequence: string[] = []) => {
     if (route.name === 'library') libraryScroll.current = window.scrollY;
+    setReaderSequence(sequence);
     navigate(`songs/${id}`);
     setUserState((current) => addRecent(current, id));
+  };
+
+  const readerIndex = selectedSong ? readerSequence.indexOf(selectedSong.id) : -1;
+  const previousReaderSong = readerIndex > 0 ? allSongs.find((song) => song.id === readerSequence[readerIndex - 1]) : undefined;
+  const nextReaderSong = readerIndex >= 0 && readerIndex < readerSequence.length - 1 ? allSongs.find((song) => song.id === readerSequence[readerIndex + 1]) : undefined;
+  const openReaderSibling = (song: Catalog['songs'][number]) => {
+    navigate(`songs/${song.id}`);
+    setUserState((current) => addRecent(current, song.id));
   };
 
   const navScreen = route.name === 'library' || route.name === 'setlists' || route.name === 'import' || route.name === 'settings' || route.name === 'offline' ? route.name : null;
@@ -225,22 +244,23 @@ export default function App() {
     <div className="app-shell">
       <header className="app-header">
         <button className="brand" type="button" onClick={() => navigate('')} aria-label="Přejít na seznam písní"><span className="brand-mark" aria-hidden="true">♫</span><span><strong>Český zpěvník</strong><small>odkaz · PWA · offline</small></span></button>
-        <button type="button" className={`connection-badge ${online ? 'online' : 'offline'}`} onClick={() => navigate('offline')} aria-label={`${online ? 'Online' : 'Offline'}; otevřít stav offline obsahu`}><span aria-hidden="true" />{online ? 'Online' : 'Offline'}</button>
+        <div className="header-status"><button type="button" className={`sync-badge sync-badge--${cloudSync.status}`} onClick={() => navigate('settings')} aria-label="Otevřít stav synchronizace"><span aria-hidden="true">↻</span><span>{cloudSync.status === 'synced' ? 'Uloženo' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Ukládám' : cloudSync.status === 'error' ? 'Chyba' : cloudSync.status === 'offline' ? 'Čeká' : 'Místně'}</span></button><button type="button" className={`connection-badge ${online ? 'online' : 'offline'}`} onClick={() => navigate('offline')} aria-label={`${online ? 'Online' : 'Offline'}; otevřít stav offline obsahu`}><span aria-hidden="true" />{online ? 'Online' : 'Offline'}</button></div>
       </header>
       {updateAvailable && <UpdateBanner onUpdate={() => void activateWaitingUpdate()} onLater={() => setUpdateAvailable(false)} />}
       {(storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}
-      {systemMessage && <div className="system-message" role="status"><span>{systemMessage}</span><button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemMessage('')}>×</button></div>}
+      {systemMessage && <div className="system-message toast-message" role="status"><span>{systemMessage}</span><button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemMessage('')}>×</button></div>}
       <main id="main-content" className="app-main">
-        {route.name === 'library' && <Library songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} setlistCount={userState.setlists.length} onOpenSong={openSong} onNavigate={navigate} />}
+        {route.name === 'library' && <Library songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} setlistCount={userState.setlists.length} setlists={userState.setlists} onOpenSong={(id) => openSong(id)} onNavigate={navigate} onToggleFavorite={(id) => setUserState((current) => toggleFavorite(current, id))} onAddToSetlist={(songId, setlistId) => setUserState((current) => { const setlist = current.setlists.find((candidate) => candidate.id === setlistId); return !setlist || setlist.songIds.includes(songId) ? current : updateSetlistSongs(current, setlistId, [...setlist.songIds, songId]); })} onNotify={setSystemMessage} />}
         {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id) => navigate(`setlists/${id}`)} />}
         {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} />}
         {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} cloudSync={cloudSync} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} onRefreshSecureProfile={secureAccount.refresh} />}
+        {route.name === 'admin' && secureAccount.enabled && secureAccount.profile?.role === 'admin' && <AdminPage cloudSync={cloudSync} online={online} onNavigate={navigate} />}
         {route.name === 'offline' && <OfflineContent catalog={catalog} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} downloadedLibrarySongs={downloadedLibrarySongs} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
         {route.name === 'install' && <InstallPage canPrompt={installPrompt.canPrompt} installed={installPrompt.installed} isIosLike={installPrompt.isIosLike} onInstall={installPrompt.install} onNavigate={navigate} />}
         {route.name === 'help' && <HelpPage onNavigate={navigate} />}
-        {route.name === 'song' && selectedSong && <SongReader key={selectedSong.id} song={selectedSong} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onBack={() => navigate('')} />}
-        {route.name === 'public-setlist' && selectedPublicSetlist && <PublicSetlistPage setlist={selectedPublicSetlist} songs={catalog.songs} onOpenSong={openSong} onBack={() => navigate('setlists')} />}
-        {((route.name === 'song' && !selectedSong) || (route.name === 'public-setlist' && !selectedPublicSetlist) || route.name === 'not-found') && <section className="info-page not-found"><p className="eyebrow">404</p><h1>Tato stránka ve zpěvníku není</h1><p>Odkaz může být starý nebo chybný.</p><button type="button" className="primary-button" onClick={() => navigate('')}>Přejít na písně</button></section>}
+        {route.name === 'song' && selectedSong && <SongReader key={selectedSong.id} song={selectedSong} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onBack={() => navigate(readerSequence.length ? 'setlists' : '')} previousSong={previousReaderSong} nextSong={nextReaderSong} onPreviousSong={previousReaderSong ? () => openReaderSibling(previousReaderSong) : undefined} onNextSong={nextReaderSong ? () => openReaderSibling(nextReaderSong) : undefined} />}
+        {route.name === 'public-setlist' && selectedPublicSetlist && <PublicSetlistPage setlist={selectedPublicSetlist} songs={catalog.songs} onOpenSong={(id) => openSong(id, selectedPublicSetlist.songIds)} onBack={() => navigate('setlists')} />}
+        {((route.name === 'song' && !selectedSong) || (route.name === 'public-setlist' && !selectedPublicSetlist) || (route.name === 'admin' && (!secureAccount.enabled || secureAccount.profile?.role !== 'admin')) || route.name === 'not-found') && <section className="info-page not-found"><p className="eyebrow">404</p><h1>Tato stránka ve zpěvníku není</h1><p>Odkaz může být starý nebo chybný.</p><button type="button" className="primary-button" onClick={() => navigate('')}>Přejít na písně</button></section>}
       </main>
       {route.name !== 'song' && <nav className="bottom-nav bottom-nav--five" aria-label="Hlavní navigace">
         <button type="button" className={navScreen === 'library' ? 'active' : ''} aria-current={navScreen === 'library' ? 'page' : undefined} onClick={() => navigate('')}><span aria-hidden="true">⌕</span>Písně</button>
