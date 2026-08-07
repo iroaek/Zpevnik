@@ -1,0 +1,20 @@
+import { cleanup, render } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
+import { ChordSheet } from './ChordSheet';
+
+describe('sazba textu a akordů', () => {
+  afterEach(cleanup);
+
+  it('drží akord u jeho textového úseku a označí akordový řádek', () => {
+    const view = render(<ChordSheet source={'[G]Dlouhý syntetický text [C]pokračuje bezpečně dál'} />);
+    expect(view.container.querySelector('.chord-line--with-chords')).not.toBeNull();
+    expect(view.container.querySelectorAll('.chord-token[data-has-chord="true"]')).toHaveLength(2);
+    expect(view.container.querySelectorAll('.chord')).toHaveLength(2);
+  });
+
+  it('nepřidává prázdný akordový řádek k textu bez akordů', () => {
+    const view = render(<ChordSheet source={'Samostatný syntetický řádek bez akordu'} />);
+    expect(view.container.querySelector('.chord-line--with-chords')).toBeNull();
+    expect(view.container.querySelector('.chord')).toBeNull();
+  });
+});

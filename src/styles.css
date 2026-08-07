@@ -172,15 +172,17 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
 .capo-hint, .score-note { margin: 0.75rem 0; padding: 0.7rem 0.9rem; color: var(--muted); font-size: 0.85rem; border-left: 4px solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); }
 .verified-chords-note { margin: 0.75rem 0; padding: 0.7rem 0.9rem; color: #1d6547; font-size: 0.85rem; font-weight: 750; border-left: 4px solid #32865b; background: color-mix(in srgb, #32865b 10%, var(--surface)); }
 :root[data-theme="dark"] .verified-chords-note { color: #8de0bb; }
-.chord-sheet { padding: 1.4rem 0.2rem; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Noto Sans", sans-serif; font-size: var(--song-font-size); font-variant-ligatures: none; line-height: 1.3; }
+.chord-sheet { max-width: 100%; padding: 1.4rem 0.2rem; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, "Noto Sans", sans-serif; font-size: var(--song-font-size); font-variant-ligatures: none; line-height: 1.3; }
 .layout-song-sheet { max-width: 100%; margin: 0; padding: 1.4rem 0.2rem; overflow-x: auto; color: var(--text); font-family: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: var(--song-font-size); font-variant-ligatures: none; line-height: 1.35; white-space: pre; scrollbar-width: thin; }
+.layout-song-sheet--wrap { overflow-x: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
 .song-section { margin: 0 0 1.45em; break-inside: avoid; }
 .song-section h3 { margin: 0 0 0.65rem; color: var(--primary); font-family: inherit; font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.08em; }
 .song-section--chorus { padding: 0.85em 0.75em; border-left: 5px solid var(--accent); border-radius: 0 12px 12px 0; background: color-mix(in srgb, var(--accent) 9%, transparent); }
-.chord-line { display: flex; flex-wrap: wrap; min-height: 1.35em; white-space: pre-wrap; }
-.chord-token { display: inline-flex; flex-direction: column; align-items: flex-start; }
-.chord { min-height: 1.18em; color: var(--chord); font-size: 0.72em; font-weight: 900; line-height: 1.05; text-shadow: 0 0 0 currentColor; }
-.lyric { min-height: 1.2em; white-space: pre-wrap; }
+.chord-line { display: flex; flex-wrap: wrap; align-items: flex-start; min-height: 1.35em; row-gap: 0.16em; white-space: normal; }
+.chord-line--with-chords { margin-top: 0.1em; }
+.chord-token { display: inline-flex; flex: 0 0 auto; flex-direction: column; align-items: flex-start; max-width: 100%; }
+.chord { display: block; max-width: 100%; min-height: 1.18em; padding-right: 0.12em; overflow: hidden; color: var(--chord); font-size: 0.72em; font-weight: 900; line-height: 1.05; white-space: nowrap; text-overflow: clip; text-shadow: 0 0 0 currentColor; }
+.lyric { display: block; max-width: 100%; min-height: 1.2em; white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
 .chorus-repeat { display: inline-block; padding: 0.55rem 0.75rem; color: var(--primary); font-size: 0.9rem; font-weight: 750; border: 1px solid var(--border); border-radius: 999px; }
 .song-comment { color: var(--muted); font-style: italic; }
 .field-actions { margin-top: 1rem; padding: 1rem 0; border-top: 1px solid var(--border); }
@@ -228,8 +230,9 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
 .switch-row input { width: 1.3rem; height: 1.3rem; }
 .backup-card, .privacy-card { margin-top: 1rem; padding: 1.1rem; border: 1px solid var(--border); border-radius: 15px; background: var(--surface); }
 .profile-card { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: 15px; background: var(--surface); }
-.profile-card > span:nth-child(2) { display: grid; gap: 0.2rem; }
+.profile-card > span:nth-child(2) { display: grid; flex: 1 1 auto; gap: 0.2rem; min-width: 0; }
 .profile-card small { color: var(--muted); }
+.profile-card strong, .profile-card small { overflow-wrap: anywhere; }
 .profile-signout { margin-left: auto; }
 .profile-avatar { display: grid; place-items: center; width: 2.8rem; height: 2.8rem; flex: 0 0 auto; color: var(--surface); font-weight: 850; border-radius: 50%; background: var(--primary); }
 .account-role-card { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.9rem; margin-bottom: 1rem; padding: 1rem; border: 1px solid var(--border); border-radius: 15px; background: var(--surface); }
@@ -495,6 +498,7 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
 .cloud-sync-card--synced { border-color: #32865b; }
 .cloud-sync-card--error { border-color: #b23a32; }
 .cloud-sync-card > span:nth-child(2) { display: grid; gap: 0.18rem; }
+.cloud-sync-card > span:nth-child(2), .cloud-sync-card strong, .cloud-sync-card p { min-width: 0; overflow-wrap: anywhere; }
 .cloud-sync-card small, .cloud-sync-card p { color: var(--muted); }
 .cloud-sync-card p { margin: 0; line-height: 1.4; }
 .cloud-sync-icon { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; color: var(--primary); font-size: 1.4rem; font-weight: 900; border-radius: 50%; background: color-mix(in srgb, var(--primary) 12%, var(--surface)); }
@@ -531,13 +535,19 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
 :root[data-fire-mode="true"] .field-actions,
 :root[data-fire-mode="true"] .setlist-add,
 :root[data-fire-mode="true"] .rights-card { display: none !important; }
-:root[data-fire-mode="true"] .app-main { width: 100%; padding: 0.7rem 0.8rem 7rem; }
+:root[data-fire-mode="true"] .app-main { width: 100%; padding: 0.7rem 0.8rem 7.8rem; }
 :root[data-fire-mode="true"] .chord-sheet { padding: 0; line-height: 1.35; }
 :root[data-fire-mode="true"] .layout-song-sheet { padding: 0; line-height: 1.35; }
 :root[data-fire-mode="true"] .song-section--chorus { background: #25170f; }
-:root[data-fire-mode="true"] .fire-dock { position: fixed; z-index: 50; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; padding: 0.65rem max(0.7rem, env(safe-area-inset-right)) max(0.65rem, env(safe-area-inset-bottom)); border-top: 1px solid #5b3d2d; background: #17100df2; backdrop-filter: blur(14px); }
-:root[data-fire-mode="true"] .fire-dock button:last-child { grid-column: 1 / -1; }
-.fire-tap-zone { touch-action: pan-y; }
+:root[data-fire-mode="true"] .fire-dock { position: fixed; z-index: 50; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; padding: 0.55rem max(0.7rem, env(safe-area-inset-right)) max(0.55rem, env(safe-area-inset-bottom)); border-top: 1px solid #5b3d2d; background: #17100df2; backdrop-filter: blur(14px); }
+:root[data-fire-mode="true"] .fire-dock > button { min-height: 2.75rem; padding-inline: 0.35rem; font-size: 0.78rem; }
+.fire-tap-zone { width: min(100%, 48rem); margin-inline: auto; touch-action: pan-y; }
+:root[data-fire-mode="true"] .fire-tap-zone { width: min(100%, 42rem); }
+.fire-font-control { display: grid; grid-template-columns: auto 2.75rem minmax(4rem, auto) 2.75rem; grid-column: 1 / -1; align-items: center; gap: 0.35rem; min-height: 3rem; padding: 0.25rem 0.35rem; color: #fff2d2; border: 1px solid #5b3d2d; border-radius: 12px; background: #0d0907; }
+.fire-font-control > span { padding-inline: 0.25rem; font-size: 0.78rem; font-weight: 800; }
+.fire-font-control button { display: grid; place-items: center; min-width: 2.75rem; min-height: 2.75rem; padding: 0; color: #fff2d2; font-weight: 850; border: 1px solid #5b3d2d; border-radius: 9px; background: #25170f; }
+.fire-font-control output { color: #ffd46f; text-align: center; font-size: 0.82rem; font-weight: 850; white-space: nowrap; }
+.fire-button { width: auto; padding-inline: 0.65rem; font-size: 0.78rem; }
 
 @media (min-width: 44rem) {
   .app-main { padding: 1.6rem 2rem; }
@@ -580,6 +590,27 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
   .setlist-song-picker { grid-template-columns: 1fr; }
   .cloud-sync-card { grid-template-columns: auto minmax(0, 1fr); }
   .cloud-sync-card button { grid-column: 1 / -1; }
+}
+
+@media (max-width: 43.99rem) {
+  .settings-page { padding-top: 0.25rem; }
+  .settings-page > h1 { margin-bottom: 1rem; font-size: clamp(2.25rem, 12vw, 3.25rem); }
+  .profile-card { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; }
+  .profile-signout { grid-column: 1 / -1; width: 100%; margin-left: 0; }
+  .account-role-card, .admin-entry-card { align-items: stretch; flex-direction: column; }
+  .account-role-card > button, .admin-entry-card > button { width: 100%; }
+  .cloud-sync-card { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
+  .cloud-sync-icon { align-self: start; }
+  .cloud-sync-card button { grid-column: 1 / -1; width: 100%; }
+  .reader-toolbar { display: grid; align-items: stretch; }
+  .transpose-control, .toolbar-actions { width: 100%; }
+  .toolbar-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(2.75rem, 1fr)); }
+  .toolbar-actions .icon-button { width: 100%; }
+  .chord-sheet { padding-top: 1rem; font-size: min(var(--song-font-size), 26px); }
+  :root[data-fire-mode="true"] .chord-sheet { font-size: var(--song-font-size); }
+  .song-section { margin-bottom: 1.1em; }
+  .song-section--chorus { padding: 0.7em 0.55em; }
+  .chord-line { max-width: 100%; }
 }
 
 @media (orientation: landscape) and (max-height: 31rem) {

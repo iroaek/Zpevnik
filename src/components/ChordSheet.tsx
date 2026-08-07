@@ -41,11 +41,12 @@ export function ChordSheet({
         return (
           <section className={`song-section song-section--${section.kind}`} key={`section-${sectionIndex}`}>
             {section.label && <h3>{section.label}</h3>}
-            {section.lines.map((line, lineIndex) => (
-              <div className="chord-line" key={`line-${lineIndex}`}>
+            {section.lines.map((line, lineIndex) => {
+              const lineHasChords = showChords && line.some((token) => Boolean(token.chord));
+              return <div className={lineHasChords ? 'chord-line chord-line--with-chords' : 'chord-line'} key={`line-${lineIndex}`}>
                 {line.map((token, tokenIndex) => (
-                  <span className="chord-token" key={`token-${tokenIndex}`}>
-                    {showChords && (
+                  <span className="chord-token" data-has-chord={Boolean(token.chord)} key={`token-${tokenIndex}`}>
+                    {lineHasChords && (
                       <span className="chord" aria-label={token.chord ? `Akord ${token.chord}` : undefined}>
                         {token.chord ? displayedChord(token.chord, semitones, sourceNotation, notation) : '\u00a0'}
                       </span>
@@ -53,8 +54,8 @@ export function ChordSheet({
                     <span className="lyric">{token.lyric || '\u00a0'}</span>
                   </span>
                 ))}
-              </div>
-            ))}
+              </div>;
+            })}
           </section>
         );
       })}

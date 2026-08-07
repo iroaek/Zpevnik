@@ -27,6 +27,8 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   const [autoScroll, setAutoScroll] = useState(false);
   const [wakeLock, setWakeLock] = useState<WakeLockSentinel | null>(null);
   const [fireMode, setFireMode] = useState(false);
+  const [fireFontSize, setFireFontSize] = useState(() => Math.min(34, Math.max(14, userState.settings.fontSize)));
+  const [wrapLayoutText, setWrapLayoutText] = useState(true);
   const [orientationLocked, setOrientationLocked] = useState(false);
   const [setlistId, setSetlistId] = useState(userState.setlists[0]?.id ?? '');
   const [setlistMessage, setSetlistMessage] = useState('');
@@ -99,6 +101,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
     : userState.setlists[0]?.id ?? '';
   const selectedSetlist = userState.setlists.find((setlist) => setlist.id === effectiveSetlistId);
   const alreadyInSetlist = Boolean(selectedSetlist?.songIds.includes(song.id));
+  const readerFontSize = fireMode ? fireFontSize : settings.fontSize;
 
   const updateSettings = (change: Partial<UserState['settings']>) => {
     onUserStateChange((current) => ({ ...current, settings: { ...current.settings, ...change } }));
@@ -141,6 +144,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
 
   const toggleFireMode = async () => {
     const next = !fireMode;
+    if (next) setFireFontSize(settings.fontSize);
     setFireMode(next);
     if (next && !document.fullscreenElement) {
       try { await document.documentElement.requestFullscreen?.(); } catch { /* Fullscreen není povinný. */ }
@@ -192,8 +196,9 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
               <button type="button" className="icon-button" aria-label="Zmenšit písmo" onClick={() => updateSettings({ fontSize: Math.max(14, settings.fontSize - 2) })}>A−</button>
               <button type="button" className="icon-button" aria-label="Zvětšit písmo" onClick={() => updateSettings({ fontSize: Math.min(34, settings.fontSize + 2) })}>A+</button>
               {!isLayoutText && <button type="button" className="icon-button" aria-label={settings.showChords ? 'Skrýt akordy' : 'Zobrazit akordy'} aria-pressed={settings.showChords} onClick={() => updateSettings({ showChords: !settings.showChords })}>♯</button>}
+              {isLayoutText && <button type="button" className="icon-button" aria-label={wrapLayoutText ? 'Použít původní šířku řádků' : 'Zalomit dlouhé řádky'} aria-pressed={wrapLayoutText} onClick={() => setWrapLayoutText((value) => !value)}>↵</button>}
               <button type="button" className="icon-button" aria-label="Celoobrazovkový režim" onClick={toggleFullscreen}>⛶</button>
-              <button type="button" className="icon-button fire-button" aria-label="Režim U ohně" aria-pressed={fireMode} onClick={() => void toggleFireMode()}>♨</button>
+              <button type="button" className="icon-button fire-button" aria-label="Režim U ohně" aria-pressed={fireMode} onClick={() => void toggleFireMode()}>U ohně</button>
             </div>
           </section>
           {targetKey && capoOptions.length > 1 && <p className="capo-hint">Možnosti kapodastru: {capoOptions.map((option) => option.capo === 0 ? `bez kapodastru (${option.shapeKey})` : `${option.capo}. pražec, hraj ${option.shapeKey}`).join(' · ')}</p>}
@@ -202,8 +207,8 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
           {!source && !loadError && <p role="status">Načítám píseň…</p>}
           {source && <div className="fire-tap-zone">
             {isLayoutText
-              ? <pre className="layout-song-sheet" style={{ '--song-font-size': `${fireMode ? Math.max(settings.fontSize, 28) : settings.fontSize}px` } as React.CSSProperties}>{source}</pre>
-              : <ChordSheet source={source} semitones={semitones} notation={settings.notation} sourceNotation={sourceNotation} showChords={settings.showChords} collapseRepeatedChoruses={settings.collapseRepeatedChoruses} fontSize={fireMode ? Math.max(settings.fontSize, 28) : settings.fontSize} />}
+              ? <pre className={wrapLayoutText ? 'layout-song-sheet layout-song-sheet--wrap' : 'layout-song-sheet'} style={{ '--song-font-size': `${readerFontSize}px` } as React.CSSProperties}>{source}</pre>
+              : <ChordSheet source={source} semitones={semitones} notation={settings.notation} sourceNotation={sourceNotation} showChords={settings.showChords} collapseRepeatedChoruses={settings.collapseRepeatedChoruses} fontSize={readerFontSize} />}
           </div>}
           <section className="field-actions" aria-label="Funkce pro zpívání">
             <button type="button" className={autoScroll ? 'secondary-button active' : 'secondary-button'} aria-pressed={autoScroll} onClick={() => setAutoScroll((value) => !value)}>{autoScroll ? 'Zastavit posun' : 'Automatický posun'}</button>
@@ -216,7 +221,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
           </section>
           <footer className="rights-card"><strong>Práva a původ</strong><span>{song.source}</span><span>{song.personalOnly ? 'Ke kontrole · pouze osobní místní koncept' : song.rightsStatus} · {song.license}</span><span>{song.attribution}</span></footer>
           {(previousSong || nextSong) && <nav className="reader-sequence-nav" aria-label="Pohyb v setlistu"><button type="button" className="secondary-button" disabled={!previousSong} onClick={onPreviousSong}><span aria-hidden="true">←</span><span><small>Předchozí</small><strong>{previousSong?.title ?? 'Začátek setlistu'}</strong></span></button><button type="button" className="secondary-button" disabled={!nextSong} onClick={onNextSong}><span><small>Další</small><strong>{nextSong?.title ?? 'Konec setlistu'}</strong></span><span aria-hidden="true">→</span></button><small>Na telefonu lze mezi písněmi také přejet prstem doleva nebo doprava.</small></nav>}
-          {fireMode && <div className="fire-dock" aria-label="Rychlé ovládání režimu U ohně"><button type="button" className={autoScroll ? 'primary-button' : 'secondary-button'} onClick={() => setAutoScroll((value) => !value)}>{autoScroll ? '■ Zastavit' : '▶ Posun'}</button>{screen.orientation.lock && <button type="button" className="secondary-button" aria-pressed={orientationLocked} onClick={() => void toggleOrientationLock()}>{orientationLocked ? 'Odemknout otočení' : 'Zamknout na výšku'}</button>}<button type="button" className="secondary-button" onClick={() => void toggleFireMode()}>Ukončit U ohně</button></div>}
+          {fireMode && <div className="fire-dock" aria-label="Rychlé ovládání režimu U ohně"><div className="fire-font-control" role="group" aria-label="Velikost textu"><span>Text</span><button type="button" aria-label="Zmenšit text v režimu U ohně" disabled={fireFontSize <= 14} onClick={() => setFireFontSize((value) => Math.max(14, value - 2))}>A−</button><output aria-label="Aktuální velikost textu">{fireFontSize} px</output><button type="button" aria-label="Zvětšit text v režimu U ohně" disabled={fireFontSize >= 34} onClick={() => setFireFontSize((value) => Math.min(34, value + 2))}>A+</button></div><button type="button" className={autoScroll ? 'primary-button' : 'secondary-button'} onClick={() => setAutoScroll((value) => !value)}>{autoScroll ? '■ Stop' : '▶ Posun'}</button>{screen.orientation.lock && <button type="button" className="secondary-button" aria-label={orientationLocked ? 'Odemknout otočení obrazovky' : 'Zamknout obrazovku na výšku'} aria-pressed={orientationLocked} onClick={() => void toggleOrientationLock()}>{orientationLocked ? 'Volné' : 'Výška'}</button>}<button type="button" className="secondary-button fire-exit-button" aria-label="Ukončit U ohně" onClick={() => void toggleFireMode()}>Zavřít</button></div>}
         </>
       ) : <ScoreViewer assets={song.scoreAssets} catalogVersion={catalogVersion} />}
     </article>
