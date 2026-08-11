@@ -43,6 +43,8 @@ Vždy nasaďte celý obsah `dist/` beze změny adresářové struktury. Hosting 
 
 GitHub Pages je statický hosting a sám neumí bezpečně zpracovat hesla, schvalovat účty ani přijímat soubory. Pro soukromý režim nastavte v GitHub Actions také `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` a po dokončení serverové konfigurace `VITE_REQUIRE_SECURE_ACCESS=true`. Kompletní databázová migrace, privátní buckety, první administrátor a pořadí aktivace jsou popsány v [SECURE_ACCESS_SETUP.md](SECURE_ACCESS_SETUP.md).
 
+Pro izolovaný Neon staging nastavte navíc `VITE_DATA_BACKEND=neon`, veřejné `VITE_NEON_DATA_API_URL` a `VITE_NEON_OFFLINE_GRANT_URL`. Výchozí hodnota workflow je záměrně `supabase`. `NEON_DATABASE_URL` je pouze serverový secret Edge Function a nesmí být GitHub repository variable s prefixem `VITE_`.
+
 Do klientského buildu ani GitHub variables nikdy nevkládejte `service_role` nebo jiný tajný serverový klíč. Veřejná PWA smí obsahovat pouze instalační obálku a výslovně veřejný obsah; členské soubory se stahují z privátního bucketu až s platnou relací schváleného účtu.
 
 ## Bezpečnostní kontrola
@@ -59,9 +61,9 @@ Tento krok nejprve proveďte ve staging Supabase projektu. GitHub Pages neumí d
 
 1. Aplikujte `supabase/migrations/202608110001_offline_grant_audit.sql` a ověřte RLS podle `RLS_AUDIT.md`.
 2. Vygenerujte standardní EC P‑256 key pair auditovaným nástrojem. Privátní JWK nikdy necommitujte.
-3. Do Supabase Function secrets vložte `OFFLINE_GRANT_PRIVATE_JWK`, `OFFLINE_GRANT_ISSUER`, `OFFLINE_GRANT_AUDIENCE`, `OFFLINE_GRANT_ALLOWED_ORIGINS` a volitelně `OFFLINE_GRANT_VALIDITY_DAYS`.
+3. Do Supabase Function secrets vložte `OFFLINE_GRANT_PRIVATE_JWK`, `OFFLINE_GRANT_ISSUER`, `OFFLINE_GRANT_AUDIENCE`, `OFFLINE_GRANT_ALLOWED_ORIGINS` a volitelně `OFFLINE_GRANT_VALIDITY_DAYS`. Pro Neon staging přidejte `DATA_BACKEND=neon` a serverový `NEON_DATABASE_URL`.
 4. Nasaďte `supabase/functions/offline-grant` pouze ve stagingu a proveďte test schváleného/pending/suspended účtu.
-5. Do GitHub repository **variables** vložte pouze veřejné hodnoty `VITE_OFFLINE_GRANT_ISSUER`, `VITE_OFFLINE_GRANT_AUDIENCE`, `VITE_OFFLINE_GRANT_PUBLIC_JWKS`.
+5. Do GitHub repository **variables** vložte pouze veřejné hodnoty `VITE_OFFLINE_GRANT_ISSUER`, `VITE_OFFLINE_GRANT_AUDIENCE`, `VITE_OFFLINE_GRANT_PUBLIC_JWKS` a pro Neon staging `VITE_NEON_DATA_API_URL`, `VITE_NEON_OFFLINE_GRANT_URL`.
 6. Sestavte PWA, ověřte, že build neobsahuje `d` privátního JWK ani service-role key, a spusťte scénáře z `OFFLINE_TESTING.md`.
 7. Teprve po schválení zopakujte migraci/function secrets v produkci. Privátní klíč rotujte přidáním nového `kid` do veřejného JWKS; starý veřejný klíč ponechte do expirace všech starých grantů.
 
@@ -70,3 +72,5 @@ Výchozí návrh platnosti je 30 dní, funkce omezuje rozsah na 1–90 dní. Pro
 ## Rollback offline grantu
 
 Při problému odstraňte veřejné `VITE_OFFLINE_GRANT_*` proměnné a znovu sestavte frontend. Online přihlášení zůstane funkční; nové offline granty se nebudou používat. Nesmažte databázi ani uživatele. Staré granty přestanou být klientem přijímány, ale již stažené soubory fyzicky odstraní uživatel nebo bezpečný logout.
+
+Při problému s Neonem nastavte `VITE_DATA_BACKEND=supabase`, Edge Function vraťte na `DATA_BACKEND=supabase` a znovu nasaďte. Neon ani Supabase data během rollbacku nemažte.

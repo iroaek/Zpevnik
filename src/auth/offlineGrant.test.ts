@@ -56,7 +56,9 @@ describe('podepsané offline oprávnění', () => {
 
   it('odmítne změněný podpis', async () => {
     const value = await fixture();
-    const changed = `${value.token.slice(0, -1)}${value.token.endsWith('A') ? 'B' : 'A'}`;
+    const parts = value.token.split('.');
+    parts[2] = `${parts[2].startsWith('A') ? 'B' : 'A'}${parts[2].slice(1)}`;
+    const changed = parts.join('.');
     await expect(verifyOfflineGrant(changed, value.options)).rejects.toMatchObject({ reason: 'invalid-signature' });
   });
 

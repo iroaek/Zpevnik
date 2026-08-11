@@ -235,10 +235,15 @@ describe('migrace IndexedDB', () => {
     const databaseModule = await import('./database');
     const userId = '11111111-1111-4111-8111-111111111111';
     const first = { schemaVersion: 1 as const, id: '33333333-3333-4333-8333-333333333333', userId, idempotencyKey: `${userId}:first`, kind: 'user-state-upsert' as const, payload: databaseModule.defaultUserState, createdAt: '2026-08-11T00:00:00.000Z', attempts: 0, lastError: null };
-    const second = { ...first, id: '44444444-4444-4444-8444-444444444444', idempotencyKey: `${userId}:second`, createdAt: '2026-08-11T00:01:00.000Z' };
+    const second = { ...first, id: '44444444-4444-4444-8444-444444444444', idempotencyKey: `${userId}:second`, payload: { ...first.payload, updatedAt: '2026-08-11T00:01:00.000Z' }, createdAt: '2026-08-11T00:01:00.000Z' };
     await databaseModule.enqueuePendingMutation(first);
     await databaseModule.enqueuePendingMutation(second);
     expect(await databaseModule.loadPendingMutations(userId)).toEqual([second]);
+    const olderRetry = { ...first, id: '55555555-5555-4555-8555-555555555555', attempts: 1, lastError: 'offline' };
+    await databaseModule.enqueuePendingMutation(olderRetry);
+    expect(await databaseModule.loadPendingMutations(userId)).toEqual([{ ...second, attempts: 1, lastError: 'offline' }]);
+    const failed = await databaseModule.markPendingMutationFailed(second.id, 'server');
+    expect(failed).toEqual({ ...second, attempts: 2, lastError: 'server' });
     await databaseModule.removePendingMutation(second.id);
     expect(await databaseModule.loadPendingMutations(userId)).toEqual([]);
   });

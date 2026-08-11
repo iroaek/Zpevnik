@@ -1,6 +1,15 @@
 # Plán migrace Supabase → Neon
 
-**Produkční migrace se neprovádí.** Tento plán je určen pro budoucí staging a zachovává rollback na Supabase.
+**Produkční migrace se neprovádí.** Fáze 1 je připravena v kódu pro izolovaný staging a zachovává okamžitý rollback pomocí `VITE_DATA_BACKEND=supabase`. Supabase Auth a privátní Storage zatím zůstávají.
+
+## 0. Co je už připraveno
+
+- PostgREST-kompatibilní klient Neon Data API s bearer tokenem stávající Supabase relace;
+- schéma profilů, návrhů, uživatelského stavu a auditu v `neon/migrations/202608110001_application_schema.sql`;
+- RLS podle `auth.user_id()` a e-mail pouze z ověřeného JWT claimu přes `auth.session()`;
+- dual-provider offline issuer: autentizace a manifest ze Supabase, autoritativní profil a audit z Neonu;
+- bezpečný outbox replay po návratu sítě, při focusu a s exponenciálním opakováním;
+- build-time feature flag, který zůstává v CI výchozí na Supabase.
 
 ## 1. Read-only inventář
 
@@ -15,7 +24,7 @@ Exportovat verze PostgreSQL a rozšíření, schémata, tabulky, sekvence, index
 5. Obnovit do prázdné staging branch; nikdy ne do produkční branch.
 6. Aplikovat cílové runtime/migration role a RLS, ne zdrojové service role.
 
-Neon oficiálně doporučuje unpooled connection pro `pg_dump` a u větších dat samostatný dump/restore místo křehké pipe: [Neon migration docs](https://neon.com/docs/import/migrate-from-neon).
+Neon dokumentuje dump/restore a další varianty migrace zde: [Neon migration docs](https://neon.com/docs/import/migrate-intro).
 
 ## 3. Validace
 
@@ -41,17 +50,27 @@ Nepředpokládat přenos refresh tokenů, aktivních session, MFA nebo OAuth pro
 
 ## 5. Storage a Functions
 
-Neon PostgreSQL není náhradou privátního object storage. Dočasně ponechat Supabase Storage nebo vybrat privátní S3-compatible storage, kopírovat objekty server-to-server, ověřit velikosti/checksumy a až potom přepnout BFF. Edge Function `offline-grant` lze dočasně ponechat v Supabase nebo přesunout do samostatného API až po paralelním ověření podpisů.
+Neon PostgreSQL není náhradou privátního object storage. Ve fázi 1 zůstává Supabase Storage. Edge Function `offline-grant` zůstane hostována v Supabase, ale při `DATA_BACKEND=neon` ověřuje autoritativní profil a zapisuje audit přes serverový `NEON_DATABASE_URL`. Tento connection string je výhradně secret funkce, nikdy proměnná `VITE_*`.
 
-## 6. Přechod a rollback
+## 6. Stagingový cutover
+
+1. Vytvořit Neon staging branch a zapnout Data API s JWKS stávajícího Supabase Auth.
+2. Přes migration-owner spojení aplikovat `neon/migrations/202608110001_application_schema.sql`; runtime role nesmí mít `BYPASSRLS`.
+3. Přenést pouze aplikační řádky `profiles`, `song_submissions`, `user_app_state` a případný audit. Nepřenášet `auth.*`, `storage.*`, service role ani secrets.
+4. Nasadit Edge Function s `DATA_BACKEND=neon` a serverovými secrets `NEON_DATABASE_URL`, `OFFLINE_GRANT_*`; URL funkce nastavit do `VITE_NEON_OFFLINE_GRANT_URL`.
+5. Ve staging buildu nastavit `VITE_DATA_BACKEND=neon` a `VITE_NEON_DATA_API_URL`.
+6. Ověřit A/B/admin/pending/rejected/suspended RLS matici, tvorbu profilů, návrhy, outbox replay, vydání grantu a cold start bez sítě.
+7. Spustit Neon Data API Advisors a odstranit nálezy před produkčním rozhodnutím.
+
+## 7. Přechod a rollback
 
 - nejprve dual-read ve stagingu a stínové porovnání bez vracení Neon dat uživateli;
 - krátké read-only okno pro finální delta sync, nebo logical replication po samostatném testu;
-- feature flag pro čtení z Neon, zápis stále do jednoho autoritativního systému;
-- rollback přepne BFF zpět na Supabase a zachová zdroj beze změny;
+- jeden build zapisuje vždy do jediného autoritativního systému; během ověřování se nemíchá zápis Supabase/Neon;
+- rollback nastaví `VITE_DATA_BACKEND=supabase`, znovu sestaví PWA a vrátí Edge Function na `DATA_BACKEND=supabase`;
 - Supabase nesmazat minimálně po celou ověřovací/retention dobu;
 - definovat RPO/RTO, vlastníka rozhodnutí a stop podmínky před cutoverem.
 
 ## Nevratné kroky zakázané v tomto patchi
 
-Žádný `pg_dump` produkce, connection string, Neon projekt, DNS, dual-write, reset uživatelů, rotace JWT/secrets ani odstranění Supabase nebyly provedeny.
+Žádný `pg_dump` produkce, connection string, Neon projekt, Data API provisioning, DNS, dual-write, reset uživatelů, rotace JWT/secrets ani odstranění Supabase nebyly provedeny.

@@ -8,6 +8,9 @@ type AdminTab = 'users' | 'requests' | 'songs' | 'system';
 
 export function AdminPage({ cloudSync, online, onNavigate }: { cloudSync: CloudSyncState; online: boolean; onNavigate: (path: string) => void }) {
   const [tab, setTab] = useState<AdminTab>('users');
+  const pendingLabel = cloudSync.pendingCount
+    ? `${cloudSync.pendingCount} ${cloudSync.pendingCount === 1 ? 'změna čeká na odeslání' : cloudSync.pendingCount < 5 ? 'změny čekají na odeslání' : 'změn čeká na odeslání'}`
+    : null;
   const labels: Array<[AdminTab, string, string]> = [
     ['users', 'Uživatelé', 'Databáze členů a jejich dostupnost'],
     ['requests', 'Žádosti', 'Schválení nových registrací'],
@@ -21,6 +24,6 @@ export function AdminPage({ cloudSync, online, onNavigate }: { cloudSync: CloudS
     {tab === 'users' && <AdminUsersPanel />}
     {tab === 'requests' && <AdminAccessPanel mode="accounts" />}
     {tab === 'songs' && <AdminAccessPanel mode="songs" />}
-    {tab === 'system' && <div className="admin-system-grid"><section className={`cloud-sync-card cloud-sync-card--${cloudSync.status}`}><span className="cloud-sync-icon" aria-hidden="true">↻</span><span><small>Stav aplikace</small><strong>{online ? 'Server je dostupný' : 'Zařízení je offline'}</strong><p>{cloudSync.status === 'synced' ? 'Uživatelská data jsou synchronizovaná.' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Probíhá synchronizace…' : cloudSync.error ?? 'Synchronizace čeká na připojení.'}</p></span><button type="button" className="secondary-button" disabled={!online || cloudSync.status === 'syncing' || cloudSync.status === 'loading'} onClick={() => void cloudSync.refresh()}>Synchronizovat</button></section><QrCodeGenerator /><section className="backup-card"><h2>Provozní nástroje</h2><p>Stažené balíčky a aktualizace aplikace spravujete v Offline obsahu.</p><div className="button-row"><button type="button" className="secondary-button" onClick={() => onNavigate('offline')}>Offline obsah</button><button type="button" className="secondary-button" onClick={() => onNavigate('settings')}>Běžné nastavení</button></div></section></div>}
+    {tab === 'system' && <div className="admin-system-grid"><section className={`cloud-sync-card cloud-sync-card--${cloudSync.status}`}><span className="cloud-sync-icon" aria-hidden="true">↻</span><span><small>Stav aplikace</small><strong>{pendingLabel ?? (online ? 'Server je dostupný' : 'Zařízení je offline')}</strong><p>{cloudSync.status === 'synced' ? 'Uživatelská data jsou synchronizovaná.' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Probíhá synchronizace…' : cloudSync.error ?? 'Synchronizace čeká na připojení.'}</p></span><button type="button" className="secondary-button" disabled={!online || cloudSync.status === 'syncing' || cloudSync.status === 'loading'} onClick={() => void cloudSync.refresh()}>Synchronizovat</button></section><QrCodeGenerator /><section className="backup-card"><h2>Provozní nástroje</h2><p>Stažené balíčky a aktualizace aplikace spravujete v Offline obsahu.</p><div className="button-row"><button type="button" className="secondary-button" onClick={() => onNavigate('offline')}>Offline obsah</button><button type="button" className="secondary-button" onClick={() => onNavigate('settings')}>Běžné nastavení</button></div></section></div>}
   </section>;
 }

@@ -38,15 +38,19 @@ Vydání zapisuje auditní metadata bez tokenu a bez privátního klíče. Návr
 
 IndexedDB schéma bylo zvýšeno na verzi 5 a obsahuje samostatné stores pro grant, balíčky, pending mutations a omezenou diagnostiku. Chráněné písně jsou při novém importu svázané s `ownerUserId`, balíčkem a verzí. Import manifestu, obsahů a metadata verze probíhá v jedné transakci. Poškozený balíček se rollbackne. Veřejné soubory i notové party mají SHA-256 a při nesouladu se odstraní a znovu stáhne jen chybná položka.
 
-Oblíbené, setlisty a nastavení se při offline nebo neúspěšném zápisu ukládají jako idempotentní snapshot do outboxu. Současná implementace frontu bezpečně připravuje a maže po úspěšném upsertu; samostatný background replay worker je další krok před produkční aktivací.
+Oblíbené, setlisty a nastavení se při offline nebo neúspěšném zápisu ukládají jako idempotentní snapshot do outboxu. Replay je single-flight, zachová nejnovější souběžnou změnu a spouští se po návratu sítě, při focusu/aktivaci aplikace a po exponenciálním backoffu. Potvrzené položky se odstraní až po úspěšném vzdáleném upsertu.
 
 ## RLS a server
 
-Připravená migrace zapíná a vynucuje RLS pro auditní tabulku. Politikami je povoleno čtení jen administrátorům; klient nemůže audit vkládat ani měnit. Serverová funkce používá service role pouze na serveru. Statické integrační testy pokrývají anonymního uživatele, uživatele A, uživatele B, administrátora a přítomnost RLS/force RLS. Skutečné behaviorální testy proti izolovanému Supabase staging projektu jsou povinný předprodukční krok.
+Připravená migrace zapíná RLS pro všechny aplikační tabulky. Politikami je povoleno čtení auditu jen administrátorům; klient nemůže audit vkládat ani měnit. Vlastnická migrační/serverová role je oddělená od Data API runtime rolí, aby `SECURITY DEFINER` funkce neuvízly v rekurzivní RLS politice. Statické integrační testy pokrývají anonymního uživatele, uživatele A, uživatele B, administrátora a přítomnost RLS. Skutečné behaviorální testy proti izolovanému Neon staging projektu jsou povinný předprodukční krok.
 
 ## Supabase versus Neon
 
-Rozhodnutí je nyní Supabase ponechat. Změna databázového poskytovatele neřeší offline odhlašování; příčina byla v klientském auth modelu a absenci podepsaného lokálního oprávnění. Současný projekt navíc používá Supabase Auth, Storage, RLS a Edge Functions, takže jednorázová migrace DB + Auth + Storage by zbytečně zvětšila riziko. Varianty, trigger migrace a rollback jsou v [BACKEND_OPTIONS_AND_NEON_ASSESSMENT.md](BACKEND_OPTIONS_AND_NEON_ASSESSMENT.md) a [NEON_MIGRATION_PLAN.md](NEON_MIGRATION_PLAN.md).
+Na výslovný požadavek správce je připravena první fáze přechodu aplikační databáze na Neon Data API. Supabase v této fázi dál poskytuje Auth, privátní Storage a hosting Edge Function. Autoritativní profily, návrhy, synchronizovaný stav a audit umí běžet v Neonu s RLS; přepínač CI však zůstává na Supabase, dokud izolovaný staging neprojde behaviorálními testy. Varianty a rollback jsou v [BACKEND_OPTIONS_AND_NEON_ASSESSMENT.md](BACKEND_OPTIONS_AND_NEON_ASSESSMENT.md) a [NEON_MIGRATION_PLAN.md](NEON_MIGRATION_PLAN.md).
+
+## Doplněk: plynulost rozhraní
+
+Navigace má vlastní směrový pohyb dopředu/zpět, používá nativní View Transitions API, je-li dostupné, a jinak bezpečný CSS fallback. Mikrointerakce karet, tlačítek a aktivní navigace používají pouze `transform` a `opacity`. Režim `prefers-reduced-motion` pohyb prakticky vypne. Jde o původní systém aplikace inspirovaný obecnými filmovými principy vrstvení a kontinuity, nikoli kopii konkrétní obrazovky či chráněného designu.
 
 ## PWA versus Capacitor
 
@@ -123,17 +127,17 @@ Před začátkem existující lokální změny `SECURE_ACCESS_SETUP.md`, `src/co
 
 1. Offline revokace nemůže být okamžitá bez kontaktu se serverem; účinek nastane při dalším online ověření nebo expiraci grantu.
 2. Legacy chráněná data z databáze verze 4 bez `ownerUserId` zůstávají čitelná jen do prvního nového online refresh/importu; poté je nahradí uživatelsky svázaný balíček.
-3. Outbox zatím nemá samostatný periodický/background replay worker.
+3. Webový outbox se přehrává při online/focus/visibility a časovaném retry; operační systém PWA negarantuje běh zcela ukončené aplikace na pozadí.
 4. Podepsaný offline režim nebude aktivní, dokud administrátor nenasadí migraci a funkci a nenastaví veřejné i tajné hodnoty.
 5. Behaviorální RLS testy je nutné zopakovat proti staging Supabase projektu; lokální test neprokazuje konfiguraci vzdáleného projektu.
 
 ## Co musí administrátor udělat před produkcí
 
-1. Vytvořit nebo použít izolovaný Supabase staging projekt a zálohu produkčního schématu.
-2. Aplikovat `supabase/migrations/202608110001_offline_grant_audit.sql` nejdříve na staging.
+1. Vytvořit izolovaný Neon staging branch a zachovat zálohu současného Supabase schématu.
+2. Zapnout Neon Data API se Supabase JWKS a aplikovat `neon/migrations/202608110001_application_schema.sql` nejdříve na staging.
 3. Vygenerovat ES256 key pair; privátní JWK uložit pouze jako secret Edge Function, veřejný JWKS publikovat do build-time konfigurace s odpovídajícím `kid`.
 4. Nastavit přesný `OFFLINE_GRANT_ALLOWED_ORIGINS`, issuer, audience a zvolenou platnost (doporučený start 30 dní).
-5. Nasadit `supabase/functions/offline-grant` na staging a ověřit schválený, zamítnutý, pozastavený a admin účet.
+5. Nasadit `supabase/functions/offline-grant` na staging s `DATA_BACKEND=neon` a serverovým `NEON_DATABASE_URL`; ověřit schválený, zamítnutý, pozastavený a admin účet.
 6. Spustit behaviorální RLS testy A/B/admin, zkontrolovat audit a ověřit, že klient nikdy neobdrží service role ani privátní klíč.
 7. Vygenerovat a podepsat staging manifest soukromé knihovny, ověřit SHA-256, rollback po přerušeném importu a přepnutí mezi dvěma účty na jednom zařízení.
 8. Otestovat cold start bez sítě na Androidu, iOS Safari/PWA a desktopu, včetně expirace a ručního odhlášení.

@@ -441,15 +441,25 @@ export async function enqueuePendingMutation(mutation: PendingMutation): Promise
   const database = await databasePromise;
   // Uživatelův stav je snapshot. Novější snapshot se stejným druhem nahrazuje
   // starší, takže opakované offline ukládání nevytváří nekonečnou frontu.
-  const stored = await database.getAll('pendingMutations') as unknown[];
   const transaction = database.transaction('pendingMutations', 'readwrite');
+  const stored = await transaction.store.getAll() as unknown[];
+  const matching: PendingMutation[] = [];
   for (const value of stored) {
     const parsed = pendingMutationSchema.safeParse(value);
     if (parsed.success && parsed.data.userId === validated.userId && parsed.data.kind === validated.kind) {
-      await transaction.store.delete(parsed.data.id);
+      matching.push(parsed.data);
     }
   }
-  await transaction.store.put(validated, validated.id);
+  const newest = [...matching, validated].reduce((current, candidate) => (
+    candidate.payload.updatedAt >= current.payload.updatedAt ? candidate : current
+  ));
+  const merged = pendingMutationSchema.parse({
+    ...newest,
+    attempts: Math.max(validated.attempts, ...matching.map((candidate) => candidate.attempts)),
+    lastError: validated.lastError ?? newest.lastError,
+  });
+  for (const existing of matching) await transaction.store.delete(existing.id);
+  await transaction.store.put(merged, merged.id);
   await transaction.done;
 }
 
@@ -465,6 +475,25 @@ export async function loadPendingMutations(userId: string): Promise<PendingMutat
 export async function removePendingMutation(id: string): Promise<void> {
   const database = await databasePromise;
   await database.delete('pendingMutations', id);
+}
+
+export async function markPendingMutationFailed(id: string, errorCode: string): Promise<PendingMutation | null> {
+  const database = await databasePromise;
+  const transaction = database.transaction('pendingMutations', 'readwrite');
+  const stored = await transaction.store.get(id) as unknown;
+  const parsed = pendingMutationSchema.safeParse(stored);
+  if (!parsed.success) {
+    await transaction.done;
+    return null;
+  }
+  const updated = pendingMutationSchema.parse({
+    ...parsed.data,
+    attempts: parsed.data.attempts + 1,
+    lastError: errorCode.slice(0, 80),
+  });
+  await transaction.store.put(updated, updated.id);
+  await transaction.done;
+  return updated;
 }
 
 export async function recordDiagnostic(input: Omit<DiagnosticEvent, 'schemaVersion' | 'id' | 'occurredAt'>): Promise<void> {

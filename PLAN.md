@@ -9,7 +9,11 @@
 - [x] DB v5: user-scoped content package, offline grant, outbox a diagnostika;
 - [x] SHA‑256 veřejných souborů a transakční privátní balíček;
 - [x] repository kontrakty pro budoucí změnu backendu/SQLite;
+- [x] idempotentní outbox replay po návratu sítě, focusu a s exponenciálním backoffem;
+- [x] Neon Data API provider, RLS migrace a dual-provider offline issuer připravené pro staging;
+- [x] plynulé směrové přechody s View Transitions fallbackem a `prefers-reduced-motion`;
 - [x] RLS, threat model, Neon a Capacitor dokumentace;
+- [ ] izolovaný Neon staging branch, import aplikačních řádků a behaviorální RLS testy – vyžaduje správce/secrets;
 - [ ] staging nasazení migrace/function a dynamické A/B/admin testy – vyžaduje správce/secrets;
 - [ ] produkční aktivace offline grantu – až po schváleném stagingu;
 - [ ] Capacitor Android/iOS scaffold – samostatný patch po volbě app ID/pluginů/signingu.

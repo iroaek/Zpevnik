@@ -1,9 +1,17 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.112.1';
+import { neon, type NeonQueryFunction } from 'npm:@neondatabase/serverless@1.1.0';
 
 interface LibraryManifest {
   version: string;
   scope: 'admin' | 'members';
   songCount: number;
+}
+
+interface GrantProfile {
+  id: string;
+  display_name: string;
+  status: 'pending' | 'approved' | 'rejected' | 'suspended';
+  role: 'member' | 'admin';
 }
 
 function json(body: unknown, status: number, origin: string | null): Response {
@@ -65,7 +73,9 @@ Deno.serve(async (request) => {
   const privateJwkValue = Deno.env.get('OFFLINE_GRANT_PRIVATE_JWK');
   const issuer = Deno.env.get('OFFLINE_GRANT_ISSUER');
   const audience = Deno.env.get('OFFLINE_GRANT_AUDIENCE') || 'cesky-zpevnik-offline';
-  if (!authorization || !supabaseUrl || !anonKey || !serviceRoleKey || !privateJwkValue || !issuer) {
+  const dataBackend = Deno.env.get('DATA_BACKEND') === 'neon' ? 'neon' : 'supabase';
+  const neonDatabaseUrl = Deno.env.get('NEON_DATABASE_URL');
+  if (!authorization || !supabaseUrl || !anonKey || !serviceRoleKey || !privateJwkValue || !issuer || (dataBackend === 'neon' && !neonDatabaseUrl)) {
     return json({ error: 'server_not_configured' }, 503, origin);
   }
 
@@ -86,12 +96,30 @@ Deno.serve(async (request) => {
   if (userError || !userData.user) return json({ error: 'authentication_required' }, 401, origin);
 
   const service = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: profile, error: profileError } = await service
-    .from('profiles')
-    .select('id,display_name,status,role')
-    .eq('id', userData.user.id)
-    .single();
-  if (profileError || !profile) return json({ error: 'profile_not_found' }, 403, origin);
+  let profile: GrantProfile | null = null;
+  let neonSql: NeonQueryFunction<false, false> | null = null;
+  if (dataBackend === 'neon') {
+    try {
+      neonSql = neon(neonDatabaseUrl as string);
+      const profiles = await neonSql`
+        select id, display_name, status, role
+        from public.profiles
+        where id = ${userData.user.id}::uuid
+        limit 1
+      ` as unknown as GrantProfile[];
+      profile = profiles[0] ?? null;
+    } catch {
+      return json({ error: 'profile_backend_unavailable' }, 503, origin);
+    }
+  } else {
+    const { data, error } = await service
+      .from('profiles')
+      .select('id,display_name,status,role')
+      .eq('id', userData.user.id)
+      .single();
+    if (!error && data) profile = data as GrantProfile;
+  }
+  if (!profile) return json({ error: 'profile_not_found' }, 403, origin);
   if (profile.status === 'suspended' || profile.status === 'rejected') return json({ error: 'account_revoked', code: 'account_revoked' }, 403, origin);
   if (profile.status !== 'approved') return json({ error: 'account_not_approved' }, 403, origin);
 
@@ -139,15 +167,29 @@ Deno.serve(async (request) => {
   const signature = new Uint8Array(await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, signingKey, new TextEncoder().encode(signingInput)));
   const token = `${signingInput}.${base64Url(signature)}`;
 
-  const { error: auditError } = await service.from('offline_grant_audit').insert({
-    user_id: profile.id,
-    key_id: privateJwk.kid,
-    device_hash: await sha256(deviceId),
-    content_package: scope,
-    content_version: manifest.version,
-    issued_at: now.toISOString(),
-    valid_until: validUntil.toISOString(),
-  });
-  if (auditError) return json({ error: 'grant_audit_failed' }, 503, origin);
+  const deviceHash = await sha256(deviceId);
+  if (dataBackend === 'neon' && neonSql) {
+    try {
+      await neonSql`
+        insert into public.offline_grant_audit
+          (user_id, key_id, device_hash, content_package, content_version, issued_at, valid_until)
+        values
+          (${profile.id}::uuid, ${privateJwk.kid}, ${deviceHash}, ${scope}, ${manifest.version}, ${now.toISOString()}::timestamptz, ${validUntil.toISOString()}::timestamptz)
+      `;
+    } catch {
+      return json({ error: 'grant_audit_failed' }, 503, origin);
+    }
+  } else {
+    const { error: auditError } = await service.from('offline_grant_audit').insert({
+      user_id: profile.id,
+      key_id: privateJwk.kid,
+      device_hash: deviceHash,
+      content_package: scope,
+      content_version: manifest.version,
+      issued_at: now.toISOString(),
+      valid_until: validUntil.toISOString(),
+    });
+    if (auditError) return json({ error: 'grant_audit_failed' }, 503, origin);
+  }
   return json({ token }, 200, origin);
 });

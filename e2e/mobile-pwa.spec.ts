@@ -96,6 +96,22 @@ test('vyhledávání zůstává uvnitř úvodního panelu na mobilu i desktopu',
   }
 });
 
+test('navigace používá plynulý přechod a respektuje omezení pohybu', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-390x844', 'Pohybový systém stačí ověřit v reprezentativním mobilním viewportu.');
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('./');
+  await page.getByRole('button', { name: 'Setlisty', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Setlisty', exact: true })).toBeVisible();
+  await expect.poll(() => page.locator('html').getAttribute('data-view-transition')).toBeNull();
+  await expectNoPageOverflow(page);
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.getByRole('button', { name: 'Písně', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Co si dnes zazpíváme?' })).toBeVisible();
+  const reducedDuration = await page.locator('.route-stage').evaluate((element) => Number.parseFloat(getComputedStyle(element).animationDuration));
+  expect(reducedDuration).toBeLessThanOrEqual(0.001);
+});
+
 test('deep linky načtou píseň, setlist, import PDF, instalaci, offline obsah a nápovědu', async ({ page }) => {
   await page.goto('songs/synteticka-jiskra');
   await expect(page.getByRole('heading', { name: 'Syntetická jiskra' })).toBeVisible();

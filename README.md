@@ -155,6 +155,12 @@ Architektura a provozní kroky:
 - [CAPACITOR_FEASIBILITY.md](CAPACITOR_FEASIBILITY.md)
 - [OFFLINE_TESTING.md](OFFLINE_TESTING.md)
 
+### Postupný přechod databáze na Neon
+
+Kód podporuje `VITE_DATA_BACKEND=supabase|neon`. Neon režim používá Data API a RLS pro aplikační tabulky, ale v první fázi zachovává Supabase Auth a privátní Storage. Přepnutí patří nejprve do izolovaného stagingu; PWA nesmí obsahovat `DATABASE_URL`, Neon API key, `service_role` ani privátní podpisový klíč. Přesný cutover a rollback jsou v [NEON_MIGRATION_PLAN.md](NEON_MIGRATION_PLAN.md).
+
+Plynulé směrové přechody a mikrointerakce jsou popsány v [MOTION_DESIGN.md](MOTION_DESIGN.md). Respektují systémové omezení pohybu a neovlivňují offline funkce.
+
 ## Kontroly
 
 ```powershell

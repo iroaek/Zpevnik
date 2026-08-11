@@ -43,6 +43,12 @@ export function Settings({
   const serverAdmin = secureMode && secureProfile?.role === 'admin';
   const localAdmin = userProfile.role === 'admin' && (!secureMode || serverAdmin);
   const update = (change: Partial<UserState['settings']>) => onUserStateChange((current) => ({ ...current, settings: { ...current.settings, ...change } }));
+  const pendingSyncLabel = cloudSync?.pendingCount
+    ? `${cloudSync.pendingCount} ${cloudSync.pendingCount === 1 ? 'změna čeká' : cloudSync.pendingCount < 5 ? 'změny čekají' : 'změn čeká'}`
+    : null;
+  const nextSyncAttempt = cloudSync?.nextRetryAt
+    ? ` Další pokus ${new Date(cloudSync.nextRetryAt).toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}.`
+    : '';
 
   const refreshPermissions = async () => {
     if (!onRefreshSecureProfile) return;
@@ -115,7 +121,7 @@ export function Settings({
 
       {secureMode && <section className={`account-role-card ${serverAdmin ? 'account-role-card--admin' : ''}`} aria-label="Oprávnění účtu"><span><small>Oprávnění účtu</small><strong>{serverAdmin ? 'Administrátor' : 'Schválený člen'}</strong><p>{serverAdmin ? 'Správa uživatelů a návrhů písní je aktivní.' : 'Administrace je dostupná pouze správcům.'}</p></span><button type="button" className="secondary-button" disabled={permissionBusy} onClick={() => void refreshPermissions()}>{permissionBusy ? 'Obnovuji…' : 'Obnovit oprávnění'}</button></section>}
       {permissionMessage && <p className="info-message" role="status">{permissionMessage}</p>}
-      {secureMode && cloudSync && <section className={`cloud-sync-card cloud-sync-card--${cloudSync.status}`} aria-label="Synchronizace mezi zařízeními"><span className="cloud-sync-icon" aria-hidden="true">↻</span><span><small>Synchronizace</small><strong>{cloudSync.status === 'synced' ? 'Synchronizováno' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Ukládám změny…' : cloudSync.status === 'offline' ? 'Čeká na připojení' : cloudSync.status === 'error' ? 'Vyžaduje pozornost' : 'Není aktivní'}</strong><p>{cloudSync.error ?? (cloudSync.lastSyncedAt ? `Naposledy ${new Date(cloudSync.lastSyncedAt).toLocaleString('cs-CZ')}` : 'Čeká na první synchronizaci.')}</p></span><button type="button" className="secondary-button" disabled={cloudSync.status === 'loading' || cloudSync.status === 'syncing'} onClick={() => void cloudSync.refresh()}>Obnovit</button></section>}
+      {secureMode && cloudSync && <section className={`cloud-sync-card cloud-sync-card--${cloudSync.status}`} aria-label="Synchronizace mezi zařízeními"><span className="cloud-sync-icon" aria-hidden="true">↻</span><span><small>Synchronizace</small><strong>{pendingSyncLabel ?? (cloudSync.status === 'synced' ? 'Synchronizováno' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Ukládám změny…' : cloudSync.status === 'offline' ? 'Čeká na připojení' : cloudSync.status === 'error' ? 'Vyžaduje pozornost' : 'Není aktivní')}</strong><p>{cloudSync.error ?? (cloudSync.lastSyncedAt ? `Naposledy ${new Date(cloudSync.lastSyncedAt).toLocaleString('cs-CZ')}` : 'Čeká na první synchronizaci.')}{nextSyncAttempt}</p></span><button type="button" className="secondary-button" disabled={cloudSync.status === 'loading' || cloudSync.status === 'syncing'} onClick={() => void cloudSync.refresh()}>Obnovit</button></section>}
 
       {serverAdmin && <section className="admin-entry-card" aria-label="Administrace"><span><small>Pouze administrátor</small><strong>Správa zpěvníku</strong><p>Uživatelé, žádosti, písně a systém.</p></span><button type="button" className="primary-button" onClick={() => onNavigate('admin')}>Otevřít administraci</button></section>}
 

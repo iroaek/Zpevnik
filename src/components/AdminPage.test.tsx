@@ -11,7 +11,7 @@ describe('samostatná administrace', () => {
   afterEach(cleanup);
 
   it('odděluje uživatele, žádosti, písně a systém', async () => {
-    render(<AdminPage online cloudSync={{ status: 'synced', lastSyncedAt: null, error: null, refresh: vi.fn().mockResolvedValue(undefined) }} onNavigate={vi.fn()} />);
+    render(<AdminPage online cloudSync={{ status: 'synced', lastSyncedAt: null, error: null, pendingCount: 0, nextRetryAt: null, refresh: vi.fn().mockResolvedValue(undefined) }} onNavigate={vi.fn()} />);
     expect(screen.getByRole('heading', { name: 'Databáze uživatelů' })).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: /Žádosti/ }));
     expect(screen.getByRole('heading', { name: 'Čekající registrace' })).toBeVisible();

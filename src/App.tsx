@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import catalogJson from './generated/catalog.json';
 import { AccountAccessPage } from './components/AccountAccessPage';
 import { AdminPage } from './components/AdminPage';
@@ -28,6 +29,7 @@ import { canonicalUrl, relativeRoute, routePath } from './pwa/paths';
 import { activateWaitingUpdate, hasWaitingUpdate } from './pwa/updateManager';
 import { addRecent, createUserProfile, isDownloadedLibrarySong, loadPersonalSongs, toggleFavorite, updateSetlistSongs } from './storage/database';
 import type { PersonalLibrarySummary } from './personalLibrary';
+import { routeMotionDirection, runRouteTransition } from './ui/motion';
 
 type Route =
   | { name: 'library' }
@@ -114,10 +116,13 @@ export default function App() {
   const selectedPublicSetlist = useMemo(() => route.name === 'public-setlist' ? catalog.publicSetlists.find((setlist) => setlist.id === route.id) : undefined, [catalog, route]);
 
   useEffect(() => {
-    const popstate = () => setRoute(parseRoute());
+    const popstate = () => {
+      const target = parseRoute();
+      runRouteTransition(() => flushSync(() => setRoute(target)), routeMotionDirection(route.name, target.name));
+    };
     window.addEventListener('popstate', popstate);
     return () => window.removeEventListener('popstate', popstate);
-  }, []);
+  }, [route.name]);
 
   useEffect(() => {
     void loadLatestCatalog(bundledCatalog).then((latest) => {
@@ -209,9 +214,12 @@ export default function App() {
 
   const navigate = (relative: string, replace = false) => {
     const destination = routePath(relative);
-    if (replace) history.replaceState({}, '', destination);
-    else history.pushState({}, '', destination);
-    setRoute(parseRoute(destination));
+    const target = parseRoute(destination);
+    runRouteTransition(() => flushSync(() => {
+      if (replace) history.replaceState({}, '', destination);
+      else history.pushState({}, '', destination);
+      setRoute(target);
+    }), routeMotionDirection(route.name, target.name));
   };
 
   const openSong = (id: string, sequence: string[] = []) => {
@@ -258,6 +266,7 @@ export default function App() {
       {(storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}
       {systemMessage && <div className="system-message toast-message" role="status"><span>{systemMessage}</span><button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemMessage('')}>×</button></div>}
       <main id="main-content" className="app-main">
+        <div className="route-stage" key={routeRelativePath(route) || 'library'}>
         {route.name === 'library' && <Library songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} setlistCount={userState.setlists.length} setlists={userState.setlists} onOpenSong={(id) => openSong(id)} onNavigate={navigate} onToggleFavorite={(id) => setUserState((current) => toggleFavorite(current, id))} onAddToSetlist={(songId, setlistId) => setUserState((current) => { const setlist = current.setlists.find((candidate) => candidate.id === setlistId); return !setlist || setlist.songIds.includes(songId) ? current : updateSetlistSongs(current, setlistId, [...setlist.songIds, songId]); })} onNotify={setSystemMessage} />}
         {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id) => navigate(`setlists/${id}`)} />}
         {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} />}
@@ -270,6 +279,7 @@ export default function App() {
         {route.name === 'song' && selectedSong && <SongReader key={selectedSong.id} song={selectedSong} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onBack={() => navigate(readerSequence.length ? 'setlists' : '')} previousSong={previousReaderSong} nextSong={nextReaderSong} onPreviousSong={previousReaderSong ? () => openReaderSibling(previousReaderSong) : undefined} onNextSong={nextReaderSong ? () => openReaderSibling(nextReaderSong) : undefined} />}
         {route.name === 'public-setlist' && selectedPublicSetlist && <PublicSetlistPage setlist={selectedPublicSetlist} songs={catalog.songs} onOpenSong={(id) => openSong(id, selectedPublicSetlist.songIds)} onBack={() => navigate('setlists')} />}
         {((route.name === 'song' && !selectedSong) || (route.name === 'public-setlist' && !selectedPublicSetlist) || (route.name === 'admin' && (!secureAccount.enabled || secureAccount.profile?.role !== 'admin')) || route.name === 'not-found') && <section className="info-page not-found"><p className="eyebrow">404</p><h1>Tato stránka ve zpěvníku není</h1><p>Odkaz může být starý nebo chybný.</p><button type="button" className="primary-button" onClick={() => navigate('')}>Přejít na písně</button></section>}
+        </div>
       </main>
       {route.name !== 'song' && <nav className="bottom-nav bottom-nav--five" aria-label="Hlavní navigace">
         <button type="button" className={navScreen === 'library' ? 'active' : ''} aria-current={navScreen === 'library' ? 'page' : undefined} onClick={() => navigate('')}><span aria-hidden="true">⌕</span>Písně</button>

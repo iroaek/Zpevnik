@@ -30,8 +30,8 @@ Přístup ke staženým písním
 - **Veřejný katalog:** NetworkFirst s 5s timeoutem, poslední validní kopie v Cache Storage.
 - **Chráněné balíčky:** privátní Supabase Storage → ověření velikosti/SHA‑256 → jedna IndexedDB transakce → aktivace.
 - **Lokální doménová data:** IndexedDB DB v5; web/PWA implementace repository rozhraní.
-- **Auth:** online Supabase session a samostatný serverem podepsaný offline grant.
-- **Sync:** lokální změna je okamžitá; neodeslaný snapshot jde do idempotentního outboxu.
+- **Auth:** ve fázi 1 online Supabase session a samostatný serverem podepsaný offline grant; aplikační DB lze přepnout na Neon Data API.
+- **Sync:** lokální změna je okamžitá; neodeslaný snapshot jde do deduplikovaného idempotentního outboxu a opakuje se po online/focus/visibility nebo backoff timeru.
 
 ## Atomická aktualizace
 
@@ -44,3 +44,7 @@ Nové balíčky mají `ownerUserId`; loader skryje chráněné písně jiného �
 ## Platformní adaptéry
 
 `AuthRepository`, `SongRepository` a `SyncRepository` oddělují UI od konkrétního providera. Web používá IndexedDB. Budoucí Capacitor může implementovat `SongRepository` nad SQLite a tajné tokeny držet v Keychain/Keystore bez změny doménového UI.
+
+## Neon fáze 1
+
+PWA posílá existující krátkodobý Supabase access token do Neon Data API. Neon ověří JWT podle nastaveného JWKS a RLS používá `auth.user_id()`. Do klienta se nikdy neposílá databázový connection string. Privátní soubory zůstávají v Supabase Storage; Edge Function vydávající offline grant ověří Supabase relaci, ale v Neon režimu čte roli a zapisuje audit v Neonu.

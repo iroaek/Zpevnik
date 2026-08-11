@@ -9,6 +9,9 @@ interface Navigator {
 
 interface ImportMetaEnv {
   readonly VITE_PUBLIC_BASE_URL?: string;
+  readonly VITE_DATA_BACKEND?: 'supabase' | 'neon';
+  readonly VITE_NEON_DATA_API_URL?: string;
+  readonly VITE_NEON_OFFLINE_GRANT_URL?: string;
   readonly VITE_SUPABASE_URL?: string;
   readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string;
   readonly VITE_REQUIRE_SECURE_ACCESS?: 'true' | 'false';
