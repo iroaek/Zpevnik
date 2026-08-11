@@ -19,6 +19,7 @@ export const scoreAssetSchema = z.object({
   rightsStatus: z.enum(RIGHTS_STATUSES),
   license: z.string().min(1),
   byteSize: z.number().int().nonnegative(),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
 });
 
 export const songSchema = z.object({
@@ -40,6 +41,7 @@ export const songSchema = z.object({
   firstLine: z.string(),
   chordProPath: z.string().min(1),
   contentBytes: z.number().int().nonnegative(),
+  contentSha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
   contentFormat: z.enum(['chordpro', 'layout_text']).optional(),
   personalOnly: z.boolean().optional(),
   chordsVerified: z.boolean().optional(),

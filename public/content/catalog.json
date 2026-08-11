@@ -1,7 +1,7 @@
 {
   "schemaVersion": 3,
-  "version": "4d3f6f6526b2",
-  "generatedAt": "2026-08-06T16:43:22.788Z",
+  "version": "db6207f2fe6f",
+  "generatedAt": "2026-08-11T20:41:52.327Z",
   "songs": [
     {
       "id": "synteticka-jiskra",
@@ -37,6 +37,7 @@
       "firstLine": "Jiskra kreslí kruh",
       "chordProPath": "content/songs/synteticka-jiskra.cho",
       "contentBytes": 1258,
+      "contentSha256": "7c24f11f5679d8beed8c2dbcede3fce59911ff695d43a09c34f01cfb905c9e0e",
       "scoreAssets": [
         {
           "instrument": "melody",
@@ -47,7 +48,8 @@
           "source": "Syntetická partitura vytvořená pro tento projekt",
           "rightsStatus": "synthetic",
           "license": "CC0-1.0",
-          "byteSize": 1433
+          "byteSize": 1433,
+          "sha256": "f15a17886b8ec4f76566fa6e1d4f93137a3aca7386aa9622f49484b90a115d85"
         },
         {
           "instrument": "violin",
@@ -58,7 +60,8 @@
           "source": "Syntetická partitura vytvořená pro tento projekt",
           "rightsStatus": "synthetic",
           "license": "CC0-1.0",
-          "byteSize": 1447
+          "byteSize": 1447,
+          "sha256": "e20c719e25dfb1f7c26141dd4136d0ffff2f87f220bf6d6e56621f7e8166f6cc"
         },
         {
           "instrument": "cello",
@@ -69,7 +72,8 @@
           "source": "Syntetická partitura vytvořená pro tento projekt",
           "rightsStatus": "synthetic",
           "license": "CC0-1.0",
-          "byteSize": 1231
+          "byteSize": 1231,
+          "sha256": "6a87bd03b2ba53f810c5831a91e20010c6e28532295c727aecb6235b3706736b"
         }
       ],
       "source": "Syntetický obsah vytvořený výhradně pro tento projekt",

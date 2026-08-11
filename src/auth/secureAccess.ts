@@ -1,11 +1,11 @@
 import { createClient, type AuthChangeEvent, type Session } from '@supabase/supabase-js';
 import { z } from 'zod';
 import {
+  clearSecureAccountLocalData,
   importFullBackup,
   libraryManifestSchema,
   loadDownloadedLibraryMetadata,
   migrateUserState,
-  saveDownloadedLibraryMetadata,
   type LibraryManifest,
   type UserState,
 } from '../storage/database';
@@ -63,6 +63,11 @@ export interface ApprovedLibraryDownloadResult {
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? '';
 const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ?? '';
 
+export const offlineGrantIssuer = import.meta.env.VITE_OFFLINE_GRANT_ISSUER?.trim() ?? '';
+export const offlineGrantAudience = import.meta.env.VITE_OFFLINE_GRANT_AUDIENCE?.trim() || 'cesky-zpevnik-offline';
+export const offlineGrantPublicJwks = import.meta.env.VITE_OFFLINE_GRANT_PUBLIC_JWKS?.trim() ?? '';
+export const offlineGrantClientConfigured = Boolean(offlineGrantIssuer && offlineGrantPublicJwks);
+
 export const secureAccessConfigured = import.meta.env.MODE !== 'e2e' && Boolean(supabaseUrl && publishableKey);
 export const secureAccessRequired = import.meta.env.MODE !== 'e2e' && import.meta.env.VITE_REQUIRE_SECURE_ACCESS === 'true';
 
@@ -91,13 +96,23 @@ function appRedirectUrl(): string {
   return new URL(import.meta.env.BASE_URL, window.location.origin).toString();
 }
 
-function readableError(error: { message?: string } | null, fallback: string): Error {
+export class SecureAccessError extends Error {
+  constructor(message: string, public readonly status?: number, public readonly code?: string) {
+    super(message);
+    this.name = 'SecureAccessError';
+  }
+}
+
+function readableError(error: { message?: string; status?: number; statusCode?: number | string; code?: string } | null, fallback: string): Error {
   const message = error?.message?.toLowerCase() ?? '';
-  if (message.includes('invalid login credentials')) return new Error('E-mail nebo heslo není správné.');
-  if (message.includes('email not confirmed')) return new Error('Nejprve potvrďte e-mail pomocí odkazu, který vám přišel.');
-  if (message.includes('user already registered')) return new Error('Účet s tímto e-mailem už existuje.');
-  if (message.includes('password')) return new Error('Heslo nesplňuje bezpečnostní požadavky.');
-  return new Error(error?.message || fallback);
+  const rawStatus = error?.status ?? error?.statusCode;
+  const status = typeof rawStatus === 'number' ? rawStatus : typeof rawStatus === 'string' && /^\d+$/.test(rawStatus) ? Number(rawStatus) : undefined;
+  const code = error?.code;
+  if (message.includes('invalid login credentials')) return new SecureAccessError('E-mail nebo heslo není správné.', status, code);
+  if (message.includes('email not confirmed')) return new SecureAccessError('Nejprve potvrďte e-mail pomocí odkazu, který vám přišel.', status, code);
+  if (message.includes('user already registered')) return new SecureAccessError('Účet s tímto e-mailem už existuje.', status, code);
+  if (message.includes('password')) return new SecureAccessError('Heslo nesplňuje bezpečnostní požadavky.', status, code);
+  return new SecureAccessError(error?.message || fallback, status, code);
 }
 
 export function subscribeToSecureSession(callback: (event: AuthChangeEvent, session: SecureSession | null) => void): () => void {
@@ -147,13 +162,17 @@ export async function updateSecurePassword(password: string): Promise<void> {
 }
 
 export async function signOutSecureAccount(): Promise<void> {
-  const { error } = await requireClient().auth.signOut();
-  if (error) throw readableError(error, 'Odhlášení se nepodařilo.');
+  const { data } = await requireClient().auth.getSession();
+  const userId = data.session?.user.id;
+  const { error } = await requireClient().auth.signOut({ scope: 'local' });
+  await clearSecureAccountLocalData(userId);
+  if (error) throw readableError(error, 'Serverové odhlášení se nepodařilo, místní oprávnění však bylo odstraněno.');
 }
 
 export async function loadSecureProfile(): Promise<SecureProfile | null> {
   const supabase = requireClient();
-  const { data: userData } = await supabase.auth.getUser();
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw readableError(userError, 'Online relaci se nepodařilo ověřit.');
   if (!userData.user) return null;
   const { data, error } = await supabase
     .from('profiles')
@@ -315,9 +334,21 @@ export async function downloadApprovedLibrary(
   const imported = await importFullBackup(data, {
     replaceDownloadedLibrary: true,
     expectedLibraryScope: paths.scope,
+    ownerUserId: profile.id,
+    verifiedManifest: manifest ?? undefined,
   });
-  if (manifest) await saveDownloadedLibraryMetadata(manifest);
   return { count: imported.personalSongCount, changed: true, manifest };
+}
+
+export async function requestOfflineGrantToken(deviceId: string): Promise<string> {
+  const { data, error } = await requireClient().functions.invoke('offline-grant', {
+    body: { deviceId },
+  });
+  if (error) throw readableError(error, 'Server nevydal offline oprávnění.');
+  if (!data || typeof data !== 'object' || typeof (data as { token?: unknown }).token !== 'string') {
+    throw new SecureAccessError('Server vrátil neplatný formát offline oprávnění.');
+  }
+  return (data as { token: string }).token;
 }
 
 export async function loadCloudUserState(): Promise<UserState | null> {

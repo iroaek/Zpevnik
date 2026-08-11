@@ -22,6 +22,9 @@ jobs:
       VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
       VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
       VITE_REQUIRE_SECURE_ACCESS: ${{ vars.VITE_REQUIRE_SECURE_ACCESS || 'false' }}
+      VITE_OFFLINE_GRANT_ISSUER: ${{ vars.VITE_OFFLINE_GRANT_ISSUER }}
+      VITE_OFFLINE_GRANT_AUDIENCE: ${{ vars.VITE_OFFLINE_GRANT_AUDIENCE || 'cesky-zpevnik-offline' }}
+      VITE_OFFLINE_GRANT_PUBLIC_JWKS: ${{ vars.VITE_OFFLINE_GRANT_PUBLIC_JWKS }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6

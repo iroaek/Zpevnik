@@ -5,6 +5,8 @@ import { sanitizeImportedText } from '../domain/chordpro';
 import { createUuid } from '../domain/browserCompatibility';
 import { readBlobText } from '../domain/readBlobBytes';
 import { songSchema, type Song } from '../domain/song';
+import type { OfflineGrantPayload } from '../auth/offlineGrant';
+import type { SecureProfile } from '../auth/secureAccess';
 
 export interface Setlist {
   id: string;
@@ -46,6 +48,46 @@ export interface LibraryManifest {
 
 export interface DownloadedLibraryMetadata extends LibraryManifest {
   downloadedAt: string;
+}
+
+export interface StoredOfflineGrantRecord {
+  schemaVersion: 1;
+  token: string;
+  payload: OfflineGrantPayload;
+  profile: SecureProfile;
+  verifiedAt: string;
+}
+
+export interface ContentPackageRecord {
+  schemaVersion: 1;
+  packageId: string;
+  ownerUserId: string;
+  manifest: LibraryManifest;
+  songIds: string[];
+  activatedAt: string;
+  integrity: 'verified';
+}
+
+export interface PendingMutation {
+  schemaVersion: 1;
+  id: string;
+  userId: string;
+  idempotencyKey: string;
+  kind: 'user-state-upsert';
+  payload: UserState;
+  createdAt: string;
+  attempts: number;
+  lastError: string | null;
+}
+
+export interface DiagnosticEvent {
+  schemaVersion: 1;
+  id: string;
+  category: 'auth' | 'sync' | 'storage' | 'pwa';
+  event: string;
+  level: 'info' | 'warning' | 'error';
+  occurredAt: string;
+  details?: Record<string, string | number | boolean | null>;
 }
 
 export interface UserProfile {
@@ -146,6 +188,28 @@ export const libraryManifestSchema = z.object({
 
 const downloadedLibraryMetadataSchema = libraryManifestSchema.extend({ downloadedAt: z.string().datetime() });
 
+const pendingMutationSchema: z.ZodType<PendingMutation> = z.object({
+  schemaVersion: z.literal(1),
+  id: z.string().uuid(),
+  userId: z.string().uuid(),
+  idempotencyKey: z.string().min(8).max(200),
+  kind: z.literal('user-state-upsert'),
+  payload: userStateSchema,
+  createdAt: z.string().datetime(),
+  attempts: z.number().int().nonnegative(),
+  lastError: z.string().max(500).nullable(),
+});
+
+const diagnosticEventSchema: z.ZodType<DiagnosticEvent> = z.object({
+  schemaVersion: z.literal(1),
+  id: z.string().uuid(),
+  category: z.enum(['auth', 'sync', 'storage', 'pwa']),
+  event: z.string().min(1).max(120),
+  level: z.enum(['info', 'warning', 'error']),
+  occurredAt: z.string().datetime(),
+  details: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+});
+
 const INITIAL_STATE_UPDATED_AT = '1970-01-01T00:00:00.000Z';
 
 export const defaultUserState: UserState = {
@@ -178,6 +242,8 @@ export interface BackupImportResult {
 export interface BackupImportOptions {
   replaceDownloadedLibrary?: boolean;
   expectedLibraryScope?: 'admin' | 'members';
+  ownerUserId?: string;
+  verifiedManifest?: LibraryManifest;
 }
 
 const personalSongEntrySchema = z.object({
@@ -187,7 +253,7 @@ const personalSongEntrySchema = z.object({
 
 const personalSongBackupSchema = z.array(personalSongEntrySchema).max(5_000);
 
-export const DATABASE_VERSION = 4;
+export const DATABASE_VERSION = 5;
 
 const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
   upgrade(database, oldVersion) {
@@ -201,6 +267,12 @@ const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
       database.createObjectStore('account');
       database.createObjectStore('songSubmissions');
       database.createObjectStore('songSubmissionFiles');
+    }
+    if (oldVersion < 5) {
+      database.createObjectStore('offlineAuth');
+      database.createObjectStore('contentPackages');
+      database.createObjectStore('pendingMutations');
+      database.createObjectStore('diagnostics');
     }
   },
 });
@@ -318,6 +390,111 @@ export async function saveDownloadedLibraryMetadata(manifest: LibraryManifest): 
 export async function clearDownloadedLibraryMetadata(): Promise<void> {
   const database = await databasePromise;
   await database.delete('metadata', 'downloadedLibrary');
+}
+
+export async function getOrCreateDeviceId(): Promise<string> {
+  const database = await databasePromise;
+  const stored = await database.get('metadata', 'deviceId');
+  if (typeof stored === 'string' && stored.length >= 8) return stored;
+  const deviceId = createUuid();
+  await database.put('metadata', deviceId, 'deviceId');
+  return deviceId;
+}
+
+export async function loadOfflineGrantRecord(): Promise<StoredOfflineGrantRecord | null> {
+  const database = await databasePromise;
+  const stored = await database.get('offlineAuth', 'current') as Partial<StoredOfflineGrantRecord> | undefined;
+  if (!stored || stored.schemaVersion !== 1 || typeof stored.token !== 'string' || typeof stored.verifiedAt !== 'string') return null;
+  return stored as StoredOfflineGrantRecord;
+}
+
+export async function saveOfflineGrantRecord(record: StoredOfflineGrantRecord): Promise<void> {
+  if (record.schemaVersion !== 1 || !record.token || !record.payload?.subject || !record.profile?.id) {
+    throw new Error('Offline oprávnění má neplatný lokální formát.');
+  }
+  const database = await databasePromise;
+  await database.put('offlineAuth', record, 'current');
+}
+
+export async function clearOfflineGrantRecord(): Promise<void> {
+  const database = await databasePromise;
+  await database.delete('offlineAuth', 'current');
+}
+
+export async function loadContentPackage(userId: string): Promise<ContentPackageRecord | null> {
+  const database = await databasePromise;
+  const stored = await database.get('contentPackages', userId) as Partial<ContentPackageRecord> | undefined;
+  const manifest = libraryManifestSchema.safeParse(stored?.manifest);
+  if (!stored || stored.schemaVersion !== 1 || stored.ownerUserId !== userId || stored.integrity !== 'verified' || !manifest.success || !Array.isArray(stored.songIds)) return null;
+  return { ...stored, manifest: manifest.data } as ContentPackageRecord;
+}
+
+export async function saveContentPackage(record: ContentPackageRecord): Promise<void> {
+  libraryManifestSchema.parse(record.manifest);
+  if (record.schemaVersion !== 1 || record.integrity !== 'verified' || record.ownerUserId.length < 8) throw new Error('Neplatný záznam obsahového balíčku.');
+  const database = await databasePromise;
+  await database.put('contentPackages', record, record.ownerUserId);
+}
+
+export async function enqueuePendingMutation(mutation: PendingMutation): Promise<void> {
+  const validated = pendingMutationSchema.parse(mutation);
+  const database = await databasePromise;
+  // Uživatelův stav je snapshot. Novější snapshot se stejným druhem nahrazuje
+  // starší, takže opakované offline ukládání nevytváří nekonečnou frontu.
+  const stored = await database.getAll('pendingMutations') as unknown[];
+  const transaction = database.transaction('pendingMutations', 'readwrite');
+  for (const value of stored) {
+    const parsed = pendingMutationSchema.safeParse(value);
+    if (parsed.success && parsed.data.userId === validated.userId && parsed.data.kind === validated.kind) {
+      await transaction.store.delete(parsed.data.id);
+    }
+  }
+  await transaction.store.put(validated, validated.id);
+  await transaction.done;
+}
+
+export async function loadPendingMutations(userId: string): Promise<PendingMutation[]> {
+  const database = await databasePromise;
+  const stored = await database.getAll('pendingMutations') as unknown[];
+  return stored.flatMap((value) => {
+    const parsed = pendingMutationSchema.safeParse(value);
+    return parsed.success && parsed.data.userId === userId ? [parsed.data] : [];
+  }).sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+}
+
+export async function removePendingMutation(id: string): Promise<void> {
+  const database = await databasePromise;
+  await database.delete('pendingMutations', id);
+}
+
+export async function recordDiagnostic(input: Omit<DiagnosticEvent, 'schemaVersion' | 'id' | 'occurredAt'>): Promise<void> {
+  const event = diagnosticEventSchema.parse({
+    ...input,
+    schemaVersion: 1,
+    id: createUuid(),
+    occurredAt: new Date().toISOString(),
+  });
+  const database = await databasePromise;
+  await database.put('diagnostics', event, event.id);
+  const events = await database.getAll('diagnostics') as unknown[];
+  const valid = events.flatMap((value) => {
+    const parsed = diagnosticEventSchema.safeParse(value);
+    return parsed.success ? [parsed.data] : [];
+  }).sort((left, right) => left.occurredAt.localeCompare(right.occurredAt));
+  if (valid.length > 200) {
+    const transaction = database.transaction('diagnostics', 'readwrite');
+    for (const old of valid.slice(0, valid.length - 200)) await transaction.store.delete(old.id);
+    await transaction.done;
+  }
+}
+
+export async function loadDiagnostics(): Promise<DiagnosticEvent[]> {
+  const database = await databasePromise;
+  const stored = await database.getAll('diagnostics') as unknown[];
+  return stored.flatMap((value) => {
+    const parsed = diagnosticEventSchema.safeParse(value);
+    return parsed.success ? [parsed.data] : [];
+  }).sort((left, right) => right.occurredAt.localeCompare(left.occurredAt));
 }
 
 export function addRecent(state: UserState, songId: string): UserState {
@@ -458,12 +635,14 @@ export async function importFullBackup(file: Blob, options: BackupImportOptions 
       throw new Error('Stažený balíček obsahuje píseň s neplatným původem.');
     }
     const database = await databasePromise;
+    const existingPackage = options.ownerUserId ? await loadContentPackage(options.ownerUserId) : null;
     const stored = await database.getAll('personalSongs') as unknown[];
-    const oldIds = stored.flatMap((value) => {
+    const legacyIds = stored.flatMap((value) => {
       const parsedSong = songSchema.safeParse(value);
       return parsedSong.success && isDownloadedLibrarySong(parsedSong.data) ? [parsedSong.data.id] : [];
     });
-    const transaction = database.transaction(['personalSongs', 'personalSongContent'], 'readwrite');
+    const oldIds = existingPackage?.songIds ?? legacyIds;
+    const transaction = database.transaction(['personalSongs', 'personalSongContent', 'contentPackages', 'metadata'], 'readwrite');
     for (const songId of oldIds) {
       await transaction.objectStore('personalSongs').delete(songId);
       await transaction.objectStore('personalSongContent').delete(songId);
@@ -472,21 +651,48 @@ export async function importFullBackup(file: Blob, options: BackupImportOptions 
       await transaction.objectStore('personalSongs').put(entry.song, entry.song.id);
       await transaction.objectStore('personalSongContent').put(entry.content, entry.song.id);
     }
+    const parsedManifest = libraryManifestSchema.safeParse(parsed.libraryManifest);
+    const manifest = options.verifiedManifest ?? (parsedManifest.success ? parsedManifest.data : undefined);
+    if (manifest) {
+      const metadata = downloadedLibraryMetadataSchema.parse({ ...manifest, downloadedAt: new Date().toISOString() });
+      await transaction.objectStore('metadata').put(metadata, 'downloadedLibrary');
+      if (options.ownerUserId) {
+        const contentPackage: ContentPackageRecord = {
+          schemaVersion: 1,
+          packageId: manifest.scope,
+          ownerUserId: options.ownerUserId,
+          manifest,
+          songIds: entries.map(({ song }) => song.id),
+          activatedAt: metadata.downloadedAt,
+          integrity: 'verified',
+        };
+        await transaction.objectStore('contentPackages').put(contentPackage, options.ownerUserId);
+      }
+    }
     await transaction.done;
-    const manifest = libraryManifestSchema.safeParse(parsed.libraryManifest);
-    if (manifest.success) await saveDownloadedLibraryMetadata(manifest.data);
   } else {
     await savePersonalSongs(entries);
   }
   return { state, personalSongCount: entries.length };
 }
 
-export async function loadPersonalSongs(): Promise<Song[]> {
+export async function loadPersonalSongs(userId?: string): Promise<Song[]> {
   const database = await databasePromise;
   const stored = await database.getAll('personalSongs') as unknown[];
+  const packages = await database.getAll('contentPackages') as ContentPackageRecord[];
+  const protectedOwners = new Map<string, string>();
+  for (const contentPackage of packages) {
+    if (contentPackage?.schemaVersion !== 1 || !Array.isArray(contentPackage.songIds)) continue;
+    for (const songId of contentPackage.songIds) protectedOwners.set(songId, contentPackage.ownerUserId);
+  }
   return stored.flatMap((value) => {
     const parsed = songSchema.safeParse(value);
-    return parsed.success && parsed.data.personalOnly ? [parsed.data] : [];
+    if (!parsed.success || !parsed.data.personalOnly) return [];
+    if (!isDownloadedLibrarySong(parsed.data)) return [parsed.data];
+    const owner = protectedOwners.get(parsed.data.id);
+    // Starší balíčky před schématem 5 neměly vlastníka. Zůstanou čitelné do
+    // první online obnovy; nový import je už vždy uživatelsky oddělený.
+    return !owner || owner === userId ? [parsed.data] : [];
   });
 }
 
@@ -516,23 +722,55 @@ export async function removePersonalSong(songId: string): Promise<void> {
   await transaction.done;
 }
 
-export async function removeDownloadedLibrarySongs(): Promise<number> {
+export async function removeProtectedSong(userId: string, songId: string): Promise<void> {
+  const contentPackage = await loadContentPackage(userId);
+  if (!contentPackage || !contentPackage.songIds.includes(songId)) throw new Error('Píseň nepatří do aktivního balíčku tohoto účtu.');
+  const database = await databasePromise;
+  const transaction = database.transaction(['personalSongs', 'personalSongContent', 'contentPackages'], 'readwrite');
+  await transaction.objectStore('personalSongs').delete(songId);
+  await transaction.objectStore('personalSongContent').delete(songId);
+  await transaction.objectStore('contentPackages').put({
+    ...contentPackage,
+    songIds: contentPackage.songIds.filter((id) => id !== songId),
+  }, userId);
+  await transaction.done;
+}
+
+export async function removeDownloadedLibrarySongs(userId?: string): Promise<number> {
   const database = await databasePromise;
   const stored = await database.getAll('personalSongs') as unknown[];
-  const songIds = stored.flatMap((value) => {
+  const contentPackage = userId ? await loadContentPackage(userId) : null;
+  const legacySongIds = stored.flatMap((value) => {
     const parsed = songSchema.safeParse(value);
     return parsed.success && isDownloadedLibrarySong(parsed.data) ? [parsed.data.id] : [];
   });
+  const songIds = contentPackage?.songIds ?? legacySongIds;
   if (songIds.length === 0) {
     await clearDownloadedLibraryMetadata();
     return 0;
   }
-  const transaction = database.transaction(['personalSongs', 'personalSongContent'], 'readwrite');
+  const transaction = database.transaction(['personalSongs', 'personalSongContent', 'contentPackages', 'metadata'], 'readwrite');
   for (const songId of songIds) {
     await transaction.objectStore('personalSongs').delete(songId);
     await transaction.objectStore('personalSongContent').delete(songId);
   }
+  if (userId) await transaction.objectStore('contentPackages').delete(userId);
+  await transaction.objectStore('metadata').delete('downloadedLibrary');
   await transaction.done;
-  await clearDownloadedLibraryMetadata();
   return songIds.length;
+}
+
+export async function clearSecureAccountLocalData(userId?: string): Promise<void> {
+  if (userId) await removeDownloadedLibrarySongs(userId);
+  else await removeDownloadedLibrarySongs();
+  const database = await databasePromise;
+  const transaction = database.transaction(['offlineAuth', 'account', 'pendingMutations'], 'readwrite');
+  await transaction.objectStore('offlineAuth').delete('current');
+  await transaction.objectStore('account').delete('profile');
+  const pending = await transaction.objectStore('pendingMutations').getAll() as unknown[];
+  for (const value of pending) {
+    const parsed = pendingMutationSchema.safeParse(value);
+    if (parsed.success && (!userId || parsed.data.userId === userId)) await transaction.objectStore('pendingMutations').delete(parsed.data.id);
+  }
+  await transaction.done;
 }

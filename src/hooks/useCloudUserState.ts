@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadCloudUserState, saveCloudUserState, type SecureProfile } from '../auth/secureAccess';
-import type { UserState } from '../storage/database';
+import { createUuid } from '../domain/browserCompatibility';
+import { enqueuePendingMutation, loadPendingMutations, removePendingMutation, type UserState } from '../storage/database';
 
 export type CloudSyncStatus = 'disabled' | 'loading' | 'syncing' | 'synced' | 'offline' | 'error';
 
@@ -26,6 +27,21 @@ export function useCloudUserState(
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const queueSnapshot = useCallback(async (snapshot: UserState, reason: string | null = null) => {
+    if (!accountId) return;
+    await enqueuePendingMutation({
+      schemaVersion: 1,
+      id: createUuid(),
+      userId: accountId,
+      idempotencyKey: `${accountId}:${snapshot.updatedAt}`,
+      kind: 'user-state-upsert',
+      payload: snapshot,
+      createdAt: new Date().toISOString(),
+      attempts: 0,
+      lastError: reason,
+    });
+  }, [accountId]);
+
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
@@ -34,6 +50,7 @@ export function useCloudUserState(
     if (!accountId || !hydrated) return;
     if (!navigator.onLine) {
       setStatus('offline');
+      await queueSnapshot(stateRef.current, 'offline');
       return;
     }
     setStatus(initializedAccount.current === accountId ? 'syncing' : 'loading');
@@ -50,15 +67,17 @@ export function useCloudUserState(
         lastUploadedVersion.current = local.updatedAt;
       }
       initializedAccount.current = accountId;
+      for (const mutation of await loadPendingMutations(accountId)) await removePendingMutation(mutation.id);
       const completedAt = new Date().toISOString();
       setLastSyncedAt(completedAt);
       setError(null);
       setStatus('synced');
     } catch (caught) {
+      await queueSnapshot(stateRef.current, caught instanceof Error ? caught.message : 'sync-error').catch(() => undefined);
       setError(caught instanceof Error ? caught.message : 'Synchronizace se nezdařila.');
       setStatus('error');
     }
-  }, [accountId, hydrated, setState]);
+  }, [accountId, hydrated, queueSnapshot, setState]);
 
   useEffect(() => {
     if (!accountId || !hydrated) {
@@ -76,6 +95,7 @@ export function useCloudUserState(
     const timer = window.setTimeout(() => {
       if (!navigator.onLine) {
         setStatus('offline');
+        void queueSnapshot(state);
         return;
       }
       setStatus('syncing');
@@ -85,14 +105,16 @@ export function useCloudUserState(
           setLastSyncedAt(new Date().toISOString());
           setError(null);
           setStatus('synced');
+          void loadPendingMutations(accountId).then((mutations) => Promise.all(mutations.map((mutation) => removePendingMutation(mutation.id))));
         })
         .catch((caught: unknown) => {
+          void queueSnapshot(state, caught instanceof Error ? caught.message : 'sync-error');
           setError(caught instanceof Error ? caught.message : 'Synchronizace se nezdařila.');
           setStatus('error');
         });
     }, 1_200);
     return () => window.clearTimeout(timer);
-  }, [accountId, state]);
+  }, [accountId, queueSnapshot, state]);
 
   useEffect(() => {
     if (!accountId) return;

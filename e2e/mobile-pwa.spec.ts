@@ -71,6 +71,7 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
 
   await page.getByRole('button', { name: 'Režim U ohně' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-fire-mode', 'true');
+  await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(false);
   const initialFireSize = await page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
   await page.getByRole('button', { name: 'Zvětšit text v režimu U ohně' }).click();
   await expect.poll(() => page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThan(initialFireSize);
@@ -180,4 +181,32 @@ test('oblíbené a soukromý setlist přežijí obnovení aplikace', async ({ pa
   await expect(page.getByText('Zatím nemáte žádný setlist.')).toBeVisible();
   await page.reload();
   await expect(page.getByRole('tab', { name: /Aktualizační test/ })).toHaveCount(0);
+});
+
+test('offline cold start zachová staženou píseň, transpozici, oblíbené a setlist', async ({ page, context }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-390x844', 'Kompletní cold-start scénář stačí v reprezentativním mobilním viewportu.');
+  await page.goto('./');
+  await ensureServiceWorkerControls(page);
+  await page.goto('offline');
+  await page.getByRole('button', { name: /Stáhnout ukázky|Ověřit znovu/ }).click();
+  await expect(page.getByText('Ukázkové písně byly staženy a ověřeny.')).toBeVisible({ timeout: 20_000 });
+  await page.goto('songs/synteticka-jiskra');
+  await page.getByRole('button', { name: 'Přidat do oblíbených' }).click();
+  await page.goto('setlists');
+  await page.getByLabel('Název nového setlistu').fill('Offline cold start');
+  await page.getByRole('button', { name: 'Vytvořit' }).click();
+
+  const appBaseUrl = page.url().replace(/setlists$/, '');
+  const songUrl = new URL('songs/synteticka-jiskra', appBaseUrl).toString();
+  await page.close();
+  await context.setOffline(true);
+  const coldPage = await context.newPage();
+  await coldPage.goto(songUrl, { waitUntil: 'domcontentloaded' });
+  await expect(coldPage.getByText('Jiskra kreslí')).toBeVisible({ timeout: 20_000 });
+  await expect(coldPage.getByRole('button', { name: 'Odebrat z oblíbených' })).toBeVisible();
+  await coldPage.getByRole('button', { name: 'Zvýšit o půltón' }).click();
+  await expect(coldPage.getByLabel('Posun v půltónech')).toHaveText('+1');
+  await coldPage.goto(new URL('setlists', appBaseUrl).toString());
+  await expect(coldPage.getByRole('tab', { name: /Offline cold start/ })).toBeVisible();
+  await context.setOffline(false);
 });

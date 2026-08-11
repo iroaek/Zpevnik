@@ -1,5 +1,19 @@
 # Technický plán
 
+## Offline-first architektura 2026-08
+
+- [x] audit klientského auth guardu, PWA, IndexedDB, Supabase a veřejného obsahu;
+- [x] explicitní auth stavy online/offline/expired/unauthenticated;
+- [x] síť/timeout/5xx bez automatického logoutu;
+- [x] lokální ES256 ověření offline grantu a připravená serverová Edge Function;
+- [x] DB v5: user-scoped content package, offline grant, outbox a diagnostika;
+- [x] SHA‑256 veřejných souborů a transakční privátní balíček;
+- [x] repository kontrakty pro budoucí změnu backendu/SQLite;
+- [x] RLS, threat model, Neon a Capacitor dokumentace;
+- [ ] staging nasazení migrace/function a dynamické A/B/admin testy – vyžaduje správce/secrets;
+- [ ] produkční aktivace offline grantu – až po schváleném stagingu;
+- [ ] Capacitor Android/iOS scaffold – samostatný patch po volbě app ID/pluginů/signingu.
+
 1. **Základ projektu** – vytvořit TypeScript/React/Vite PWA, přístupné mobilní rozhraní, českou lokalizaci, instalovatelný manifest a service worker bez externích runtime služeb.
 2. **Datová vrstva** – definovat verzované Zod schéma písní, partů, uživatelských dat a migrací; zdrojem katalogu budou výhradně ChordPro/score soubory a jejich metadata.
 3. **Import a katalog** – implementovat nedestruktivní import ChordPro, CSV, JSON, XLSX, SQLite, MusicXML, MXL a ZIP; detekovat UTF-8/Windows-1250, validovat práva, logovat transformace, duplicity a ruční kontroly; generovat runtime katalog a kopie povolených aktiv automaticky.

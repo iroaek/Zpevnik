@@ -99,7 +99,7 @@ export async function fetchContent(relativePath: string, kind: ContentKind, vers
 }
 
 async function downloadItems(
-  items: Array<{ path: string; label: string; bytes: number }>,
+  items: Array<{ path: string; label: string; bytes: number; sha256?: string }>,
   kind: ContentKind,
   version: string,
   onProgress: (progress: DownloadProgress) => void,
@@ -112,6 +112,10 @@ async function downloadItems(
     const item = items[index];
     const url = resolvePublicPath(item.path);
     let response = await cache.match(url);
+    if (response && !(await responseMatches(response, item.bytes, item.sha256))) {
+      await cache.delete(url);
+      response = undefined;
+    }
     if (!response) {
       if (!navigator.onLine) throw new OfflineContentMissingError(kind);
       let networkResponse: Response;
@@ -126,7 +130,7 @@ async function downloadItems(
     }
     if (!response || !response.ok) throw new Error(`${item.label}: uložení do cache se nepodařilo ověřit.`);
     const actualBytes = (await response.clone().arrayBuffer()).byteLength;
-    if (actualBytes === 0) throw new Error(`${item.label}: stažený soubor je prázdný.`);
+    if (!(await responseMatches(response, item.bytes, item.sha256))) throw new Error(`${item.label}: kontrola integrity staženého souboru selhala.`);
     downloadedBytes += actualBytes;
     onProgress({ completed: index + 1, total: items.length, downloadedBytes, estimatedBytes, currentLabel: item.label });
   }
@@ -135,11 +139,11 @@ async function downloadItems(
 
 export async function downloadAllSongs(catalog: Catalog, onProgress: (progress: DownloadProgress) => void): Promise<void> {
   await cacheCatalog(catalog);
-  await downloadItems(catalog.songs.map((song) => ({ path: song.chordProPath, label: song.title, bytes: song.contentBytes })), 'songs', catalog.version, onProgress);
+  await downloadItems(catalog.songs.map((song) => ({ path: song.chordProPath, label: song.title, bytes: song.contentBytes, sha256: song.contentSha256 })), 'songs', catalog.version, onProgress);
 }
 
 export async function downloadAllScores(catalog: Catalog, onProgress: (progress: DownloadProgress) => void): Promise<void> {
-  const items = catalog.songs.flatMap((song) => song.scoreAssets.map((asset) => ({ path: asset.path, label: `${song.title} – ${asset.instrument}`, bytes: asset.byteSize })));
+  const items = catalog.songs.flatMap((song) => song.scoreAssets.map((asset) => ({ path: asset.path, label: `${song.title} – ${asset.instrument}`, bytes: asset.byteSize, sha256: asset.sha256 })));
   const estimatedBytes = items.reduce((sum, item) => sum + item.bytes, 0);
   onProgress({ completed: 0, total: items.length, downloadedBytes: 0, estimatedBytes, currentLabel: 'Připravuji vykreslování not…' });
   await import('opensheetmusicdisplay');
@@ -147,14 +151,23 @@ export async function downloadAllScores(catalog: Catalog, onProgress: (progress:
   await downloadItems(items, 'scores', catalog.version, onProgress);
 }
 
-async function countCached(cache: Cache, urls: string[]): Promise<{ count: number; bytes: number }> {
+export async function responseMatches(response: Response, expectedBytes: number, expectedSha256?: string): Promise<boolean> {
+  const data = await response.clone().arrayBuffer();
+  if (data.byteLength === 0 || (expectedBytes > 0 && data.byteLength !== expectedBytes)) return false;
+  if (!expectedSha256) return true;
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  const actual = Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+  return actual === expectedSha256;
+}
+
+async function countCached(cache: Cache, items: Array<{ url: string; bytes: number; sha256?: string }>): Promise<{ count: number; bytes: number }> {
   let count = 0;
   let bytes = 0;
-  for (const url of urls) {
-    const response = await cache.match(url);
+  for (const item of items) {
+    const response = await cache.match(item.url);
     if (!response) continue;
     const size = (await response.clone().arrayBuffer()).byteLength;
-    if (size > 0) {
+    if (await responseMatches(response, item.bytes, item.sha256)) {
       count += 1;
       bytes += size;
     }
@@ -167,8 +180,8 @@ export async function inspectOfflineContent(catalog: Catalog): Promise<OfflineCo
   if (!cacheAvailable()) return { supported: false, serviceWorkerActive: false, catalogCached: false, downloadedSongs: 0, totalSongs: catalog.songs.length, downloadedScores: 0, totalScores, bytes: 0, allSongsVerified: false, allScoresVerified: false, lastUpdated: null };
   const songCache = await caches.open(cacheName('songs', catalog.version));
   const scoreCache = await caches.open(cacheName('scores', catalog.version));
-  const songStats = await countCached(songCache, catalog.songs.map((song) => resolvePublicPath(song.chordProPath)));
-  const scoreStats = await countCached(scoreCache, catalog.songs.flatMap((song) => song.scoreAssets.map((asset) => resolvePublicPath(asset.path))));
+  const songStats = await countCached(songCache, catalog.songs.map((song) => ({ url: resolvePublicPath(song.chordProPath), bytes: song.contentBytes, sha256: song.contentSha256 })));
+  const scoreStats = await countCached(scoreCache, catalog.songs.flatMap((song) => song.scoreAssets.map((asset) => ({ url: resolvePublicPath(asset.path), bytes: asset.byteSize, sha256: asset.sha256 }))));
   const catalogCached = Boolean(await (await caches.open(CATALOG_CACHE)).match(resolvePublicPath('content/catalog.json')));
   let lastUpdated: string | null;
   try {

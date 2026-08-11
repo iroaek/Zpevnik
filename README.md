@@ -138,6 +138,23 @@ Soukromé setlisty a osobní importy zůstávají v IndexedDB a exportují se po
 
 Podrobnosti: [IMPORT_GUIDE.md](IMPORT_GUIDE.md), [DATA_FORMAT.md](DATA_FORMAT.md), [RIGHTS_AND_LICENSING.md](RIGHTS_AND_LICENSING.md).
 
+## Offline-first autentizace
+
+Síťová chyba, timeout ani HTTP 5xx nejsou důvodem k automatickému odhlášení nebo odstranění stažených písní. Po předchozím online ověření používá soukromý režim samostatný serverem podepsaný ES256 offline grant a uživatelsky oddělený obsahový balíček v IndexedDB. Privátní podpisový klíč patří pouze do serverové funkce; veřejná PWA obsahuje jen JWKS.
+
+Architektura a provozní kroky:
+
+- [CURRENT_STATE_AUDIT.md](CURRENT_STATE_AUDIT.md)
+- [OFFLINE_ARCHITECTURE.md](OFFLINE_ARCHITECTURE.md)
+- [AUTH_STATE_MACHINE.md](AUTH_STATE_MACHINE.md)
+- [CONTENT_PACKAGE_FORMAT.md](CONTENT_PACKAGE_FORMAT.md)
+- [SECURITY_THREAT_MODEL.md](SECURITY_THREAT_MODEL.md)
+- [RLS_AUDIT.md](RLS_AUDIT.md)
+- [BACKEND_OPTIONS_AND_NEON_ASSESSMENT.md](BACKEND_OPTIONS_AND_NEON_ASSESSMENT.md)
+- [NEON_MIGRATION_PLAN.md](NEON_MIGRATION_PLAN.md)
+- [CAPACITOR_FEASIBILITY.md](CAPACITOR_FEASIBILITY.md)
+- [OFFLINE_TESTING.md](OFFLINE_TESTING.md)
+
 ## Kontroly
 
 ```powershell

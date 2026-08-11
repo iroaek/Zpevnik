@@ -12,6 +12,9 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string;
   readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string;
   readonly VITE_REQUIRE_SECURE_ACCESS?: 'true' | 'false';
+  readonly VITE_OFFLINE_GRANT_ISSUER?: string;
+  readonly VITE_OFFLINE_GRANT_AUDIENCE?: string;
+  readonly VITE_OFFLINE_GRANT_PUBLIC_JWKS?: string;
 }
 
 interface ScreenOrientation {

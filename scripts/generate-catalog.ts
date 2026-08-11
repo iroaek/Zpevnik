@@ -39,12 +39,14 @@ async function scoreAssetsFor(songId: string): Promise<ScoreAsset[]> {
     const basename = path.basename(file, path.extname(file)).toLowerCase();
     const instrument = ['melody', 'violin', 'cello'].includes(basename) ? basename : 'other';
     const fileInfo = await stat(file);
+    const source = await readFile(file);
     return scoreAssetSchema.parse({
       instrument,
       format: path.extname(file).toLowerCase() === '.mxl' ? 'mxl' : 'musicxml',
       path: `content/scores/${songId}/${filename}`,
       ...(metadata[filename] ?? {}),
       byteSize: fileInfo.size,
+      sha256: createHash('sha256').update(source).digest('hex'),
     });
   }));
 }
@@ -75,6 +77,7 @@ async function songFromChordPro(file: string): Promise<Song> {
     firstLine: metadataValue(parsed.metadata, 'first_line') || parsed.firstLine,
     chordProPath: `content/songs/${id}.cho`,
     contentBytes: Buffer.byteLength(source, 'utf8'),
+    contentSha256: createHash('sha256').update(source, 'utf8').digest('hex'),
     scoreAssets: await scoreAssetsFor(id),
     source: metadataValue(parsed.metadata, 'source'),
     sourceIdentifier: metadataValue(parsed.metadata, 'source_identifier') || `data/songs/${path.basename(file)}`,

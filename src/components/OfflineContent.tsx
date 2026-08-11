@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { downloadApprovedLibrary, loadApprovedLibraryManifest, type SecureProfile } from '../auth/secureAccess';
+import type { OfflineGrantPayload } from '../auth/offlineGrant';
 import type { Catalog, Song } from '../domain/song';
 import { useConnectivity } from '../hooks/useConnectivity';
 import {
@@ -17,6 +18,7 @@ import {
   loadDownloadedLibraryMetadata,
   removeDownloadedLibrarySongs,
   removePersonalSong,
+  removeProtectedSong,
   type DownloadedLibraryMetadata,
   type LibraryManifest,
 } from '../storage/database';
@@ -36,6 +38,7 @@ interface OfflineContentProps {
   catalog: Catalog;
   secureProfile?: SecureProfile | null;
   secureMode?: boolean;
+  offlineGrant?: OfflineGrantPayload | null;
   downloadedLibrarySongs?: Song[];
   onPersonalLibraryChanged?: () => Promise<void>;
   onNavigate: (path: string) => void;
@@ -45,6 +48,7 @@ export function OfflineContent({
   catalog,
   secureProfile = null,
   secureMode = false,
+  offlineGrant = null,
   downloadedLibrarySongs = [],
   onPersonalLibraryChanged,
   onNavigate,
@@ -62,6 +66,8 @@ export function OfflineContent({
   const [updateReady, setUpdateReady] = useState(hasWaitingUpdate);
   const [localManifest, setLocalManifest] = useState<DownloadedLibraryMetadata | null>(null);
   const [remoteManifest, setRemoteManifest] = useState<LibraryManifest | null>(null);
+  const [storagePersistent, setStoragePersistent] = useState<boolean | null>(null);
+  const [storageUsage, setStorageUsage] = useState<{ usage: number; quota: number } | null>(null);
   const scoreEstimate = useMemo(() => catalog.songs.flatMap((song) => song.scoreAssets).reduce((sum, asset) => sum + asset.byteSize, 0), [catalog]);
   const songEstimate = useMemo(() => catalog.songs.reduce((sum, song) => sum + song.contentBytes, 0), [catalog]);
   const filteredLibrarySongs = useMemo(() => {
@@ -81,6 +87,10 @@ export function OfflineContent({
 
   useEffect(() => {
     inspectOfflineContent(catalog).then(setStats).catch(() => setStats(null));
+    if (navigator.storage?.persisted) navigator.storage.persisted().then(setStoragePersistent).catch(() => setStoragePersistent(null));
+    if (navigator.storage?.estimate) navigator.storage.estimate().then((estimate) => {
+      setStorageUsage({ usage: estimate.usage ?? 0, quota: estimate.quota ?? 0 });
+    }).catch(() => setStorageUsage(null));
   }, [catalog]);
 
   useEffect(() => {
@@ -103,6 +113,7 @@ export function OfflineContent({
     try {
       if (kind === 'songs') await downloadAllSongs(catalog, setProgress);
       else await downloadAllScores(catalog, setProgress);
+      if (navigator.storage?.persist) setStoragePersistent(await navigator.storage.persist().catch(() => false));
       await refresh();
       setNotice({ tone: 'success', text: kind === 'songs' ? 'Ukázkové písně byly staženy a ověřeny.' : 'Všechny notové party byly staženy a ověřeny.' });
     } catch (error) {
@@ -120,7 +131,7 @@ export function OfflineContent({
       else if (kind === 'songs') await removeSongs();
       else {
         await removeAllOfflineContent();
-        await removeDownloadedLibrarySongs();
+        await removeDownloadedLibrarySongs(secureProfile?.id);
         await onPersonalLibraryChanged?.();
       }
       await refresh();
@@ -196,7 +207,7 @@ export function OfflineContent({
     setOperation('remove-library');
     setNotice(null);
     try {
-      const removed = await removeDownloadedLibrarySongs();
+      const removed = await removeDownloadedLibrarySongs(secureProfile?.id);
       await onPersonalLibraryChanged?.();
       setLocalManifest(null);
       setNotice({ tone: 'success', text: `Stažená soukromá knihovna byla z tohoto zařízení odstraněna (${removed} písní). Vlastní PDF importy zůstaly zachované.` });
@@ -212,7 +223,8 @@ export function OfflineContent({
     setOperation('remove-song');
     setNotice(null);
     try {
-      await removePersonalSong(song.id);
+      if (secureProfile) await removeProtectedSong(secureProfile.id, song.id);
+      else await removePersonalSong(song.id);
       await onPersonalLibraryChanged?.();
       setNotice({ tone: 'success', text: `Píseň „${song.title}“ byla odstraněna pouze z tohoto zařízení.` });
     } catch (error) {
@@ -257,8 +269,11 @@ export function OfflineContent({
         <span><small>Ukázkové písně</small><strong>{stats?.downloadedSongs ?? 0}/{stats?.totalSongs ?? catalog.songs.length}</strong></span>
         <span><small>Stažené party</small><strong>{stats?.downloadedScores ?? 0}/{stats?.totalScores ?? 0}</strong></span>
         <span><small>Uložená cache</small><strong>{formatBytes(stats?.bytes ?? 0)}</strong></span>
+        <span><small>Offline oprávnění</small><strong>{offlineGrant ? `do ${new Date(offlineGrant.offlineValidUntil).toLocaleDateString('cs-CZ')}` : secureMode ? 'není aktivní' : 'nevyžaduje se'}</strong></span>
+        <span><small>Trvalé úložiště</small><strong>{storagePersistent === true ? 'povoleno' : storagePersistent === false ? 'nepovoleno' : 'nezjištěno'}</strong></span>
       </div>
       <p className="last-update">Poslední změna offline obsahu: {stats?.lastUpdated ? new Date(stats.lastUpdated).toLocaleString('cs-CZ') : 'zatím žádná'}</p>
+      {storageUsage && <p className="last-update">Úložiště aplikace: přibližně {formatBytes(storageUsage.usage)} z dostupných {formatBytes(storageUsage.quota)}.</p>}
 
       {progress && <div className="download-progress" aria-live="polite"><div className="results-heading"><strong>{progress.currentLabel}</strong><span>{progress.completed}/{progress.total}</span></div><progress max={progress.total} value={progress.completed} /><small>{formatBytes(progress.downloadedBytes)} z odhadovaných {formatBytes(progress.estimatedBytes)}</small></div>}
       {notice && <p className={`${notice.tone === 'error' ? 'error-message' : notice.tone === 'success' ? 'success-message' : 'info-message'} offline-notice`} role="status">{notice.text}</p>}

@@ -142,13 +142,10 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
     else await document.documentElement.requestFullscreen?.();
   };
 
-  const toggleFireMode = async () => {
+  const toggleFireMode = () => {
     const next = !fireMode;
     if (next) setFireFontSize(settings.fontSize);
     setFireMode(next);
-    if (next && !document.fullscreenElement) {
-      try { await document.documentElement.requestFullscreen?.(); } catch { /* Fullscreen není povinný. */ }
-    }
   };
 
   const toggleOrientationLock = async () => {
@@ -198,7 +195,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
               {!isLayoutText && <button type="button" className="icon-button" aria-label={settings.showChords ? 'Skrýt akordy' : 'Zobrazit akordy'} aria-pressed={settings.showChords} onClick={() => updateSettings({ showChords: !settings.showChords })}>♯</button>}
               {isLayoutText && <button type="button" className="icon-button" aria-label={wrapLayoutText ? 'Použít původní šířku řádků' : 'Zalomit dlouhé řádky'} aria-pressed={wrapLayoutText} onClick={() => setWrapLayoutText((value) => !value)}>↵</button>}
               <button type="button" className="icon-button" aria-label="Celoobrazovkový režim" onClick={toggleFullscreen}>⛶</button>
-              <button type="button" className="icon-button fire-button" aria-label="Režim U ohně" aria-pressed={fireMode} onClick={() => void toggleFireMode()}>U ohně</button>
+              <button type="button" className="icon-button fire-button" aria-label="Režim U ohně" aria-pressed={fireMode} onClick={toggleFireMode}>U ohně</button>
             </div>
           </section>
           {targetKey && capoOptions.length > 1 && <p className="capo-hint">Možnosti kapodastru: {capoOptions.map((option) => option.capo === 0 ? `bez kapodastru (${option.shapeKey})` : `${option.capo}. pražec, hraj ${option.shapeKey}`).join(' · ')}</p>}
@@ -221,7 +218,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
           </section>
           <footer className="rights-card"><strong>Práva a původ</strong><span>{song.source}</span><span>{song.personalOnly ? 'Ke kontrole · pouze osobní místní koncept' : song.rightsStatus} · {song.license}</span><span>{song.attribution}</span></footer>
           {(previousSong || nextSong) && <nav className="reader-sequence-nav" aria-label="Pohyb v setlistu"><button type="button" className="secondary-button" disabled={!previousSong} onClick={onPreviousSong}><span aria-hidden="true">←</span><span><small>Předchozí</small><strong>{previousSong?.title ?? 'Začátek setlistu'}</strong></span></button><button type="button" className="secondary-button" disabled={!nextSong} onClick={onNextSong}><span><small>Další</small><strong>{nextSong?.title ?? 'Konec setlistu'}</strong></span><span aria-hidden="true">→</span></button><small>Na telefonu lze mezi písněmi také přejet prstem doleva nebo doprava.</small></nav>}
-          {fireMode && <div className="fire-dock" aria-label="Rychlé ovládání režimu U ohně"><div className="fire-font-control" role="group" aria-label="Velikost textu"><span>Text</span><button type="button" aria-label="Zmenšit text v režimu U ohně" disabled={fireFontSize <= 14} onClick={() => setFireFontSize((value) => Math.max(14, value - 2))}>A−</button><output aria-label="Aktuální velikost textu">{fireFontSize} px</output><button type="button" aria-label="Zvětšit text v režimu U ohně" disabled={fireFontSize >= 34} onClick={() => setFireFontSize((value) => Math.min(34, value + 2))}>A+</button></div><button type="button" className={autoScroll ? 'primary-button' : 'secondary-button'} onClick={() => setAutoScroll((value) => !value)}>{autoScroll ? '■ Stop' : '▶ Posun'}</button>{screen.orientation.lock && <button type="button" className="secondary-button" aria-label={orientationLocked ? 'Odemknout otočení obrazovky' : 'Zamknout obrazovku na výšku'} aria-pressed={orientationLocked} onClick={() => void toggleOrientationLock()}>{orientationLocked ? 'Volné' : 'Výška'}</button>}<button type="button" className="secondary-button fire-exit-button" aria-label="Ukončit U ohně" onClick={() => void toggleFireMode()}>Zavřít</button></div>}
+          {fireMode && <div className="fire-dock" aria-label="Rychlé ovládání režimu U ohně"><div className="fire-font-control" role="group" aria-label="Velikost textu"><span>Text</span><button type="button" aria-label="Zmenšit text v režimu U ohně" disabled={fireFontSize <= 14} onClick={() => setFireFontSize((value) => Math.max(14, value - 2))}>A−</button><output aria-label="Aktuální velikost textu">{fireFontSize} px</output><button type="button" aria-label="Zvětšit text v režimu U ohně" disabled={fireFontSize >= 34} onClick={() => setFireFontSize((value) => Math.min(34, value + 2))}>A+</button></div><button type="button" className={autoScroll ? 'primary-button' : 'secondary-button'} onClick={() => setAutoScroll((value) => !value)}>{autoScroll ? '■ Stop' : '▶ Posun'}</button>{screen.orientation.lock && <button type="button" className="secondary-button" aria-label={orientationLocked ? 'Odemknout otočení obrazovky' : 'Zamknout obrazovku na výšku'} aria-pressed={orientationLocked} onClick={() => void toggleOrientationLock()}>{orientationLocked ? 'Volné' : 'Výška'}</button>}<button type="button" className="secondary-button fire-exit-button" aria-label="Ukončit U ohně" onClick={toggleFireMode}>Zavřít</button></div>}
         </>
       ) : <ScoreViewer assets={song.scoreAssets} catalogVersion={catalogVersion} />}
     </article>

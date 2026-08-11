@@ -52,3 +52,21 @@ Do klientského buildu ani GitHub variables nikdy nevkládejte `service_role` ne
 - hashované soubory v `/assets/` mohou mít roční immutable cache;
 - ověřte výsledné HTTP hlavičky v nástrojích prohlížeče;
 - soukromé setlisty se nikdy nepřenášejí při nasazení.
+
+## Aktivace podepsaného offline oprávnění
+
+Tento krok nejprve proveďte ve staging Supabase projektu. GitHub Pages neumí držet privátní podpisový klíč.
+
+1. Aplikujte `supabase/migrations/202608110001_offline_grant_audit.sql` a ověřte RLS podle `RLS_AUDIT.md`.
+2. Vygenerujte standardní EC P‑256 key pair auditovaným nástrojem. Privátní JWK nikdy necommitujte.
+3. Do Supabase Function secrets vložte `OFFLINE_GRANT_PRIVATE_JWK`, `OFFLINE_GRANT_ISSUER`, `OFFLINE_GRANT_AUDIENCE`, `OFFLINE_GRANT_ALLOWED_ORIGINS` a volitelně `OFFLINE_GRANT_VALIDITY_DAYS`.
+4. Nasaďte `supabase/functions/offline-grant` pouze ve stagingu a proveďte test schváleného/pending/suspended účtu.
+5. Do GitHub repository **variables** vložte pouze veřejné hodnoty `VITE_OFFLINE_GRANT_ISSUER`, `VITE_OFFLINE_GRANT_AUDIENCE`, `VITE_OFFLINE_GRANT_PUBLIC_JWKS`.
+6. Sestavte PWA, ověřte, že build neobsahuje `d` privátního JWK ani service-role key, a spusťte scénáře z `OFFLINE_TESTING.md`.
+7. Teprve po schválení zopakujte migraci/function secrets v produkci. Privátní klíč rotujte přidáním nového `kid` do veřejného JWKS; starý veřejný klíč ponechte do expirace všech starých grantů.
+
+Výchozí návrh platnosti je 30 dní, funkce omezuje rozsah na 1–90 dní. Pro konkrétní tábor nastavte konec akce plus bezpečnostní rezervu.
+
+## Rollback offline grantu
+
+Při problému odstraňte veřejné `VITE_OFFLINE_GRANT_*` proměnné a znovu sestavte frontend. Online přihlášení zůstane funkční; nové offline granty se nebudou používat. Nesmažte databázi ani uživatele. Staré granty přestanou být klientem přijímány, ale již stažené soubory fyzicky odstraní uživatel nebo bezpečný logout.

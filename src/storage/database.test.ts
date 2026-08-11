@@ -31,22 +31,26 @@ describe('migrace IndexedDB', () => {
     legacy.close();
   });
 
-  it('povýší databázi na verzi 4, převede stav na schéma 3 a zachová uživatelská data', async () => {
+  it('povýší databázi na verzi 5, převede stav na schéma 3 a zachová uživatelská data', async () => {
     const databaseModule = await import('./database');
     const loaded = await databaseModule.loadUserState();
-    expect(databaseModule.DATABASE_VERSION).toBe(4);
+    expect(databaseModule.DATABASE_VERSION).toBe(5);
     expect(loaded.schemaVersion).toBe(3);
     expect(loaded.updatedAt).toBe('2026-08-05T00:00:00.000Z');
     expect(loaded.favorites).toEqual(legacyState.favorites);
     expect(loaded.setlists).toEqual(legacyState.setlists);
     expect(loaded.settings.autoScrollSpeed).toBe(31);
-    const upgraded = await openDB('cesky-zpevnik', 4);
+    const upgraded = await openDB('cesky-zpevnik', 5);
     expect([...upgraded.objectStoreNames]).toContain('metadata');
     expect([...upgraded.objectStoreNames]).toContain('personalSongs');
     expect([...upgraded.objectStoreNames]).toContain('personalSongContent');
     expect([...upgraded.objectStoreNames]).toContain('account');
     expect([...upgraded.objectStoreNames]).toContain('songSubmissions');
     expect([...upgraded.objectStoreNames]).toContain('songSubmissionFiles');
+    expect([...upgraded.objectStoreNames]).toContain('offlineAuth');
+    expect([...upgraded.objectStoreNames]).toContain('contentPackages');
+    expect([...upgraded.objectStoreNames]).toContain('pendingMutations');
+    expect([...upgraded.objectStoreNames]).toContain('diagnostics');
     upgraded.close();
   });
 
@@ -183,5 +187,59 @@ describe('migrace IndexedDB', () => {
       updatedAt: '2026-08-05T00:00:00.000Z',
       favorites: legacyState.favorites,
     });
+  });
+
+  it('oddělí nový chráněný balíček podle uživatele a aktivuje jej až po importu', async () => {
+    const databaseModule = await import('./database');
+    const ownerId = '11111111-1111-4111-8111-111111111111';
+    const otherId = '22222222-2222-4222-8222-222222222222';
+    const song = { ...personalSongFixture('personal-oddeleny-balik', 'Oddělený balíček'), sourceIdentifier: 'songs_data/oddeleny.pdf#page=1' };
+    const manifest = {
+      schemaVersion: 1 as const,
+      scope: 'members' as const,
+      version: 'abcdef123456',
+      generatedAt: '2026-08-11T00:00:00.000Z',
+      songCount: 1,
+      contentBytes: 20,
+    };
+    const file = new File([JSON.stringify({
+      application: 'cesky-digitalni-zpevnik',
+      libraryScope: 'members',
+      data: legacyState,
+      personalSongs: [{ song, content: '[C]Oddělená syntetická věta' }],
+      libraryManifest: manifest,
+    })], 'oddeleny-balik.json', { type: 'application/json' });
+
+    await databaseModule.importFullBackup(file, { replaceDownloadedLibrary: true, expectedLibraryScope: 'members', ownerUserId: ownerId, verifiedManifest: manifest });
+    expect(await databaseModule.loadPersonalSongs(ownerId)).toContainEqual(expect.objectContaining({ id: song.id }));
+    expect(await databaseModule.loadPersonalSongs(otherId)).not.toContainEqual(expect.objectContaining({ id: song.id }));
+    expect(await databaseModule.loadContentPackage(ownerId)).toMatchObject({ ownerUserId: ownerId, integrity: 'verified', songIds: [song.id] });
+  });
+
+  it('při poškozeném novém balíčku zachová poslední aktivní obsah', async () => {
+    const databaseModule = await import('./database');
+    const ownerId = '11111111-1111-4111-8111-111111111111';
+    const before = await databaseModule.loadContentPackage(ownerId);
+    const corrupt = new File([JSON.stringify({
+      application: 'cesky-digitalni-zpevnik',
+      libraryScope: 'members',
+      data: legacyState,
+      personalSongs: [{ song: { id: '../neplatna-cesta' }, content: 'poškozeno' }],
+    })], 'poskozeny-balik.json', { type: 'application/json' });
+    await expect(databaseModule.importFullBackup(corrupt, { replaceDownloadedLibrary: true, expectedLibraryScope: 'members', ownerUserId: ownerId })).rejects.toThrow();
+    expect(await databaseModule.loadContentPackage(ownerId)).toEqual(before);
+    expect(await databaseModule.loadPersonalSongs(ownerId)).toContainEqual(expect.objectContaining({ id: 'personal-oddeleny-balik' }));
+  });
+
+  it('udržuje idempotentní offline outbox uživatelského stavu', async () => {
+    const databaseModule = await import('./database');
+    const userId = '11111111-1111-4111-8111-111111111111';
+    const first = { schemaVersion: 1 as const, id: '33333333-3333-4333-8333-333333333333', userId, idempotencyKey: `${userId}:first`, kind: 'user-state-upsert' as const, payload: databaseModule.defaultUserState, createdAt: '2026-08-11T00:00:00.000Z', attempts: 0, lastError: null };
+    const second = { ...first, id: '44444444-4444-4444-8444-444444444444', idempotencyKey: `${userId}:second`, createdAt: '2026-08-11T00:01:00.000Z' };
+    await databaseModule.enqueuePendingMutation(first);
+    await databaseModule.enqueuePendingMutation(second);
+    expect(await databaseModule.loadPendingMutations(userId)).toEqual([second]);
+    await databaseModule.removePendingMutation(second.id);
+    expect(await databaseModule.loadPendingMutations(userId)).toEqual([]);
   });
 });

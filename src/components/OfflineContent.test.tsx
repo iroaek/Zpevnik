@@ -6,7 +6,7 @@ import { catalogSchema } from '../domain/song';
 import catalogJson from '../generated/catalog.json';
 import { inspectOfflineContent } from '../pwa/contentCache';
 import { checkForUpdate } from '../pwa/updateManager';
-import { loadDownloadedLibraryMetadata, removeDownloadedLibrarySongs, removePersonalSong } from '../storage/database';
+import { loadDownloadedLibraryMetadata, removeDownloadedLibrarySongs, removePersonalSong, removeProtectedSong } from '../storage/database';
 import { OfflineContent } from './OfflineContent';
 
 vi.mock('../hooks/useConnectivity', () => ({ useConnectivity: () => true }));
@@ -20,6 +20,7 @@ vi.mock('../storage/database', () => ({
   loadDownloadedLibraryMetadata: vi.fn(),
   removeDownloadedLibrarySongs: vi.fn(),
   removePersonalSong: vi.fn(),
+  removeProtectedSong: vi.fn(),
 }));
 vi.mock('../pwa/contentCache', () => ({
   inspectOfflineContent: vi.fn(),
@@ -74,6 +75,7 @@ describe('Offline obsah', () => {
     vi.mocked(loadDownloadedLibraryMetadata).mockReset().mockResolvedValue(null);
     vi.mocked(removeDownloadedLibrarySongs).mockReset().mockResolvedValue(1);
     vi.mocked(removePersonalSong).mockReset().mockResolvedValue(undefined);
+    vi.mocked(removeProtectedSong).mockReset().mockResolvedValue(undefined);
     vi.mocked(checkForUpdate).mockReset().mockResolvedValue('up-to-date');
   });
 
@@ -117,7 +119,7 @@ describe('Offline obsah', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Odstranit Stažená syntetická píseň z tohoto zařízení' }));
     await userEvent.click(screen.getByRole('button', { name: 'Potvrdit' }));
 
-    await waitFor(() => expect(removePersonalSong).toHaveBeenCalledWith(downloadedSong.id));
+    await waitFor(() => expect(removeProtectedSong).toHaveBeenCalledWith(profile.id, downloadedSong.id));
     expect(refreshLibrary).toHaveBeenCalledOnce();
     expect(await screen.findByText('Píseň „Stažená syntetická píseň“ byla odstraněna pouze z tohoto zařízení.')).toBeVisible();
   });

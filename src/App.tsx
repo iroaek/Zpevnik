@@ -15,6 +15,7 @@ import { Setlists } from './components/Setlists';
 import { Settings } from './components/Settings';
 import { SongReader } from './components/SongReader';
 import { UpdateBanner } from './components/UpdateBanner';
+import { DiagnosticsPage } from './components/DiagnosticsPage';
 import { catalogSchema, type Catalog } from './domain/song';
 import { useConnectivity } from './hooks/useConnectivity';
 import { useCloudUserState } from './hooks/useCloudUserState';
@@ -37,6 +38,7 @@ type Route =
   | { name: 'offline' }
   | { name: 'install' }
   | { name: 'help' }
+  | { name: 'diagnostics' }
   | { name: 'song'; id: string }
   | { name: 'public-setlist'; id: string }
   | { name: 'not-found' };
@@ -53,6 +55,7 @@ function parseRoute(pathname = window.location.pathname): Route {
   if (relative === 'offline') return { name: 'offline' };
   if (relative === 'install') return { name: 'install' };
   if (relative === 'help') return { name: 'help' };
+  if (relative === 'diagnostics' && import.meta.env.DEV) return { name: 'diagnostics' };
   const song = relative.match(/^songs\/([a-z0-9-]+)$/);
   if (song) return { name: 'song', id: song[1] };
   const setlist = relative.match(/^setlists\/([a-z0-9-]+)$/);
@@ -146,15 +149,17 @@ export default function App() {
     return () => controller.abort();
   }, []);
 
+  const protectedContentOwnerId = secureAccount.enabled ? secureAccount.profile?.id : undefined;
   const refreshDeviceSongs = useCallback(async () => {
-    setDeviceSongs(await loadPersonalSongs());
-  }, []);
+    setDeviceSongs(await loadPersonalSongs(protectedContentOwnerId));
+  }, [protectedContentOwnerId]);
 
   useEffect(() => {
-    loadPersonalSongs()
+    if (secureAccount.enabled && !secureAccount.hydrated) return;
+    loadPersonalSongs(protectedContentOwnerId)
       .then(setDeviceSongs)
       .catch(() => setSystemMessage('Písně uložené v tomto zařízení se nepodařilo načíst.'));
-  }, []);
+  }, [protectedContentOwnerId, secureAccount.enabled, secureAccount.hydrated]);
 
   useEffect(() => {
     const available = () => setUpdateAvailable(true);
@@ -196,7 +201,7 @@ export default function App() {
     const relative = routeRelativePath(route);
     const canonical = canonicalUrl(relative);
     document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.setAttribute('href', canonical);
-    const label = route.name === 'song' ? selectedSong?.title : route.name === 'public-setlist' ? selectedPublicSetlist?.title : ({ library: 'Písně', setlists: 'Setlisty', import: 'Import PDF', settings: 'Nastavení', admin: 'Administrace', offline: 'Offline obsah', install: 'Instalace', help: 'Nápověda', 'not-found': 'Nenalezeno' } as const)[route.name];
+    const label = route.name === 'song' ? selectedSong?.title : route.name === 'public-setlist' ? selectedPublicSetlist?.title : ({ library: 'Písně', setlists: 'Setlisty', import: 'Import PDF', settings: 'Nastavení', admin: 'Administrace', offline: 'Offline obsah', install: 'Instalace', help: 'Nápověda', diagnostics: 'Diagnostika', 'not-found': 'Nenalezeno' } as const)[route.name];
     document.title = label ? `${label} · Český zpěvník` : 'Český digitální zpěvník';
     if (route.name === 'library') requestAnimationFrame(() => window.scrollTo({ top: libraryScroll.current }));
     else window.scrollTo({ top: 0 });
@@ -230,11 +235,13 @@ export default function App() {
 
   if (secureAccount.required && !secureAccount.enabled) return <main className="app-main"><section className="registration-page"><div className="registration-card"><p className="eyebrow">Soukromý režim</p><h1>Server není připojený</h1><p className="lead">{secureAccount.error}</p><small>Žádné soukromé písně nebyly načteny. Tuto konfiguraci musí dokončit administrátor.</small></div></section></main>;
 
-  if (secureAccount.enabled && !secureAccount.session) return <main className="app-main"><AccountAccessPage canInstall={installPrompt.canPrompt} installed={installPrompt.installed} onInstall={installPrompt.install} />{secureAccount.error && <p className="global-warning" role="alert">{secureAccount.error}</p>}</main>;
-
   if (secureAccount.enabled && secureAccount.passwordRecovery) return <PasswordRecoveryPage onComplete={secureAccount.finishPasswordRecovery} />;
 
-  if (secureAccount.enabled && secureAccount.session && !secureAccount.profile) return <main className="app-main"><section className="registration-page"><div className="registration-card"><p className="eyebrow">Ověření účtu</p><h1>Profil se nepodařilo načíst</h1><p className="lead">{secureAccount.error ?? 'Zkuste stav účtu načíst znovu.'}</p><button type="button" className="primary-button" onClick={() => void secureAccount.refresh()}>Načíst znovu</button></div></section></main>;
+  if (secureAccount.enabled && secureAccount.authState.status === 'offline-access-expired') return <main className="app-main"><section className="registration-page"><div className="registration-card"><p className="eyebrow">Offline oprávnění vypršelo</p><h1>Krátce se připojte k internetu</h1><p className="lead">Stažená data jsme nesmazali, ale před dalším otevřením chráněných písní musí server obnovit oprávnění tohoto zařízení.</p><button type="button" className="primary-button" onClick={() => void secureAccount.refresh()}>Ověřit přístup</button></div></section>{secureAccount.error && <p className="global-warning" role="alert">{secureAccount.error}</p>}</main>;
+
+  if (secureAccount.enabled && secureAccount.authState.status === 'unauthenticated') return <main className="app-main"><AccountAccessPage canInstall={installPrompt.canPrompt} installed={installPrompt.installed} onInstall={installPrompt.install} />{secureAccount.error && <p className="global-warning" role="alert">{secureAccount.error}</p>}</main>;
+
+  if (secureAccount.enabled && secureAccount.authState.status === 'authenticated-online' && !secureAccount.profile) return <main className="app-main"><section className="registration-page"><div className="registration-card"><p className="eyebrow">Ověření účtu</p><h1>Profil se nepodařilo načíst</h1><p className="lead">{secureAccount.error ?? 'Zkuste stav účtu načíst znovu.'}</p><button type="button" className="primary-button" onClick={() => void secureAccount.refresh()}>Načíst znovu</button></div></section></main>;
 
   if (secureAccount.enabled && secureAccount.profile && secureAccount.profile.status !== 'approved') return <ApprovalGate profile={secureAccount.profile} onRefresh={secureAccount.refresh} />;
 
@@ -246,6 +253,7 @@ export default function App() {
         <button className="brand" type="button" onClick={() => navigate('')} aria-label="Přejít na seznam písní"><span className="brand-mark" aria-hidden="true">♫</span><span><strong>Český zpěvník</strong><small>odkaz · PWA · offline</small></span></button>
         <div className="header-status"><button type="button" className={`sync-badge sync-badge--${cloudSync.status}`} onClick={() => navigate('settings')} aria-label="Otevřít stav synchronizace"><span aria-hidden="true">↻</span><span>{cloudSync.status === 'synced' ? 'Uloženo' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Ukládám' : cloudSync.status === 'error' ? 'Chyba' : cloudSync.status === 'offline' ? 'Čeká' : 'Místně'}</span></button><button type="button" className={`connection-badge ${online ? 'online' : 'offline'}`} onClick={() => navigate('offline')} aria-label={`${online ? 'Online' : 'Offline'}; otevřít stav offline obsahu`}><span aria-hidden="true" />{online ? 'Online' : 'Offline'}</button></div>
       </header>
+      {secureAccount.authState.status === 'authenticated-offline' && <aside className="offline-auth-banner" role="status"><strong>Offline režim</strong><span>Oprávnění platí do {new Date(secureAccount.authState.offlineValidUntil).toLocaleDateString('cs-CZ')} · obsah {secureAccount.authState.contentVersion.slice(0, 12)}</span></aside>}
       {updateAvailable && <UpdateBanner onUpdate={() => void activateWaitingUpdate()} onLater={() => setUpdateAvailable(false)} />}
       {(storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}
       {systemMessage && <div className="system-message toast-message" role="status"><span>{systemMessage}</span><button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemMessage('')}>×</button></div>}
@@ -255,9 +263,10 @@ export default function App() {
         {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} />}
         {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} cloudSync={cloudSync} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} onRefreshSecureProfile={secureAccount.refresh} />}
         {route.name === 'admin' && secureAccount.enabled && secureAccount.profile?.role === 'admin' && <AdminPage cloudSync={cloudSync} online={online} onNavigate={navigate} />}
-        {route.name === 'offline' && <OfflineContent catalog={catalog} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} downloadedLibrarySongs={downloadedLibrarySongs} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
+        {route.name === 'offline' && <OfflineContent catalog={catalog} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} offlineGrant={secureAccount.offlineGrant} downloadedLibrarySongs={downloadedLibrarySongs} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
         {route.name === 'install' && <InstallPage canPrompt={installPrompt.canPrompt} installed={installPrompt.installed} isIosLike={installPrompt.isIosLike} onInstall={installPrompt.install} onNavigate={navigate} />}
         {route.name === 'help' && <HelpPage onNavigate={navigate} />}
+        {route.name === 'diagnostics' && import.meta.env.DEV && <DiagnosticsPage onBack={() => navigate('settings')} />}
         {route.name === 'song' && selectedSong && <SongReader key={selectedSong.id} song={selectedSong} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onBack={() => navigate(readerSequence.length ? 'setlists' : '')} previousSong={previousReaderSong} nextSong={nextReaderSong} onPreviousSong={previousReaderSong ? () => openReaderSibling(previousReaderSong) : undefined} onNextSong={nextReaderSong ? () => openReaderSibling(nextReaderSong) : undefined} />}
         {route.name === 'public-setlist' && selectedPublicSetlist && <PublicSetlistPage setlist={selectedPublicSetlist} songs={catalog.songs} onOpenSong={(id) => openSong(id, selectedPublicSetlist.songIds)} onBack={() => navigate('setlists')} />}
         {((route.name === 'song' && !selectedSong) || (route.name === 'public-setlist' && !selectedPublicSetlist) || (route.name === 'admin' && (!secureAccount.enabled || secureAccount.profile?.role !== 'admin')) || route.name === 'not-found') && <section className="info-page not-found"><p className="eyebrow">404</p><h1>Tato stránka ve zpěvníku není</h1><p>Odkaz může být starý nebo chybný.</p><button type="button" className="primary-button" onClick={() => navigate('')}>Přejít na písně</button></section>}
