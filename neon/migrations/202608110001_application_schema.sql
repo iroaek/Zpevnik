@@ -91,7 +91,7 @@ returns uuid
 language sql
 stable
 set search_path = ''
-as $$ select auth.user_id(); $$;
+as $$ select nullif(auth.user_id()::text, '')::uuid; $$;
 
 create or replace function public.current_app_email()
 returns text

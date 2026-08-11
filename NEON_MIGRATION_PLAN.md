@@ -1,6 +1,8 @@
 # Plán migrace Supabase → Neon
 
-**Produkční migrace se neprovádí.** Fáze 1 je připravena v kódu pro izolovaný staging a zachovává okamžitý rollback pomocí `VITE_DATA_BACKEND=supabase`. Supabase Auth a privátní Storage zatím zůstávají.
+**Produkční fáze 1 byla provedena 12. 8. 2026.** Aplikační tabulky, profily a synchronizační stavy jsou v Neonu; Supabase Auth, privátní Storage a Edge Function `offline-grant` zůstávají v Supabase. Okamžitý rollback zachovává `VITE_DATA_BACKEND=supabase`.
+
+Produkční kontrola potvrdila 12 profilů a 6 synchronizačních stavů se shodnými kontrolními otisky zdroje a cíle. Všechny čtyři aplikační tabulky mají RLS a Neon Data API ověřuje stávající Supabase JWT přes veřejné JWKS.
 
 ## 0. Co je už připraveno
 
@@ -71,6 +73,9 @@ Neon PostgreSQL není náhradou privátního object storage. Ve fázi 1 zůstáv
 - Supabase nesmazat minimálně po celou ověřovací/retention dobu;
 - definovat RPO/RTO, vlastníka rozhodnutí a stop podmínky před cutoverem.
 
-## Nevratné kroky zakázané v tomto patchi
+## Aktuální provozní omezení
 
-Žádný `pg_dump` produkce, connection string, Neon projekt, Data API provisioning, DNS, dual-write, reset uživatelů, rotace JWT/secrets ani odstranění Supabase nebyly provedeny.
+- Supabase se nemaže a zůstává zdrojem autentizace a privátních souborů.
+- Aplikace nesmí zapisovat současně do obou aplikačních databází; aktivní backend určuje pouze `VITE_DATA_BACKEND`.
+- Produkční Neon connection string a soukromý podpisový klíč jsou pouze v Edge Function Secrets, nikdy v proměnných `VITE_*` ani v Git.
+- Návrat na Supabase vyžaduje přepnout GitHub proměnnou `VITE_DATA_BACKEND=supabase`, Edge Function secret `DATA_BACKEND=supabase` a znovu nasadit PWA.
