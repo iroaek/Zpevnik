@@ -256,7 +256,7 @@ export default function App() {
 
   const navScreen = route.name === 'library' || route.name === 'setlists' || route.name === 'import' || route.name === 'settings' || route.name === 'offline' ? route.name : null;
 
-  if (!hydrated || !profileHydrated || (secureAccount.enabled && !secureAccount.hydrated)) return <main className="loading-screen"><span className="brand-mark" aria-hidden="true">♫</span><p>Otevírám zpěvník…</p></main>;
+  if (!hydrated || !profileHydrated || (secureAccount.enabled && !secureAccount.hydrated)) return <main className="loading-screen"><span className="brand-mark" aria-hidden="true"><img src={`${import.meta.env.BASE_URL}icons/icon-lazec-192.png`} alt="" /></span><p>Otevírám zpěvník…</p></main>;
 
   if (secureAccount.required && !secureAccount.enabled) return <main className="app-main"><section className="registration-page"><div className="registration-card"><p className="eyebrow">Soukromý režim</p><h1>Server není připojený</h1><p className="lead">{secureAccount.error}</p><small>Žádné soukromé písně nebyly načteny. Tuto konfiguraci musí dokončit administrátor.</small></div></section></main>;
 
@@ -275,7 +275,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <button className="brand" type="button" onClick={() => navigate('')} aria-label="Přejít na seznam písní"><span className="brand-mark" aria-hidden="true">♫</span><span><strong>Český zpěvník</strong><small>odkaz · PWA · offline</small></span></button>
+        <button className="brand" type="button" onClick={() => navigate('')} aria-label="Přejít na seznam písní"><span className="brand-mark" aria-hidden="true"><img src={`${import.meta.env.BASE_URL}icons/icon-lazec-192.png`} alt="" /></span><span><strong>Český zpěvník</strong><small>odkaz · PWA · offline</small></span></button>
         <div className="header-status"><button type="button" className={`sync-badge sync-badge--${cloudSync.status}`} onClick={() => navigate('settings')} aria-label="Otevřít stav synchronizace"><span aria-hidden="true">↻</span><span>{cloudSync.status === 'synced' ? 'Uloženo' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Ukládám' : cloudSync.status === 'error' ? 'Chyba' : cloudSync.status === 'offline' ? 'Čeká' : 'Místně'}</span></button><button type="button" className={`connection-badge ${online ? 'online' : 'offline'}`} onClick={() => navigate('offline')} aria-label={`${online ? 'Online' : 'Offline'}; otevřít stav offline obsahu`}><span aria-hidden="true" />{online ? 'Online' : 'Offline'}</button></div>
       </header>
       {secureAccount.authState.status === 'authenticated-offline' && <aside className="offline-auth-banner" role="status"><strong>Offline režim</strong><span>Oprávnění platí do {new Date(secureAccount.authState.offlineValidUntil).toLocaleDateString('cs-CZ')} · obsah {secureAccount.authState.contentVersion.slice(0, 12)}</span></aside>}

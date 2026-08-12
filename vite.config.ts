@@ -24,7 +24,7 @@ export default defineConfig(({ mode }) => {
       react(),
       VitePWA({
         registerType: 'prompt',
-        includeAssets: ['icons/icon.svg', 'icons/apple-touch-icon.png'],
+        includeAssets: ['icons/apple-touch-icon-lazec.png'],
         manifest: {
           id: basePath,
           name: 'Český digitální zpěvník',
@@ -40,13 +40,13 @@ export default defineConfig(({ mode }) => {
           theme_color: '#7a321f',
           categories: ['music', 'education', 'entertainment'],
           icons: [
-            { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-            { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-            { src: 'icons/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+            { src: 'icons/icon-lazec-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+            { src: 'icons/icon-lazec-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+            { src: 'icons/icon-lazec-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           ],
           shortcuts: [
-            { name: 'Písně', short_name: 'Písně', url: basePath, icons: [{ src: 'icons/icon-192.png', sizes: '192x192' }] },
-            { name: 'Offline obsah', short_name: 'Offline', url: `${basePath}offline`, icons: [{ src: 'icons/icon-192.png', sizes: '192x192' }] },
+            { name: 'Písně', short_name: 'Písně', url: basePath, icons: [{ src: 'icons/icon-lazec-192.png', sizes: '192x192' }] },
+            { name: 'Offline obsah', short_name: 'Offline', url: `${basePath}offline`, icons: [{ src: 'icons/icon-lazec-192.png', sizes: '192x192' }] },
           ],
         },
         workbox: {

@@ -64,4 +64,39 @@ describe('schvalovaný účet', () => {
     expect(auth.register).not.toHaveBeenCalled();
     expect(await screen.findByRole('alert')).toHaveTextContent('Zadaná hesla se neshodují.');
   });
+
+  it('aktivuje migrovaný účet novým heslem a přejde na OTP', async () => {
+    const user = userEvent.setup();
+    render(<AccountAccessPage canInstall={false} installed={false} onInstall={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Aktivovat původní účet' }));
+    await user.type(screen.getByLabelText('E-mail'), 'puvodni@example.cz');
+    await user.type(screen.getByLabelText('Heslo', { selector: '#account-password' }), 'NoveBezpecneHeslo42');
+    await user.type(screen.getByLabelText('Heslo znovu'), 'NoveBezpecneHeslo42');
+    await user.click(screen.getByRole('button', { name: 'Poslat aktivační kód' }));
+
+    expect(auth.register).toHaveBeenCalledWith({
+      displayName: 'Původní člen',
+      email: 'puvodni@example.cz',
+      password: 'NoveBezpecneHeslo42',
+    });
+    expect(auth.sendVerification).toHaveBeenCalledWith('puvodni@example.cz');
+    expect(await screen.findByRole('heading', { name: 'Ověření e-mailu' })).toBeInTheDocument();
+    expect(screen.getByText(/obnoví váš původní profil/i)).toBeInTheDocument();
+  });
+
+  it('umožní znovu poslat OTP pro rozpracovanou aktivaci', async () => {
+    auth.register.mockRejectedValueOnce(new Error('Účet s tímto e-mailem už v Neonu existuje. Použijte přihlášení nebo obnovu hesla.'));
+    const user = userEvent.setup();
+    render(<AccountAccessPage canInstall={false} installed={false} onInstall={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Aktivovat původní účet' }));
+    await user.type(screen.getByLabelText('E-mail'), 'puvodni@example.cz');
+    await user.type(screen.getByLabelText('Heslo', { selector: '#account-password' }), 'NoveBezpecneHeslo42');
+    await user.type(screen.getByLabelText('Heslo znovu'), 'NoveBezpecneHeslo42');
+    await user.click(screen.getByRole('button', { name: 'Poslat aktivační kód' }));
+
+    expect(auth.sendVerification).toHaveBeenCalledWith('puvodni@example.cz');
+    expect(await screen.findByText(/aktivační účet už existoval/i)).toBeInTheDocument();
+  });
 });

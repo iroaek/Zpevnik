@@ -176,9 +176,16 @@ export async function registerSecureAccount(input: { displayName: string; email:
     callbackURL: appRedirectUrl(),
   });
   if (error) throw readableError(error, 'Registraci v Neon Auth se nepodařilo dokončit.');
-  const session = await getSecureSession().catch(() => null);
-  if (session) emitSession('SIGNED_IN', session);
-  return { needsEmailConfirmation: data?.user?.emailVerified !== true };
+  const needsEmailConfirmation = data?.user?.emailVerified !== true;
+  // Neon může po registraci vydat relaci ještě před ověřením e-mailu. Takovou
+  // relaci nesmíme pustit k profilu ani použít pro převzetí migrovaného účtu.
+  if (needsEmailConfirmation) {
+    await requireNeonClient().auth.signOut().catch(() => undefined);
+  } else {
+    const session = await getSecureSession().catch(() => null);
+    if (session) emitSession('SIGNED_IN', session);
+  }
+  return { needsEmailConfirmation };
 }
 
 export async function sendEmailVerificationCode(email: string): Promise<void> {
@@ -196,7 +203,8 @@ export async function verifyEmailVerificationCode(email: string, otp: string): P
   });
   if (error) throw readableError(error, 'Ověřovací kód není platný nebo už vypršel.');
   const session = await getSecureSession();
-  if (session) emitSession('SIGNED_IN', session);
+  if (!session?.user.emailVerified) throw new SecureAccessError('E-mail se nepodařilo bezpečně ověřit. Vyžádejte si nový kód.');
+  emitSession('SIGNED_IN', session);
 }
 
 export async function signInSecureAccount(email: string, password: string): Promise<void> {
@@ -208,6 +216,10 @@ export async function signInSecureAccount(email: string, password: string): Prom
   if (error) throw readableError(error, 'Přihlášení přes Neon Auth se nepodařilo.');
   const session = await getSecureSession();
   if (!session) throw new SecureAccessError('Neon Auth nevytvořil platnou relaci. Zkuste přihlášení zopakovat.');
+  if (!session.user.emailVerified) {
+    await requireNeonClient().auth.signOut().catch(() => undefined);
+    throw new SecureAccessError('Tento Neon účet ještě nemá ověřený e-mail. Na přihlašovací stránce zvolte „Aktivovat původní účet“ a dokončete ověření kódem.');
+  }
   emitSession('SIGNED_IN', session);
 }
 
