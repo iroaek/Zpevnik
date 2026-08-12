@@ -25,6 +25,7 @@ export interface UserSettings {
   printSize: 'A4' | 'A5';
   autoScrollSpeed: number;
   catalogDensity: CatalogDensity;
+  motion: 'full' | 'gentle' | 'off';
   reader: ReaderPreferences;
 }
 
@@ -40,7 +41,7 @@ export interface ReaderPreferences {
 }
 
 export interface UserState {
-  schemaVersion: 4;
+  schemaVersion: 5;
   updatedAt: string;
   favorites: string[];
   recentSongIds: string[];
@@ -198,9 +199,13 @@ const readerPreferencesSchema = z.object({
   stageFontSize: z.number().int().min(14).max(40),
 });
 
-const settingsSchema = legacySettingsSchema.extend({
+const settingsV4Schema = legacySettingsSchema.extend({
   catalogDensity: z.enum(['stage', 'standard', 'compact']),
   reader: readerPreferencesSchema,
+});
+
+const settingsSchema = settingsV4Schema.extend({
+  motion: z.enum(['full', 'gentle', 'off']),
 });
 
 const legacyUserStateFields = {
@@ -219,8 +224,17 @@ const legacyUserStateFields = {
 const legacyUserStateSchema = z.object({ schemaVersion: z.literal(1), ...legacyUserStateFields });
 const userStateV2Schema = z.object({ schemaVersion: z.literal(2), ...legacyUserStateFields });
 const userStateV3Schema = z.object({ schemaVersion: z.literal(3), updatedAt: z.string().datetime(), ...legacyUserStateFields });
-export const userStateSchema = z.object({
+const userStateV4Schema = z.object({
   schemaVersion: z.literal(4),
+  updatedAt: z.string().datetime(),
+  favorites: legacyUserStateFields.favorites,
+  recentSongIds: legacyUserStateFields.recentSongIds,
+  setlists: legacyUserStateFields.setlists,
+  settings: settingsV4Schema,
+  songReaderPreferences: z.record(z.string().min(1).max(200), readerPreferencesSchema).refine((value) => Object.keys(value).length <= 250, 'Příliš mnoho nastavení jednotlivých písní.'),
+});
+export const userStateSchema = z.object({
+  schemaVersion: z.literal(5),
   updatedAt: z.string().datetime(),
   favorites: legacyUserStateFields.favorites,
   recentSongIds: legacyUserStateFields.recentSongIds,
@@ -267,7 +281,7 @@ const diagnosticEventSchema: z.ZodType<DiagnosticEvent> = z.object({
 const INITIAL_STATE_UPDATED_AT = '1970-01-01T00:00:00.000Z';
 
 export const defaultUserState: UserState = {
-  schemaVersion: 4,
+  schemaVersion: 5,
   updatedAt: INITIAL_STATE_UPDATED_AT,
   favorites: [],
   recentSongIds: [],
@@ -281,6 +295,7 @@ export const defaultUserState: UserState = {
     printSize: 'A4',
     autoScrollSpeed: 25,
     catalogDensity: 'standard',
+    motion: 'gentle',
     reader: {
       chordScale: 1,
       lineHeight: 1.3,
@@ -317,10 +332,10 @@ const personalSongEntrySchema = z.object({
 
 const personalSongBackupSchema = z.array(personalSongEntrySchema).max(5_000);
 
-export const DATABASE_VERSION = 6;
+export const DATABASE_VERSION = 7;
 
 const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
-  upgrade(database, oldVersion) {
+  async upgrade(database, oldVersion, _newVersion, transaction) {
     if (oldVersion < 1) database.createObjectStore('state');
     if (oldVersion < 2) database.createObjectStore('metadata');
     if (oldVersion < 3) {
@@ -341,6 +356,14 @@ const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
     // Verze 6 rozšiřuje synchronizovaný stav o nastavení čtečky. Samotná data
     // se převádějí přes migrateUserState při prvním načtení a poté se uloží
     // jako schéma 4; žádný nový objektový store není potřeba.
+    if (oldVersion < 7) {
+      // Verze 7 doplňuje volbu intenzity pohybu. Stav se převádí přímo
+      // v transakci upgradu, aby už první vykreslení používalo platné schéma 5.
+      const stateStore = transaction.objectStore('state');
+      const stored = await stateStore.get('current') as unknown;
+      const migrated = migrateUserState(stored);
+      if (migrated) await stateStore.put(migrated, 'current');
+    }
   },
 });
 
@@ -417,13 +440,20 @@ export async function loadSongSubmissions(): Promise<SongSubmission[]> {
 export function migrateUserState(stored: unknown): UserState | null {
   const current = userStateSchema.safeParse(stored);
   if (current.success) return current.data;
+  const versionFour = userStateV4Schema.safeParse(stored);
+  if (versionFour.success) return {
+    ...versionFour.data,
+    schemaVersion: 5,
+    settings: { ...versionFour.data.settings, motion: defaultUserState.settings.motion },
+  };
   const versionThree = userStateV3Schema.safeParse(stored);
   if (versionThree.success) return {
     ...versionThree.data,
-    schemaVersion: 4,
+    schemaVersion: 5,
     settings: {
       ...versionThree.data.settings,
       catalogDensity: defaultUserState.settings.catalogDensity,
+      motion: defaultUserState.settings.motion,
       reader: { ...defaultUserState.settings.reader, stageFontSize: versionThree.data.settings.fontSize },
     },
     songReaderPreferences: {},
@@ -431,11 +461,12 @@ export function migrateUserState(stored: unknown): UserState | null {
   const versionTwo = userStateV2Schema.safeParse(stored);
   if (versionTwo.success) return {
     ...versionTwo.data,
-    schemaVersion: 4,
+    schemaVersion: 5,
     updatedAt: versionTwo.data.setlists.reduce((latest, setlist) => setlist.updatedAt > latest ? setlist.updatedAt : latest, INITIAL_STATE_UPDATED_AT),
     settings: {
       ...versionTwo.data.settings,
       catalogDensity: defaultUserState.settings.catalogDensity,
+      motion: defaultUserState.settings.motion,
       reader: { ...defaultUserState.settings.reader, stageFontSize: versionTwo.data.settings.fontSize },
     },
     songReaderPreferences: {},
@@ -443,11 +474,12 @@ export function migrateUserState(stored: unknown): UserState | null {
   const legacy = legacyUserStateSchema.safeParse(stored);
   return legacy.success ? {
     ...legacy.data,
-    schemaVersion: 4,
+    schemaVersion: 5,
     updatedAt: legacy.data.setlists.reduce((latest, setlist) => setlist.updatedAt > latest ? setlist.updatedAt : latest, INITIAL_STATE_UPDATED_AT),
     settings: {
       ...legacy.data.settings,
       catalogDensity: defaultUserState.settings.catalogDensity,
+      motion: defaultUserState.settings.motion,
       reader: { ...defaultUserState.settings.reader, stageFontSize: legacy.data.settings.fontSize },
     },
     songReaderPreferences: {},

@@ -10,6 +10,8 @@ function reducedMotion(matches: boolean): void {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
+  document.querySelectorAll('.route-stage').forEach((stage) => stage.remove());
   delete (document as unknown as { startViewTransition?: unknown }).startViewTransition;
   delete document.documentElement.dataset.navigationDirection;
   delete document.documentElement.dataset.viewTransition;
@@ -40,7 +42,7 @@ describe('směr navigačního pohybu', () => {
     expect(routeMotionDirection('song', 'song')).toBe('lateral');
   });
 
-  it('při omezení pohybu provede změnu bez View Transition', () => {
+  it('při omezení pohybu provede změnu bez animace', () => {
     reducedMotion(true);
     const start = vi.fn();
     Object.defineProperty(document, 'startViewTransition', { configurable: true, value: start });
@@ -50,41 +52,59 @@ describe('směr navigačního pohybu', () => {
     expect(start).not.toHaveBeenCalled();
   });
 
-  it('při chybě nativního přechodu nikdy neprovede navigaci dvakrát', () => {
+  it('záměrně nepoužije nativní View Transition, která na mobilu bliká', () => {
     reducedMotion(false);
-    Object.defineProperty(document, 'startViewTransition', {
-      configurable: true,
-      value: (update: () => void) => {
-        update();
-        throw new Error('synthetic transition failure');
-      },
-    });
+    const start = vi.fn();
+    Object.defineProperty(document, 'startViewTransition', { configurable: true, value: start });
     const update = vi.fn();
     runRouteTransition(update, 'back');
     expect(update).toHaveBeenCalledOnce();
+    expect(start).not.toHaveBeenCalled();
     expect(document.documentElement.dataset.viewTransition).toBeUndefined();
   });
 
-  it('použije nativní kompozitorový přechod bez kopírování katalogu', async () => {
+  it('animuje pouze transformaci nové obrazovky bez změny průhlednosti', async () => {
     reducedMotion(false);
-    let finish!: () => void;
-    const finished = new Promise<void>((resolve) => { finish = resolve; });
-    const start = vi.fn((callback: () => void) => {
-      callback();
-      return { finished };
+    const stage = document.createElement('div');
+    stage.className = 'route-stage';
+    let finishLeaving!: () => void;
+    let finishEntering!: () => void;
+    const leavingFinished = new Promise<void>((resolve) => { finishLeaving = resolve; });
+    const enteringFinished = new Promise<void>((resolve) => { finishEntering = resolve; });
+    let animationIndex = 0;
+    const animate = vi.fn((keyframes: Keyframe[]) => {
+      void keyframes;
+      return { finished: animationIndex++ === 0 ? leavingFinished : enteringFinished, cancel: vi.fn() };
     });
-    Object.defineProperty(document, 'startViewTransition', { configurable: true, value: start });
+    Object.defineProperty(stage, 'animate', { configurable: true, value: animate });
+    document.body.append(stage);
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
     const update = vi.fn();
 
     runRouteTransition(update, 'forward');
-    expect(start).toHaveBeenCalledOnce();
+    expect(update).not.toHaveBeenCalled();
+    finishLeaving();
+    await leavingFinished;
+    await Promise.resolve();
     expect(update).toHaveBeenCalledOnce();
+    expect(animate).toHaveBeenCalledTimes(2);
+    expect(animate.mock.calls[0]?.[0]).toEqual([
+      { transform: 'translate3d(0, 0, 0)' },
+      { transform: 'translate3d(-3px, 0, 0)' },
+    ]);
+    expect(animate.mock.calls[1]?.[0]).toEqual([
+      { transform: 'translate3d(3px, 0, 0)' },
+      { transform: 'translate3d(0, 0, 0)' },
+    ]);
     expect(document.documentElement.dataset.viewTransition).toBe('active');
-    expect(document.querySelector('.route-transition-snapshot')).toBeNull();
-    finish();
-    await finished;
+    finishEntering();
+    await enteringFinished;
     await Promise.resolve();
 
     expect(document.documentElement.dataset.viewTransition).toBeUndefined();
+    stage.remove();
   });
 });

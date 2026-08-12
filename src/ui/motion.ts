@@ -1,9 +1,5 @@
 export type MotionDirection = 'forward' | 'back' | 'lateral';
-
-type ViewTransitionLike = { finished: Promise<unknown> };
-type ViewTransitionDocument = Document & {
-  startViewTransition?: (update: () => void) => ViewTransitionLike;
-};
+export type MotionPreference = 'full' | 'gentle' | 'off';
 
 const PRIMARY_ROUTE_ORDER = ['home', 'library', 'setlists', 'import', 'offline', 'settings'];
 let transitionSequence = 0;
@@ -33,7 +29,8 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
   fallbackAnimations = [];
   const reduced = typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduced) {
+  const preference = document.documentElement.dataset.motion as MotionPreference | undefined;
+  if (reduced || preference === 'off') {
     update();
     return;
   }
@@ -49,24 +46,6 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
     delete root.dataset.transitionPhase;
   };
 
-  const startViewTransition = (document as ViewTransitionDocument).startViewTransition;
-  if (typeof startViewTransition === 'function') {
-    let updated = false;
-    try {
-      root.dataset.transitionPhase = 'entering';
-      const transition = startViewTransition.call(document, () => {
-        updated = true;
-        update();
-      });
-      void transition.finished.then(cleanup, cleanup);
-      return;
-    } catch {
-      if (!updated) update();
-      cleanup();
-      return;
-    }
-  }
-
   const currentStage = document.querySelector<HTMLElement>('.route-stage');
   if (!currentStage || typeof currentStage.animate !== 'function') {
     update();
@@ -74,32 +53,49 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
     return;
   }
 
-  const travel = direction === 'lateral' ? 0 : direction === 'forward' ? 4 : -4;
-  root.dataset.transitionPhase = 'leaving';
+  const magnitude = preference === 'full' ? 6 : 3;
+  const travel = direction === 'lateral' ? 0 : direction === 'forward' ? magnitude : -magnitude;
+  const enterDuration = preference === 'full' ? 240 : 165;
+  const leaveDuration = preference === 'full' ? 110 : 75;
+  root.dataset.transitionPhase = 'preparing';
   requestAnimationFrame(() => {
     if (transitionId !== transitionSequence) return;
-    try {
-      update();
-    } catch (error) {
-      cleanup();
-      queueMicrotask(() => { throw error; });
-      return;
-    }
-    root.dataset.transitionPhase = 'entering';
-    const nextStage = document.querySelector<HTMLElement>('.route-stage');
-    if (!nextStage || typeof nextStage.animate !== 'function') {
-      cleanup();
-      return;
-    }
-    const entering = nextStage.animate([
-      { opacity: 0.94, transform: `translate3d(${travel}px, 0, 0)` },
-      { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+    root.dataset.transitionPhase = 'leaving';
+    const leaving = currentStage.animate([
+      { transform: 'translate3d(0, 0, 0)' },
+      { transform: `translate3d(${-travel}px, 0, 0)` },
     ], {
-      duration: 190,
-      easing: 'cubic-bezier(.22, 1, .36, 1)',
+      duration: leaveDuration,
+      easing: 'cubic-bezier(.4, 0, 1, 1)',
       fill: 'both',
     });
-    fallbackAnimations = [entering];
-    void entering.finished.then(cleanup, cleanup);
+    fallbackAnimations = [leaving];
+    const enter = () => {
+      if (transitionId !== transitionSequence) return;
+      try {
+        update();
+      } catch (error) {
+        cleanup();
+        queueMicrotask(() => { throw error; });
+        return;
+      }
+      root.dataset.transitionPhase = 'entering';
+      const nextStage = document.querySelector<HTMLElement>('.route-stage');
+      if (!nextStage || typeof nextStage.animate !== 'function') {
+        cleanup();
+        return;
+      }
+      const entering = nextStage.animate([
+        { transform: `translate3d(${travel}px, 0, 0)` },
+        { transform: 'translate3d(0, 0, 0)' },
+      ], {
+        duration: enterDuration,
+        easing: 'cubic-bezier(.22, 1, .36, 1)',
+        fill: 'both',
+      });
+      fallbackAnimations = [entering];
+      void entering.finished.then(cleanup, cleanup);
+    };
+    void leaving.finished.then(enter, cleanup);
   });
 }

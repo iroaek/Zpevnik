@@ -31,16 +31,17 @@ describe('migrace IndexedDB', () => {
     legacy.close();
   });
 
-  it('povýší databázi na verzi 6, převede stav na schéma 4 a zachová uživatelská data', async () => {
+  it('povýší databázi na verzi 7, převede stav na schéma 5 a zachová uživatelská data', async () => {
     const databaseModule = await import('./database');
     const loaded = await databaseModule.loadUserState();
-    expect(databaseModule.DATABASE_VERSION).toBe(6);
-    expect(loaded.schemaVersion).toBe(4);
+    expect(databaseModule.DATABASE_VERSION).toBe(7);
+    expect(loaded.schemaVersion).toBe(5);
+    expect(loaded.settings.motion).toBe('gentle');
     expect(loaded.updatedAt).toBe('2026-08-05T00:00:00.000Z');
     expect(loaded.favorites).toEqual(legacyState.favorites);
     expect(loaded.setlists).toEqual(legacyState.setlists);
     expect(loaded.settings.autoScrollSpeed).toBe(31);
-    const upgraded = await openDB('cesky-zpevnik', 6);
+    const upgraded = await openDB('cesky-zpevnik', 7);
     expect([...upgraded.objectStoreNames]).toContain('metadata');
     expect([...upgraded.objectStoreNames]).toContain('personalSongs');
     expect([...upgraded.objectStoreNames]).toContain('personalSongContent');
@@ -140,7 +141,7 @@ describe('migrace IndexedDB', () => {
     })], 'zpevnik-zaloha.json', { type: 'application/json' });
 
     const imported = await databaseModule.importFullBackup(file);
-    expect(imported.state.schemaVersion).toBe(4);
+    expect(imported.state.schemaVersion).toBe(5);
     expect(imported.personalSongCount).toBe(1);
     expect(await databaseModule.loadPersonalSongs()).toContainEqual(expect.objectContaining({
       id: song.id,
@@ -208,7 +209,7 @@ describe('migrace IndexedDB', () => {
     const databaseModule = await import('./database');
     const file = new File([JSON.stringify({ application: 'cesky-digitalni-zpevnik', data: legacyState })], 'stara-zaloha.json', { type: 'application/json' });
     const imported = await databaseModule.importFullBackup(file);
-    expect(imported.state.schemaVersion).toBe(4);
+    expect(imported.state.schemaVersion).toBe(5);
     expect(imported.personalSongCount).toBe(0);
   });
 
@@ -232,7 +233,7 @@ describe('migrace IndexedDB', () => {
     const databaseModule = await import('./database');
     const versionTwo = { ...legacyState, schemaVersion: 2 as const };
     expect(databaseModule.migrateUserState(versionTwo)).toMatchObject({
-      schemaVersion: 4,
+      schemaVersion: 5,
       updatedAt: '2026-08-05T00:00:00.000Z',
       favorites: legacyState.favorites,
     });
@@ -242,13 +243,26 @@ describe('migrace IndexedDB', () => {
     const databaseModule = await import('./database');
     const versionThree = { ...legacyState, schemaVersion: 3 as const, updatedAt: '2026-08-11T13:00:00.000Z' };
     expect(databaseModule.migrateUserState(versionThree)).toMatchObject({
-      schemaVersion: 4,
+      schemaVersion: 5,
       updatedAt: versionThree.updatedAt,
       settings: {
         catalogDensity: 'standard',
         reader: { chordScale: 1, lineHeight: 1.3, columnWidth: 760, stageFontSize: legacyState.settings.fontSize },
       },
       songReaderPreferences: {},
+    });
+  });
+
+  it('explicitně migruje stav schématu 4 a doplní jemný pohyb', async () => {
+    const databaseModule = await import('./database');
+    const versionFour = {
+      ...databaseModule.defaultUserState,
+      schemaVersion: 4 as const,
+      settings: Object.fromEntries(Object.entries(databaseModule.defaultUserState.settings).filter(([key]) => key !== 'motion')),
+    };
+    expect(databaseModule.migrateUserState(versionFour)).toMatchObject({
+      schemaVersion: 5,
+      settings: { motion: 'gentle' },
     });
   });
 

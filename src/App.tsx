@@ -3,18 +3,11 @@ import { flushSync } from 'react-dom';
 import catalogJson from './generated/catalog.json';
 import { AccountAccessPage } from './components/AccountAccessPage';
 import { ApprovalGate } from './components/ApprovalGate';
-import { HelpPage } from './components/HelpPage';
 import { HomeDashboard } from './components/HomeDashboard';
-import { InstallPage } from './components/InstallPage';
 import { Library, type LibraryEntry } from './components/Library';
 import { PasswordRecoveryPage } from './components/PasswordRecoveryPage';
-import { PublicSetlistPage } from './components/PublicSetlistPage';
 import { RegistrationPage } from './components/RegistrationPage';
-import { Setlists } from './components/Setlists';
-import { Settings } from './components/Settings';
-import { SongReader } from './components/SongReader';
 import { UpdateBanner } from './components/UpdateBanner';
-import { DiagnosticsPage } from './components/DiagnosticsPage';
 import { FirstRunGuide } from './components/FirstRunGuide';
 import { AppStatusCenter } from './components/AppStatusCenter';
 import { hasCompletedFirstRunGuide } from './components/firstRunState';
@@ -34,12 +27,30 @@ import { routeMotionDirection, runRouteTransition, scrollWindowInstantly } from 
 import { Icon } from './ui/Icon';
 import { friendlyError } from './ui/friendlyError';
 
-const AdminPage = lazy(() => import('./components/AdminPage').then((module) => ({ default: module.AdminPage })));
-const OfflineContent = lazy(() => import('./components/OfflineContent').then((module) => ({ default: module.OfflineContent })));
-const PdfImportPage = lazy(() => import('./components/PdfImportPage').then((module) => ({ default: module.PdfImportPage })));
+const loadAdminPage = () => import('./components/AdminPage');
+const loadDiagnosticsPage = () => import('./components/DiagnosticsPage');
+const loadHelpPage = () => import('./components/HelpPage');
+const loadInstallPage = () => import('./components/InstallPage');
+const loadOfflineContent = () => import('./components/OfflineContent');
+const loadPdfImportPage = () => import('./components/PdfImportPage');
+const loadPublicSetlistPage = () => import('./components/PublicSetlistPage');
+const loadSetlists = () => import('./components/Setlists');
+const loadSettings = () => import('./components/Settings');
+const loadSongReader = () => import('./components/SongReader');
 
-function RouteLoading() {
-  return <section className="route-loading" role="status" aria-label="Načítám stránku"><span className="route-loading__mark"><Icon name="music" /></span><span><strong>Připravuji stránku…</strong><small>Vaše rozdělaná práce zůstává zachovaná.</small></span></section>;
+const AdminPage = lazy(() => loadAdminPage().then((module) => ({ default: module.AdminPage })));
+const DiagnosticsPage = lazy(() => loadDiagnosticsPage().then((module) => ({ default: module.DiagnosticsPage })));
+const HelpPage = lazy(() => loadHelpPage().then((module) => ({ default: module.HelpPage })));
+const InstallPage = lazy(() => loadInstallPage().then((module) => ({ default: module.InstallPage })));
+const OfflineContent = lazy(() => loadOfflineContent().then((module) => ({ default: module.OfflineContent })));
+const PdfImportPage = lazy(() => loadPdfImportPage().then((module) => ({ default: module.PdfImportPage })));
+const PublicSetlistPage = lazy(() => loadPublicSetlistPage().then((module) => ({ default: module.PublicSetlistPage })));
+const Setlists = lazy(() => loadSetlists().then((module) => ({ default: module.Setlists })));
+const Settings = lazy(() => loadSettings().then((module) => ({ default: module.Settings })));
+const SongReader = lazy(() => loadSongReader().then((module) => ({ default: module.SongReader })));
+
+function RouteLoading({ routeName }: { routeName: Route['name'] }) {
+  return <section className={`route-loading route-loading--${routeName}`} role="status" aria-label="Načítám stránku" aria-busy="true"><span className="sr-only">Připravuji stránku…</span><span className="route-loading__skeleton route-loading__skeleton--title" /><span className="route-loading__skeleton route-loading__skeleton--panel" /><span className="route-loading__grid" aria-hidden="true"><i /><i /><i /><i /><i /><i /></span></section>;
 }
 
 type Route =
@@ -56,6 +67,27 @@ type Route =
   | { name: 'song'; id: string }
   | { name: 'public-setlist'; id: string }
   | { name: 'not-found' };
+
+function preloadRouteModule(name: Route['name']): Promise<unknown> | null {
+  switch (name) {
+    case 'admin': return loadAdminPage();
+    case 'diagnostics': return loadDiagnosticsPage();
+    case 'help': return loadHelpPage();
+    case 'install': return loadInstallPage();
+    case 'offline': return loadOfflineContent();
+    case 'import': return loadPdfImportPage();
+    case 'public-setlist': return loadPublicSetlistPage();
+    case 'setlists': return loadSetlists();
+    case 'settings': return loadSettings();
+    case 'song': return loadSongReader();
+    default: return null;
+  }
+}
+
+function routeScrollKey(route: Route): string | null {
+  if (route.name === 'library') return `library:${route.entry}`;
+  return ['setlists', 'offline', 'admin'].includes(route.name) ? route.name : null;
+}
 
 const bundledCatalog = catalogSchema.parse(catalogJson as unknown);
 
@@ -112,9 +144,33 @@ export default function App() {
   const [readerSequence, setReaderSequence] = useState<string[]>([]);
   const [firstRunOpen, setFirstRunOpen] = useState(false);
   const [statusCenterOpen, setStatusCenterOpen] = useState(false);
-  const libraryScroll = useRef(0);
+  const routeScrollPositions = useRef<Record<string, number>>({});
+  const navigationIntent = useRef(0);
   const online = useConnectivity();
   const installPrompt = useInstallPrompt();
+
+  useEffect(() => {
+    history.scrollRestoration = 'manual';
+    return () => { history.scrollRestoration = 'auto'; };
+  }, []);
+
+  useEffect(() => {
+    const idleWindow = window as typeof window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    const prefetch = () => {
+      const loaders: Promise<unknown>[] = [loadOfflineContent(), loadPdfImportPage(), loadSetlists(), loadSettings(), loadSongReader()];
+      if (secureAccount.profile?.role === 'admin') loaders.push(loadAdminPage());
+      void Promise.allSettled(loaders);
+    };
+    if (idleWindow.requestIdleCallback) {
+      const handle = idleWindow.requestIdleCallback(prefetch, { timeout: 1800 });
+      return () => idleWindow.cancelIdleCallback?.(handle);
+    }
+    const handle = window.setTimeout(prefetch, 900);
+    return () => window.clearTimeout(handle);
+  }, [secureAccount.profile?.role]);
 
   useEffect(() => {
     if (import.meta.env.MODE === 'e2e' || !userProfile || hasCompletedFirstRunGuide(userProfile.id)) return;
@@ -148,11 +204,20 @@ export default function App() {
   useEffect(() => {
     const popstate = () => {
       const target = parseRoute();
-      runRouteTransition(() => flushSync(() => setRoute(target)), routeMotionDirection(route.name, target.name));
+      const currentKey = routeScrollKey(route);
+      if (currentKey) routeScrollPositions.current[currentKey] = window.scrollY;
+      const intent = ++navigationIntent.current;
+      const commit = () => {
+        if (intent !== navigationIntent.current) return;
+        runRouteTransition(() => flushSync(() => setRoute(target)), routeMotionDirection(route.name, target.name));
+      };
+      const preload = preloadRouteModule(target.name);
+      if (preload) void preload.then(commit, commit);
+      else commit();
     };
     window.addEventListener('popstate', popstate);
     return () => window.removeEventListener('popstate', popstate);
-  }, [route.name]);
+  }, [route]);
 
   useEffect(() => {
     void loadLatestCatalog(bundledCatalog).then((latest) => {
@@ -229,6 +294,10 @@ export default function App() {
   }, [userProfile?.monochromeMode, userProfile?.role, userState.settings.theme]);
 
   useEffect(() => {
+    document.documentElement.dataset.motion = userState.settings.motion;
+  }, [userState.settings.motion]);
+
+  useEffect(() => {
     document.body.dataset.printSize = userState.settings.printSize;
   }, [userState.settings.printSize]);
 
@@ -241,21 +310,30 @@ export default function App() {
   }, [route, selectedPublicSetlist?.title, selectedSong?.title]);
 
   useLayoutEffect(() => {
-    scrollWindowInstantly(route.name === 'library' ? libraryScroll.current : 0);
+    const key = routeScrollKey(route);
+    scrollWindowInstantly(key ? (routeScrollPositions.current[key] ?? 0) : 0);
   }, [route]);
 
   const navigate = (relative: string, replace = false) => {
     const destination = routePath(relative);
     const target = parseRoute(destination);
-    runRouteTransition(() => flushSync(() => {
-      if (replace) history.replaceState({}, '', destination);
-      else history.pushState({}, '', destination);
-      setRoute(target);
-    }), routeMotionDirection(route.name, target.name));
+    const currentKey = routeScrollKey(route);
+    if (currentKey) routeScrollPositions.current[currentKey] = window.scrollY;
+    const intent = ++navigationIntent.current;
+    const commit = () => {
+      if (intent !== navigationIntent.current) return;
+      runRouteTransition(() => flushSync(() => {
+        if (replace) history.replaceState({}, '', destination);
+        else history.pushState({}, '', destination);
+        setRoute(target);
+      }), routeMotionDirection(route.name, target.name));
+    };
+    const preload = preloadRouteModule(target.name);
+    if (preload) void preload.then(commit, commit);
+    else commit();
   };
 
   const openSong = (id: string, sequence: string[] = []) => {
-    if (route.name === 'library') libraryScroll.current = window.scrollY;
     setReaderSequence(sequence);
     navigate(`songs/${id}`);
     setUserState((current) => addRecent(current, id));
@@ -315,7 +393,7 @@ export default function App() {
       {route.name !== 'home' && (storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}
       {route.name !== 'home' && systemMessage && <div className="system-message toast-message" role="status"><span>{systemMessage}</span><button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemMessage('')}>×</button></div>}
       <main id="main-content" className={`app-main ${route.name === 'home' ? 'app-main--home' : ''}`}>
-        <div className="route-stage" key={routeRelativePath(route) || 'home'}><Suspense fallback={<RouteLoading />}>
+        <div className="route-stage" key={routeRelativePath(route) || 'home'}><Suspense fallback={<RouteLoading routeName={route.name} />}>
         {route.name === 'home' && <HomeDashboard songs={allSongs} favorites={userState.favorites} recent={userState.recentSongIds} setlistCount={userState.setlists.length} onOpenSong={(id) => openSong(id)} onNavigate={navigate} />}
         {route.name === 'library' && <Library entry={route.entry} songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} setlists={userState.setlists} density={userState.settings.catalogDensity} onDensityChange={(catalogDensity) => setUserState((current) => ({ ...current, settings: { ...current.settings, catalogDensity } }))} onOpenSong={(id) => openSong(id)} onToggleFavorite={(id) => setUserState((current) => toggleFavorite(current, id))} onAddToSetlist={(songId, setlistId) => setUserState((current) => { const setlist = current.setlists.find((candidate) => candidate.id === setlistId); return !setlist || setlist.songIds.includes(songId) ? current : updateSetlistSongs(current, setlistId, [...setlist.songIds, songId]); })} onAddToTonight={addToTonightSetlist} onDeleteSong={deleteDeviceSong} onNotify={setSystemMessage} />}
         {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id) => navigate(`setlists/${id}`)} secureProfile={secureAccount.profile} online={online} />}
@@ -333,10 +411,10 @@ export default function App() {
       </main>
       {route.name !== 'song' && route.name !== 'home' && <nav className="bottom-nav bottom-nav--five" aria-label="Hlavní navigace">
         <button type="button" className={navScreen === 'library' ? 'active' : ''} aria-current={navScreen === 'library' ? 'page' : undefined} onClick={() => navigate('songs')}><Icon name="search" />Písně</button>
-        <button type="button" className={navScreen === 'setlists' ? 'active' : ''} aria-current={navScreen === 'setlists' ? 'page' : undefined} onClick={() => navigate('setlists')}><Icon name="list" />Setlisty</button>
-        <button type="button" className={navScreen === 'import' ? 'active' : ''} aria-current={navScreen === 'import' ? 'page' : undefined} onClick={() => navigate('import')}><Icon name="plus" />Přidat</button>
-        <button type="button" className={navScreen === 'offline' ? 'active' : ''} aria-current={navScreen === 'offline' ? 'page' : undefined} onClick={() => navigate('offline')}><Icon name="download" />Offline</button>
-        <button type="button" className={navScreen === 'settings' ? 'active' : ''} aria-current={navScreen === 'settings' ? 'page' : undefined} onClick={() => navigate('settings')}><Icon name="settings" />Nastavení</button>
+        <button type="button" className={navScreen === 'setlists' ? 'active' : ''} aria-current={navScreen === 'setlists' ? 'page' : undefined} onPointerEnter={() => void loadSetlists()} onFocus={() => void loadSetlists()} onClick={() => navigate('setlists')}><Icon name="list" />Setlisty</button>
+        <button type="button" className={navScreen === 'import' ? 'active' : ''} aria-current={navScreen === 'import' ? 'page' : undefined} onPointerEnter={() => void loadPdfImportPage()} onFocus={() => void loadPdfImportPage()} onClick={() => navigate('import')}><Icon name="plus" />Přidat</button>
+        <button type="button" className={navScreen === 'offline' ? 'active' : ''} aria-current={navScreen === 'offline' ? 'page' : undefined} onPointerEnter={() => void loadOfflineContent()} onFocus={() => void loadOfflineContent()} onClick={() => navigate('offline')}><Icon name="download" />Offline</button>
+        <button type="button" className={navScreen === 'settings' ? 'active' : ''} aria-current={navScreen === 'settings' ? 'page' : undefined} onPointerEnter={() => void loadSettings()} onFocus={() => void loadSettings()} onClick={() => navigate('settings')}><Icon name="settings" />Nastavení</button>
       </nav>}
       <AppStatusCenter open={statusCenterOpen} online={online} profile={secureAccount.profile} offlineAuthenticated={secureAccount.authState.status === 'authenticated-offline'} cloudSync={cloudSync} downloadedSongs={downloadedLibrarySongs.length} availableSongs={allSongs.length} catalogVersion={catalog.version} onClose={() => setStatusCenterOpen(false)} onNavigate={navigate} />
       {firstRunOpen && <FirstRunGuide userId={userProfile.id} role={userProfile.role} onClose={() => setFirstRunOpen(false)} onNavigate={navigate} />}

@@ -145,6 +145,7 @@ export function Settings({
       <div className="results-heading settings-section-heading"><h2>Běžné nastavení</h2><span>Vzhled a čtečka</span></div>
       <div className="settings-grid">
         <label>Vzhled<select value={settings.theme} onChange={(event) => update({ theme: event.target.value as UserState['settings']['theme'] })}><option value="system">Podle zařízení</option><option value="light">Světlý</option><option value="dark">Tmavý – k ohni</option></select></label>
+        <label>Pohyb a animace<select value={settings.motion} onChange={(event) => update({ motion: event.target.value as UserState['settings']['motion'] })}><option value="gentle">Jemné – doporučeno</option><option value="full">Výraznější</option><option value="off">Bez animací</option></select></label>
         <label>Značení akordů<select value={settings.notation} onChange={(event) => update({ notation: event.target.value as UserState['settings']['notation'] })}><option value="czech">České (H / B)</option><option value="international">Mezinárodní (B / Bb)</option></select></label>
         <label>Velikost textu <output>{settings.fontSize} px</output><input type="range" min="14" max="34" step="2" value={settings.fontSize} onChange={(event) => update({ fontSize: Number(event.target.value) })} /></label>
         <label>Formát tisku<select value={settings.printSize} onChange={(event) => update({ printSize: event.target.value as 'A4' | 'A5' })}><option value="A4">A4</option><option value="A5">A5</option></select></label>

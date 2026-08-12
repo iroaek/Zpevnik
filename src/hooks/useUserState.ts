@@ -22,7 +22,7 @@ export function useUserState(): [UserState, React.Dispatch<React.SetStateAction<
     setState((current) => {
       const next = typeof change === 'function' ? change(current) : change;
       if (next === current) return current;
-      return { ...next, schemaVersion: 4, updatedAt: new Date().toISOString() };
+      return { ...next, schemaVersion: 5, updatedAt: new Date().toISOString() };
     });
   }, []);
 
