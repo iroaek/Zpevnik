@@ -101,6 +101,9 @@ export function registerPwa(): void {
       };
       window.addEventListener('online', requestUpdate);
       document.addEventListener('visibilitychange', requestUpdate);
+      // iOS může ponechat starý shell PWA otevřený i po novém nasazení. Kontrolu
+      // proto zahájíme hned při registraci, ne až po návratu z pozadí nebo za 15 minut.
+      requestUpdate();
       window.setInterval(() => {
         requestUpdate();
       }, 15 * 60 * 1000);

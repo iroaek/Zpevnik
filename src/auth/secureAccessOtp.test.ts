@@ -5,6 +5,9 @@ const auth = vi.hoisted(() => ({
   clearPendingJwt: vi.fn(),
   consumePendingJwt: vi.fn(),
   getSession: vi.fn(),
+  requestPasswordReset: vi.fn(),
+  resetPassword: vi.fn(),
+  signInWithEmail: vi.fn(),
   signInWithOtp: vi.fn(),
 }));
 
@@ -18,13 +21,26 @@ vi.mock('../backend/neonClient', () => ({
   neonDataApiUrl: 'https://data.example.test/rest/v1',
   requireNeonClient: () => ({
     auth: {
+      emailOtp: {
+        requestPasswordReset: auth.requestPasswordReset,
+        resetPassword: auth.resetPassword,
+      },
       getSession: auth.getSession,
-      signIn: { emailOtp: auth.signInWithOtp },
+      signIn: {
+        email: auth.signInWithEmail,
+        emailOtp: auth.signInWithOtp,
+      },
     },
   }),
 }));
 
-import { signInSecureAccountWithCode, subscribeToSecureSession } from './secureAccess';
+import {
+  completeMigratedPasswordSetup,
+  getSecureSession,
+  sendMigratedPasswordSetupCode,
+  signInSecureAccountWithCode,
+  subscribeToSecureSession,
+} from './secureAccess';
 
 function testJwt(): string {
   const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1_000) + 600 }))
@@ -35,7 +51,10 @@ function testJwt(): string {
 }
 
 describe('Neon OTP relace', () => {
-  afterEach(() => vi.clearAllMocks());
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
 
   it('použije JWT z úspěšné OTP odpovědi i když Safari neuloží cross-site cookie', async () => {
     const user = {
@@ -45,20 +64,58 @@ describe('Neon OTP relace', () => {
       name: 'Testovací člen',
     };
     auth.signInWithOtp.mockResolvedValue({ data: { token: 'opaque-session-token', user }, error: null });
-    auth.consumePendingJwt.mockReturnValue(testJwt());
+    auth.requestPasswordReset.mockResolvedValue({ data: null, error: null });
+    auth.resetPassword.mockResolvedValue({ data: null, error: null });
+    auth.signInWithEmail.mockResolvedValue({ data: { token: 'new-password-session-token', user }, error: null });
+    const jwt = testJwt();
+    auth.consumePendingJwt.mockReturnValue(null);
     auth.getSession.mockResolvedValue({ data: null, error: null });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token: jwt }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
     const listener = vi.fn();
     const unsubscribe = subscribeToSecureSession(listener);
 
     await signInSecureAccountWithCode('CLEN@example.test', ' 123456 ');
+    const session = await getSecureSession();
 
     expect(auth.clearPendingJwt).toHaveBeenCalledOnce();
     expect(auth.signInWithOtp).toHaveBeenCalledWith({ email: 'clen@example.test', otp: '123456' });
     expect(auth.consumePendingJwt).toHaveBeenCalledWith(user.id);
     expect(auth.getSession).not.toHaveBeenCalled();
-    expect(listener).toHaveBeenCalledWith('SIGNED_IN', expect.objectContaining({
-      access_token: expect.stringContaining('test-header.'),
+    expect(fetchMock).toHaveBeenCalledWith('https://auth.example.test/token', expect.objectContaining({
+      credentials: 'omit',
+      headers: expect.objectContaining({ Authorization: 'Bearer opaque-session-token' }),
+    }));
+    expect(session).toEqual(expect.objectContaining({
+      access_token: jwt,
       user: expect.objectContaining({ id: user.id, emailVerified: true }),
+    }));
+    // Přihlášení se zveřejní aplikaci až po povinném nastavení vlastního hesla.
+    expect(listener).not.toHaveBeenCalled();
+
+    await sendMigratedPasswordSetupCode('CLEN@example.test');
+    await completeMigratedPasswordSetup('CLEN@example.test', '654321', 'NoveBezpecneHeslo42');
+
+    expect(auth.requestPasswordReset).toHaveBeenCalledWith({ email: 'clen@example.test' });
+    expect(auth.resetPassword).toHaveBeenCalledWith({
+      email: 'clen@example.test',
+      otp: '654321',
+      password: 'NoveBezpecneHeslo42',
+    });
+    expect(auth.signInWithEmail).toHaveBeenCalledWith({
+      email: 'clen@example.test',
+      password: 'NoveBezpecneHeslo42',
+      callbackURL: expect.any(String),
+    });
+    expect(fetchMock).toHaveBeenLastCalledWith('https://auth.example.test/token', expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: 'Bearer new-password-session-token' }),
+    }));
+    expect(listener).toHaveBeenCalledWith('SIGNED_IN', expect.objectContaining({
+      access_token: jwt,
+      user: expect.objectContaining({ email: 'clen@example.test' }),
     }));
 
     unsubscribe();

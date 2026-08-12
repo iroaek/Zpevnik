@@ -4,9 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AccountAccessPage } from './AccountAccessPage';
 
 const auth = vi.hoisted(() => ({
+  completePasswordSetup: vi.fn(),
   register: vi.fn(),
   reset: vi.fn(),
   sendSignInCode: vi.fn(),
+  sendPasswordSetupCode: vi.fn(),
   sendVerification: vi.fn(),
   signIn: vi.fn(),
   signInWithCode: vi.fn(),
@@ -14,9 +16,11 @@ const auth = vi.hoisted(() => ({
 }));
 
 vi.mock('../auth/secureAccess', () => ({
+  completeMigratedPasswordSetup: auth.completePasswordSetup,
   registerSecureAccount: auth.register,
   sendEmailSignInCode: auth.sendSignInCode,
   sendEmailVerificationCode: auth.sendVerification,
+  sendMigratedPasswordSetupCode: auth.sendPasswordSetupCode,
   sendPasswordReset: auth.reset,
   signInSecureAccount: auth.signIn,
   signInSecureAccountWithCode: auth.signInWithCode,
@@ -27,9 +31,11 @@ describe('schvalovaný účet', () => {
   afterEach(cleanup);
 
   beforeEach(() => {
+    auth.completePasswordSetup.mockReset().mockResolvedValue(undefined);
     auth.register.mockReset().mockResolvedValue({ needsEmailConfirmation: true });
     auth.reset.mockReset().mockResolvedValue(undefined);
     auth.sendSignInCode.mockReset().mockResolvedValue(undefined);
+    auth.sendPasswordSetupCode.mockReset().mockResolvedValue(undefined);
     auth.sendVerification.mockReset().mockResolvedValue(undefined);
     auth.signIn.mockReset().mockResolvedValue(undefined);
     auth.signInWithCode.mockReset().mockResolvedValue(undefined);
@@ -53,6 +59,13 @@ describe('schvalovaný účet', () => {
     expect(await screen.findByRole('heading', { name: 'Ověření e-mailu' })).toBeInTheDocument();
     expect(screen.getByText(/ověřovací kód/i)).toBeInTheDocument();
     expect(screen.getByText(/účet počká na schválení administrátorem/i)).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Šestimístný kód'), '246810');
+    await user.click(screen.getByRole('button', { name: 'Ověřit kód' }));
+
+    expect(auth.verify).toHaveBeenCalledWith('clen@example.cz', '246810', 'VelmiDobreHeslo42');
+    expect(auth.sendPasswordSetupCode).not.toHaveBeenCalled();
+    expect(await screen.findByText(/čeká na schválení administrátorem/i)).toBeInTheDocument();
   }, 10_000);
 
   it('neodešle registraci s rozdílnými hesly', async () => {
@@ -96,6 +109,15 @@ describe('schvalovaný účet', () => {
     await user.click(screen.getByRole('button', { name: 'Ověřit kód' }));
 
     expect(auth.signInWithCode).toHaveBeenCalledWith('puvodni@example.cz', '123456');
+    expect(auth.sendPasswordSetupCode).toHaveBeenCalledWith('puvodni@example.cz');
+    expect(await screen.findByRole('heading', { name: 'Nastavení nového hesla' })).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Kód pro nastavení hesla'), '654321');
+    await user.type(screen.getByLabelText('Nové heslo', { exact: true }), 'NoveBezpecneHeslo42');
+    await user.type(screen.getByLabelText('Nové heslo znovu'), 'NoveBezpecneHeslo42');
+    await user.click(screen.getByRole('button', { name: 'Uložit nové heslo' }));
+
+    expect(auth.completePasswordSetup).toHaveBeenCalledWith('puvodni@example.cz', '654321', 'NoveBezpecneHeslo42');
   });
 
   it('z ověřovací obrazovky odešle nový přihlašovací kód a zneplatní starý', async () => {

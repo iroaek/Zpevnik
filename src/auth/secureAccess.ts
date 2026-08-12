@@ -223,11 +223,28 @@ function sessionIsUsable(session: SecureSession | null): session is SecureSessio
   return Boolean(session && Date.parse(session.expires_at) > Date.now() + 5_000);
 }
 
-function sessionFromSignInResponse(
-  data: { user: { id: string; email: string; emailVerified: boolean; name: string } } | null,
-): SecureSession | null {
+async function jwtFromSessionToken(sessionToken: string): Promise<string | null> {
+  if (!neonAuthUrl || !sessionToken) return null;
+  const response = await fetch(`${neonAuthUrl}/token`, {
+    credentials: 'omit',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${sessionToken}`,
+    },
+  });
+  if (!response.ok) return null;
+  const data = await response.json().catch(() => null) as { token?: unknown } | null;
+  return typeof data?.token === 'string' ? data.token : null;
+}
+
+async function sessionFromSignInResponse(
+  data: { token: string; user: { id: string; email: string; emailVerified: boolean; name: string } } | null,
+): Promise<SecureSession | null> {
   if (!data?.user) return null;
-  const token = consumePendingNeonAuthJwt(data.user.id);
+  // Safari v PWA může odmítnout third-party cookie Neon Auth. OTP endpoint však
+  // vrací krátký session token a Neonův bearer plugin jej umí bezpečně vyměnit
+  // za podepsaný JWT bez závislosti na cookie.
+  const token = consumePendingNeonAuthJwt(data.user.id) ?? await jwtFromSessionToken(data.token);
   const expiresAt = token ? jwtExpiry(token) : null;
   if (!token || !expiresAt) return null;
   return {
@@ -311,11 +328,28 @@ export async function signInSecureAccountWithCode(email: string, otp: string): P
     otp: otp.trim(),
   });
   if (error) throw readableError(error, 'Přihlašovací kód není platný nebo už vypršel.');
-  const directSession = sessionFromSignInResponse(data);
+  const directSession = await sessionFromSignInResponse(data);
   if (directSession) bootstrapSession = directSession;
   const session = directSession ?? await getSecureSession();
   if (!session?.user.emailVerified) throw new SecureAccessError('Neon Auth nevytvořil ověřenou relaci. Vyžádejte si nový kód.');
-  emitSession('SIGNED_IN', session);
+}
+
+export async function sendMigratedPasswordSetupCode(email: string): Promise<void> {
+  const { error } = await requireNeonClient().auth.emailOtp.requestPasswordReset({
+    email: email.trim().toLocaleLowerCase('cs'),
+  });
+  if (error) throw readableError(error, 'Kód pro nastavení nového hesla se nepodařilo odeslat.');
+}
+
+export async function completeMigratedPasswordSetup(email: string, otp: string, password: string): Promise<void> {
+  if (password.length < 10) throw new SecureAccessError('Heslo musí mít alespoň 10 znaků.');
+  const { error } = await requireNeonClient().auth.emailOtp.resetPassword({
+    email: email.trim().toLocaleLowerCase('cs'),
+    otp: otp.trim(),
+    password,
+  });
+  if (error) throw readableError(error, 'Nové heslo se nepodařilo nastavit. Zkontrolujte nejnovější kód.');
+  await signInSecureAccount(email, password);
 }
 
 export async function verifyEmailVerificationCode(email: string, otp: string, password?: string): Promise<void> {
@@ -335,7 +369,7 @@ export async function verifyEmailVerificationCode(email: string, otp: string, pa
       callbackURL: appRedirectUrl(),
     });
     if (signInError) throw readableError(signInError, 'E-mail je ověřený, ale přihlášení se nepodařilo dokončit.');
-    directSession = sessionFromSignInResponse(signInData);
+    directSession = await sessionFromSignInResponse(signInData);
     if (directSession) bootstrapSession = directSession;
   }
   const session = directSession ?? await getSecureSession();
@@ -351,7 +385,7 @@ export async function signInSecureAccount(email: string, password: string): Prom
     callbackURL: appRedirectUrl(),
   });
   if (error) throw readableError(error, 'Přihlášení přes Neon Auth se nepodařilo.');
-  const directSession = sessionFromSignInResponse(data);
+  const directSession = await sessionFromSignInResponse(data);
   if (directSession) bootstrapSession = directSession;
   const session = directSession ?? await getSecureSession();
   if (!session) throw new SecureAccessError('Neon Auth nevytvořil platnou relaci. Zkuste přihlášení zopakovat.');

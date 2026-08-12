@@ -53,6 +53,6 @@ describe('správa aktualizace PWA', () => {
     pwaMock.callbacks?.onRegisteredSW?.('/sw.js', current);
 
     await expect(checkForUpdate()).resolves.toBe('up-to-date');
-    expect(current.update).toHaveBeenCalledOnce();
+    expect(current.update).toHaveBeenCalledTimes(2);
   });
 });
