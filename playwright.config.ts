@@ -16,8 +16,10 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:4173/Zpevnik/',
     trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
     serviceWorkers: 'allow',
   },
+  outputDir: 'test-results/playwright',
   projects: viewports.map(([name, width, height]) => ({
     name,
     use: { viewport: { width, height }, isMobile: true, hasTouch: true },

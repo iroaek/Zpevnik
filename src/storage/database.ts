@@ -657,6 +657,11 @@ export async function loadDiagnostics(): Promise<DiagnosticEvent[]> {
   }).sort((left, right) => right.occurredAt.localeCompare(left.occurredAt));
 }
 
+export async function clearDiagnostics(): Promise<void> {
+  const database = await databasePromise;
+  await database.clear('diagnostics');
+}
+
 export function addRecent(state: UserState, songId: string): UserState {
   return { ...state, recentSongIds: [songId, ...state.recentSongIds.filter((id) => id !== songId)].slice(0, 30) };
 }

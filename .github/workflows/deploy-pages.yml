@@ -35,6 +35,18 @@ jobs:
         run: npm ci
       - name: Validate
         run: npm test
+      - name: Install browser for mobile checks
+        run: npx playwright install --with-deps chromium
+      - name: Verify mobile layout, offline mode and visual captures
+        run: npm run test:e2e -- --workers=2
+      - name: Upload visual and failure diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-visual-checks
+          path: test-results/playwright
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Build static PWA
         run: npm run build
       - name: Configure GitHub Pages

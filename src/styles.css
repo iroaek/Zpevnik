@@ -911,11 +911,11 @@ select:focus, input:not([type="range"]):not([type="checkbox"]):focus { border-co
 :root[data-fire-mode="true"] .field-actions,
 :root[data-fire-mode="true"] .setlist-add,
 :root[data-fire-mode="true"] .rights-card { display: none !important; }
-:root[data-fire-mode="true"] .app-main { width: 100%; padding: 0.7rem 0.8rem 10.8rem; }
+:root[data-fire-mode="true"] .app-main { width: 100%; padding: 0.7rem 0.8rem 18rem; }
 :root[data-fire-mode="true"] .chord-sheet { padding: 0; line-height: 1.35; }
 :root[data-fire-mode="true"] .layout-song-sheet { padding: 0; line-height: 1.35; }
 :root[data-fire-mode="true"] .song-section--chorus { background: #25170f; }
-:root[data-fire-mode="true"] .fire-dock { position: fixed; z-index: 50; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; padding: 0.55rem max(0.7rem, env(safe-area-inset-right)) max(0.55rem, env(safe-area-inset-bottom)); border-top: 1px solid #5b3d2d; background: #17100df2; backdrop-filter: blur(14px); }
+:root[data-fire-mode="true"] .fire-dock { position: fixed; z-index: 50; right: 0; bottom: 0; left: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.4rem; max-height: 72svh; padding: 0.55rem max(0.7rem, env(safe-area-inset-right)) max(0.55rem, env(safe-area-inset-bottom)); overflow-y: auto; border-top: 1px solid #5b3d2d; background: #17100df2; overscroll-behavior: contain; backdrop-filter: blur(14px); }
 :root[data-fire-mode="true"] .fire-dock > button { min-height: 2.75rem; padding-inline: 0.35rem; font-size: 0.78rem; }
 .fire-tap-zone { width: min(100%, 48rem); margin-inline: auto; touch-action: pan-y; }
 :root[data-fire-mode="true"] .fire-tap-zone { width: min(100%, 42rem); }
@@ -1236,6 +1236,101 @@ select:focus, input:not([type="range"]):not([type="checkbox"]):focus { border-co
 @media (min-width: 60rem) {
   .admin-system-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .admin-system-grid .qr-generator-card { grid-column: 1 / -1; }
+}
+
+/* Výkon velkých knihoven: prohlížeč odkládá kreslení karet mimo viewport. */
+.song-card-shell { content-visibility: auto; contain-intrinsic-size: auto 5.3rem; }
+.song-card-shell--swiping { content-visibility: visible; }
+
+/* Aktualizační centrum a lokální diagnostika. */
+.status-update-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--border); border-radius: 17px; background: color-mix(in srgb, var(--surface-strong) 91%, var(--primary)); }
+.status-update-card > .app-icon { width: 2.75rem; height: 2.75rem; padding: .65rem; color: var(--primary); border-radius: 13px; background: color-mix(in srgb, var(--primary) 11%, var(--surface)); }
+.status-update-card > span { display: grid; gap: var(--space-1); }
+.status-update-card small, .status-update-card p { color: var(--muted); }
+.status-update-card p { margin: 0; font-size: .82rem; line-height: 1.45; }
+.status-update-card--available { border-color: var(--success); background: color-mix(in srgb, var(--success) 8%, var(--surface)); }
+.status-update-card--error { border-color: var(--danger); }
+.status-center-meta { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.status-center-meta > div + div { border-left: 1px solid var(--border); }
+
+.diagnostics-toolbar { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-block: var(--space-4); }
+.diagnostics-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: var(--space-3); }
+.diagnostics-summary article { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-3); min-height: 5.5rem; padding: var(--space-3); border: 1px solid var(--border); border-radius: 15px; background: var(--surface); box-shadow: var(--shadow-sm); }
+.diagnostics-summary article > .app-icon { width: 2.65rem; height: 2.65rem; padding: .6rem; color: var(--primary); border-radius: 12px; background: color-mix(in srgb, var(--primary) 10%, var(--surface)); }
+.diagnostics-summary article > span { display: grid; gap: var(--space-1); }
+.diagnostics-summary small { color: var(--muted); }
+.diagnostics-events-heading { margin-top: var(--space-6); }
+.diagnostic-event { border-left: 4px solid var(--border) !important; }
+.diagnostic-event--warning { border-left-color: var(--accent) !important; }
+.diagnostic-event--error { border-left-color: var(--danger) !important; }
+.diagnostic-event--info { border-left-color: var(--success) !important; }
+.diagnostics-danger { margin-top: var(--space-6); }
+
+/* Administrátorská fronta kvality — pouze evidence, nikdy automatické slučování. */
+.admin-quality { display: grid; gap: var(--space-4); }
+.admin-quality-score { display: grid; min-width: 7.5rem; padding: var(--space-3); text-align: right; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+.admin-quality-score strong { color: var(--primary); font-size: 1.65rem; }
+.admin-quality-score small { color: var(--muted); }
+.admin-quality-kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: var(--space-2); }
+.admin-quality-kpis article { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-2); min-height: 5rem; padding: var(--space-3); border: 1px solid var(--border); border-radius: 15px; background: var(--surface); box-shadow: var(--shadow-sm); }
+.admin-quality-kpis article > .app-icon { color: var(--primary); }
+.admin-quality-kpis article > span { display: grid; }
+.admin-quality-kpis small { color: var(--muted); }
+.admin-quality-kpis strong { font-size: 1.25rem; }
+.admin-quality-toolbar { display: grid; gap: var(--space-3); }
+.admin-quality-toolbar .search-box { width: 100%; }
+.admin-quality-toolbar .quick-filter-pills button { display: inline-flex; align-items: center; gap: var(--space-2); }
+.admin-quality-toolbar .quick-filter-pills small { display: grid; place-items: center; min-width: 1.45rem; min-height: 1.45rem; padding-inline: .3rem; border: 1px solid currentColor; border-radius: 999px; }
+.admin-quality-note { display: flex; align-items: flex-start; gap: var(--space-2); margin: 0; padding: var(--space-3); color: var(--muted); border-left: 4px solid var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.admin-quality-list { display: grid; gap: var(--space-2); }
+.admin-quality-list article { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); min-height: 6rem; padding: var(--space-3); content-visibility: auto; contain-intrinsic-size: auto 6rem; border: 1px solid var(--border); border-radius: 15px; background: var(--surface); }
+.admin-quality-song { display: grid; gap: var(--space-1); }
+.admin-quality-song > small { color: var(--muted); }
+.admin-quality-song > span { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-top: var(--space-1); }
+.quality-badge { padding: .25rem .5rem; color: var(--text); font-size: .7rem; font-style: normal; font-weight: 800; border: 1px solid var(--border); border-radius: 999px; background: var(--bg); }
+.quality-badge--chords { color: var(--chord); border-color: currentColor; }
+.quality-badge--text { color: var(--primary); border-color: currentColor; }
+.quality-badge--duplicates { color: var(--accent); border-color: currentColor; }
+.quality-badge--rights { color: var(--danger); border-color: currentColor; }
+
+/* Pódiová navigace drží přehled o postupu a setlistu bez opuštění čtečky. */
+.fire-stage-progress { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-column: 1 / -1; align-items: center; gap: var(--space-3); min-height: 2.75rem; padding: .35rem .55rem; color: #fff2d2; border: 1px solid #5b3d2d; border-radius: 12px; background: #0d0907; }
+.fire-stage-progress > span { display: grid; min-width: 4.4rem; }
+.fire-stage-progress small { color: #e1bd92; font-size: .68rem; }
+.fire-stage-progress > i { height: .5rem; overflow: hidden; border-radius: 999px; background: #3a281e; }
+.fire-stage-progress > i > b { display: block; height: 100%; border-radius: inherit; background: #ffd46f; transition: width 180ms linear; }
+.fire-sequence-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-column: 1 / -1; gap: var(--space-2); }
+.fire-sequence-controls button { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); min-height: 3rem; padding: .45rem .65rem; color: #fff2d2; text-align: left; border: 1px solid #5b3d2d; border-radius: 11px; background: #25170f; }
+.fire-sequence-controls button > span { display: grid; min-width: 0; }
+.fire-sequence-controls button:last-child { text-align: right; }
+.fire-sequence-controls small { color: #e1bd92; font-size: .65rem; }
+.fire-sequence-controls strong { overflow: hidden; font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
+
+@media (max-width: 43.99rem) {
+  .status-update-card { grid-template-columns: auto minmax(0, 1fr); }
+  .status-update-card > button { grid-column: 1 / -1; width: 100%; }
+  .status-center-meta { grid-template-columns: 1fr; }
+  .status-center-meta > div + div { border-top: 1px solid var(--border); border-left: 0; }
+  .admin-quality-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .admin-quality-kpis article:first-child { grid-column: 1 / -1; }
+  .admin-quality-list article { grid-template-columns: minmax(0, 1fr); }
+  .admin-quality-list article > button { width: 100%; }
+  .admin-quality-score { width: 100%; text-align: left; }
+}
+
+@media (max-width: 31rem) {
+  .diagnostics-toolbar > button { width: 100%; }
+  .fire-sequence-controls { grid-template-columns: 1fr; }
+}
+
+@media (prefers-contrast: more) {
+  :root { --border: color-mix(in srgb, var(--text) 72%, transparent); }
+  .song-card, .primary-button, .secondary-button, .icon-button, input, select { border-width: 2px; }
+}
+
+@media (forced-colors: active) {
+  .status-progress i, .song-progress-track span, .fire-stage-progress > i > b { background: Highlight; }
+  .quality-badge, .status-badge, .connection-badge { forced-color-adjust: auto; }
 }
 
 @page song-a4 { size: A4 portrait; margin: 14mm; }

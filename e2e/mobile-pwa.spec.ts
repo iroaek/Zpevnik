@@ -192,6 +192,53 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
   expect(reducedDuration).toBeLessThanOrEqual(0.001);
 });
 
+test('vizuální kontrola zachytí mobil, tablet, desktop i landscape bez rozpadu rozložení', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-390x844', 'Sada viewportů se pořizuje jen jednou.');
+  const viewports = [
+    ['iphone-small', 320, 568],
+    ['phone', 390, 844],
+    ['tablet', 768, 1024],
+    ['desktop', 1440, 1000],
+    ['landscape', 844, 390],
+  ] as const;
+
+  for (const [name, width, height] of viewports) {
+    await page.setViewportSize({ width, height });
+    for (const route of ['songs', 'songs/synteticka-jiskra'] as const) {
+      await page.goto(route);
+      await expect(route === 'songs'
+        ? page.getByRole('heading', { name: 'Písně', exact: true, level: 1 })
+        : page.getByRole('heading', { name: 'Syntetická jiskra' })).toBeVisible();
+      await expectNoPageOverflow(page);
+      const brokenContainers = await page.locator('.song-card, .reader-performance-surface, .reader-toolbar, .field-actions').evaluateAll((elements) => elements.filter((element) => {
+        const style = getComputedStyle(element);
+        return style.display !== 'none' && element.scrollWidth > element.clientWidth + 1;
+      }).map((element) => element.className));
+      expect(brokenContainers).toEqual([]);
+      await testInfo.attach(`${name}-${route.replaceAll('/', '-')}`, {
+        body: await page.screenshot({ fullPage: true, animations: 'disabled' }),
+        contentType: 'image/png',
+      });
+    }
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const route of ['settings', 'offline'] as const) {
+    await page.goto(route);
+    await expect(page.locator('h1')).toBeVisible();
+    await expectNoPageOverflow(page);
+    const narrowColumns = await page.locator('.settings-grid > label, .cloud-sync-card > span, .offline-actions article').evaluateAll((elements) => elements.filter((element) => {
+      const style = getComputedStyle(element);
+      return style.display !== 'none' && element.getBoundingClientRect().width < 220;
+    }).map((element) => element.className));
+    expect(narrowColumns).toEqual([]);
+    await testInfo.attach(`phone-${route}`, {
+      body: await page.screenshot({ fullPage: true, animations: 'disabled' }),
+      contentType: 'image/png',
+    });
+  }
+});
+
 test('deep linky načtou píseň, setlist, import PDF, instalaci, offline obsah a nápovědu', async ({ page }) => {
   await page.goto('songs/synteticka-jiskra');
   await expect(page.getByRole('heading', { name: 'Syntetická jiskra' })).toBeVisible();

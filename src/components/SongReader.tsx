@@ -152,6 +152,17 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
     return () => window.clearTimeout(timer);
   }, [countdown]);
 
+  useEffect(() => {
+    if (!settingsOpen && !correctionOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      if (correctionOpen) setCorrectionOpen(false);
+      else setSettingsOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [correctionOpen, settingsOpen]);
+
   const parsedSource = useMemo(() => source && !isLayoutText ? parseChordPro(source) : null, [isLayoutText, source]);
   const sourceNotation = metadataValue(parsedSource?.metadata ?? {}, 'chord_notation') === 'international' ? 'international' : 'czech';
   const targetKey = useMemo(() => {
@@ -230,17 +241,22 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
     else await document.documentElement.requestFullscreen?.();
   };
 
-  const toggleFireMode = () => {
+  const toggleFireMode = async () => {
     const next = !fireMode;
     if (next) {
       setStageControlsVisible(true);
       setStageLocked(false);
+      if (!wakeLock && navigator.wakeLock) await toggleWakeLock();
+    } else {
+      setAutoScroll(false);
+      setCountdown(null);
+      if (wakeLock) await toggleWakeLock();
     }
     setFireMode(next);
   };
 
   const revealStageControls = () => {
-    if (!fireMode) return;
+    if (!fireMode || stageLocked) return;
     setStageControlsVisible(true);
   };
 
@@ -345,7 +361,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
               <button type="button" className="icon-button reader-settings-button" aria-label="Otevřít nastavení zobrazení" onClick={() => setSettingsOpen(true)}>Aa</button>
               <button type="button" className="icon-button" aria-label="Nahlásit nebo lokálně opravit píseň" onClick={() => openCorrection()}><Icon name="flag" /></button>
               <button type="button" className="icon-button" aria-label="Celoobrazovkový režim" onClick={toggleFullscreen}><Icon name="expand" /></button>
-              <button type="button" className="icon-button fire-button" aria-label="Pódiový režim" aria-pressed={fireMode} onClick={toggleFireMode}><Icon name="fire" /><span>Pódium</span></button>
+              <button type="button" className="icon-button fire-button" aria-label="Pódiový režim" aria-pressed={fireMode} onClick={() => void toggleFireMode()}><Icon name="fire" /><span>Pódium</span></button>
             </div>
           </section>
           {!isLayoutText && <div className={`reader-segmented ${settings.showChords ? '' : 'reader-segmented--lyrics'}`} role="group" aria-label="Zobrazení textu"><span aria-hidden="true" /><button type="button" aria-pressed={settings.showChords} onClick={() => updateSettings({ showChords: true })}>Akordy + text</button><button type="button" aria-pressed={!settings.showChords} onClick={() => updateSettings({ showChords: false })}>Pouze text</button></div>}
@@ -376,6 +392,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
           {fireMode && <>
             <button type="button" className={`stage-wake-button ${stageControlsVisible ? 'stage-wake-button--hidden' : ''}`} aria-label={stageLocked ? 'Odemknout a zobrazit pódiové ovládání' : 'Zobrazit pódiové ovládání'} onClick={() => { if (stageLocked) setStageLocked(false); setStageControlsVisible(true); }}>{stageLocked ? '🔒' : '•••'}</button>
             <div className={`fire-dock ${stageControlsVisible ? '' : 'fire-dock--hidden'}`} aria-label="Rychlé pódiové ovládání" aria-hidden={!stageControlsVisible}>
+              <div className="fire-stage-progress" role="progressbar" aria-label="Postup písně v pódiovém režimu" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(readerProgress * 100)}><span><strong>{Math.round(readerProgress * 100)} %</strong><small>postup písně</small></span><i><b style={{ width: `${Math.round(readerProgress * 100)}%` }} /></i></div>
               <div className="fire-font-control" role="group" aria-label="Velikost textu">
                 <span>Text</span>
                 <button type="button" aria-label="Zmenšit pódiový text" disabled={readerPreferences.stageFontSize <= 14} onClick={() => updateReaderPreferences({ stageFontSize: Math.max(14, readerPreferences.stageFontSize - 2) })}>A−</button>
@@ -385,7 +402,8 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
               <label className="fire-speed-control"><span>Rychlost</span><input type="range" min="5" max="100" value={settings.autoScrollSpeed} onChange={(event) => updateSettings({ autoScrollSpeed: Number(event.target.value) })} /><output>{settings.autoScrollSpeed}</output></label>
               <button type="button" className={autoScroll ? 'primary-button' : 'secondary-button'} onClick={() => setAutoScroll((value) => !value)}>{autoScroll ? '■ Pauza' : '▶ Posun'}</button>
               <button type="button" className="secondary-button" aria-pressed={stageLocked} onClick={() => { setStageLocked((value) => !value); setStageControlsVisible(false); }}>{stageLocked ? 'Odemknout' : 'Zamknout'}</button>
-              <button type="button" className="secondary-button fire-exit-button" aria-label="Ukončit pódiový režim" onClick={toggleFireMode}>Zavřít</button>
+              <button type="button" className="secondary-button fire-exit-button" aria-label="Ukončit pódiový režim" onClick={() => void toggleFireMode()}>Zavřít</button>
+              {(previousSong || nextSong) && <nav className="fire-sequence-controls" aria-label="Přechod mezi písněmi v setlistu"><button type="button" disabled={!previousSong} onClick={onPreviousSong}><Icon name="chevronLeft" /><span><small>Předchozí</small><strong>{previousSong?.title ?? 'Začátek'}</strong></span></button><button type="button" disabled={!nextSong} onClick={onNextSong}><span><small>Další</small><strong>{nextSong?.title ?? 'Konec'}</strong></span><Icon name="chevronRight" /></button></nav>}
             </div>
           </>}
           {!fireMode && <button type="button" className={`performance-fab ${autoScroll ? 'performance-fab--active' : ''}`} aria-label={autoScroll ? 'Pozastavit automatický posun' : countdown !== null ? 'Zrušit odpočet' : 'Spustit odpočet a automatický posun'} aria-pressed={autoScroll} onClick={performanceAction}><span aria-hidden="true">{countdown !== null ? countdown : <Icon name={autoScroll ? 'pause' : 'play'} size={23} />}</span><small>{autoScroll ? 'Pauza' : countdown !== null ? 'Start' : 'Posun'}</small></button>}

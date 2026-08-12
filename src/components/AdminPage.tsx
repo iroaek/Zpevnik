@@ -1,4 +1,5 @@
 import { lazy, Suspense, useState } from 'react';
+import type { Song } from '../domain/song';
 import type { CloudSyncState } from '../hooks/useCloudUserState';
 import { AdminAccessPanel } from './AdminAccessPanel';
 import { AdminOverview } from './AdminOverview';
@@ -6,11 +7,12 @@ import { AdminUsersPanel } from './AdminUsersPanel';
 import { QrCodeGenerator } from './QrCodeGenerator';
 import { Icon, type IconName } from '../ui/Icon';
 
-type AdminTab = 'overview' | 'users' | 'requests' | 'songs' | 'corrections' | 'system';
+type AdminTab = 'overview' | 'users' | 'requests' | 'songs' | 'quality' | 'corrections' | 'system';
 
 const AdminCorrectionsPanel = lazy(() => import('./AdminCorrectionsPanel').then((module) => ({ default: module.AdminCorrectionsPanel })));
+const AdminLibraryQualityPanel = lazy(() => import('./AdminLibraryQualityPanel').then((module) => ({ default: module.AdminLibraryQualityPanel })));
 
-export function AdminPage({ cloudSync, online, onNavigate, catalogVersion = '', downloadedSongs = 0, availableSongs = 0 }: { cloudSync: CloudSyncState; online: boolean; onNavigate: (path: string) => void; catalogVersion?: string; downloadedSongs?: number; availableSongs?: number }) {
+export function AdminPage({ cloudSync, online, onNavigate, onOpenSong = () => undefined, songs = [], catalogVersion = '', downloadedSongs = 0, availableSongs = 0 }: { cloudSync: CloudSyncState; online: boolean; onNavigate: (path: string) => void; onOpenSong?: (id: string) => void; songs?: Song[]; catalogVersion?: string; downloadedSongs?: number; availableSongs?: number }) {
   const [tab, setTab] = useState<AdminTab>('overview');
   const pendingLabel = cloudSync.pendingCount
     ? `${cloudSync.pendingCount} ${cloudSync.pendingCount === 1 ? 'změna čeká na odeslání' : cloudSync.pendingCount < 5 ? 'změny čekají na odeslání' : 'změn čeká na odeslání'}`
@@ -20,6 +22,7 @@ export function AdminPage({ cloudSync, online, onNavigate, catalogVersion = '', 
     ['users', 'Uživatelé', 'Databáze členů a jejich dostupnost', 'users'],
     ['requests', 'Žádosti', 'Schválení nových registrací', 'shield'],
     ['songs', 'Písně', 'Návrhy a nahrané soubory', 'music'],
+    ['quality', 'Kvalita', 'Akordy, text, duplicity a práva', 'check'],
     ['corrections', 'Opravy', 'Porovnání, rozhodnutí a historie', 'edit'],
     ['system', 'Systém', 'Synchronizace, instalace a QR kódy', 'settings'],
   ];
@@ -32,6 +35,7 @@ export function AdminPage({ cloudSync, online, onNavigate, catalogVersion = '', 
       {tab === 'users' && <AdminUsersPanel />}
       {tab === 'requests' && <AdminAccessPanel mode="accounts" />}
       {tab === 'songs' && <AdminAccessPanel mode="songs" />}
+      {tab === 'quality' && <Suspense fallback={<p role="status">Analyzuji kvalitu knihovny…</p>}><AdminLibraryQualityPanel songs={songs} onOpenSong={onOpenSong} /></Suspense>}
       {tab === 'corrections' && <Suspense fallback={<p role="status">Načítám centrum oprav…</p>}><AdminCorrectionsPanel /></Suspense>}
       {tab === 'system' && <div className="admin-system-grid"><section className={`cloud-sync-card cloud-sync-card--${cloudSync.status}`}><span className="cloud-sync-icon" aria-hidden="true"><Icon name="sync" /></span><span><small>Stav aplikace</small><strong>{pendingLabel ?? (online ? 'Server je dostupný' : 'Zařízení je offline')}</strong><p>{cloudSync.status === 'synced' ? 'Uživatelská data jsou synchronizovaná.' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Probíhá synchronizace…' : cloudSync.error ?? 'Synchronizace čeká na připojení.'}</p></span><button type="button" className="secondary-button" disabled={!online || cloudSync.status === 'syncing' || cloudSync.status === 'loading'} onClick={() => void cloudSync.refresh()}><Icon name="sync" />Synchronizovat</button></section><section className="admin-library-health"><header><span><small>Obsahová knihovna</small><h2>Stav katalogu</h2></span><Icon name="database" /></header><dl><div><dt>Verze</dt><dd>{catalogVersion.slice(0, 12) || '—'}</dd></div><div><dt>Dostupné písně</dt><dd>{availableSongs}</dd></div><div><dt>Staženo v zařízení</dt><dd>{downloadedSongs}</dd></div></dl><button type="button" className="secondary-button" onClick={() => onNavigate('offline')}><Icon name="download" />Spravovat offline obsah</button></section><QrCodeGenerator /><section className="backup-card"><h2>Provozní nástroje</h2><p>Stažené balíčky a aktualizace aplikace spravujete v Offline obsahu.</p><div className="button-row"><button type="button" className="secondary-button" onClick={() => onNavigate('offline')}>Offline obsah</button><button type="button" className="secondary-button" onClick={() => onNavigate('settings')}>Běžné nastavení</button></div></section></div>}
     </div>

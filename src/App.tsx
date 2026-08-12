@@ -21,7 +21,7 @@ import { useUserState } from './hooks/useUserState';
 import { loadLatestCatalog } from './pwa/contentCache';
 import { canonicalUrl, relativeRoute, routePath } from './pwa/paths';
 import { activateWaitingUpdate, hasWaitingUpdate } from './pwa/updateManager';
-import { addRecent, createSetlist, createUserProfile, isDownloadedLibrarySong, loadPersonalSongs, removePersonalSong, removeProtectedSong, toggleFavorite, updateSetlistSongs } from './storage/database';
+import { addRecent, createSetlist, createUserProfile, isDownloadedLibrarySong, loadPersonalSongs, recordDiagnostic, removePersonalSong, removeProtectedSong, toggleFavorite, updateSetlistSongs } from './storage/database';
 import type { PersonalLibrarySummary } from './personalLibrary';
 import { routeMotionDirection, runRouteTransition, scrollWindowInstantly } from './ui/motion';
 import { Icon } from './ui/Icon';
@@ -104,7 +104,7 @@ function parseRoute(pathname = window.location.pathname): Route {
   if (relative === 'offline') return { name: 'offline' };
   if (relative === 'install') return { name: 'install' };
   if (relative === 'help') return { name: 'help' };
-  if (relative === 'diagnostics' && import.meta.env.DEV) return { name: 'diagnostics' };
+  if (relative === 'diagnostics') return { name: 'diagnostics' };
   const song = relative.match(/^songs\/([a-z0-9-]+)$/);
   if (song) return { name: 'song', id: song[1] };
   const setlist = relative.match(/^setlists\/([a-z0-9-]+)$/);
@@ -262,9 +262,18 @@ export default function App() {
   }, [protectedContentOwnerId, secureAccount.enabled, secureAccount.hydrated]);
 
   useEffect(() => {
-    const available = () => setUpdateAvailable(true);
-    const offlineReady = () => setSystemMessage('Základ aplikace je uložený. Písně a noty stáhnete v Offline obsahu.');
-    const updateError = (event: Event) => setSystemMessage(friendlyError((event as CustomEvent<string>).detail, 'Aktualizace se nezdařila. Zkuste ji spustit znovu v Offline obsahu.'));
+    const available = () => {
+      setUpdateAvailable(true);
+      void recordDiagnostic({ category: 'pwa', event: 'update_available', level: 'info' }).catch(() => undefined);
+    };
+    const offlineReady = () => {
+      setSystemMessage('Základ aplikace je uložený. Písně a noty stáhnete v Offline obsahu.');
+      void recordDiagnostic({ category: 'pwa', event: 'offline_shell_ready', level: 'info' }).catch(() => undefined);
+    };
+    const updateError = (event: Event) => {
+      setSystemMessage(friendlyError((event as CustomEvent<string>).detail, 'Aktualizace se nezdařila. Zkuste ji spustit znovu v Offline obsahu.'));
+      void recordDiagnostic({ category: 'pwa', event: 'update_failed', level: 'error' }).catch(() => undefined);
+    };
     window.addEventListener('zpevnik:update-available', available);
     window.addEventListener('zpevnik:offline-shell-ready', offlineReady);
     window.addEventListener('zpevnik:update-error', updateError);
@@ -399,11 +408,11 @@ export default function App() {
         {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id) => navigate(`setlists/${id}`)} secureProfile={secureAccount.profile} online={online} />}
         {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} />}
         {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} cloudSync={cloudSync} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} onRefreshSecureProfile={secureAccount.refresh} onOpenGuide={() => setFirstRunOpen(true)} />}
-        {route.name === 'admin' && secureAccount.enabled && secureAccount.profile?.role === 'admin' && <AdminPage cloudSync={cloudSync} online={online} onNavigate={navigate} catalogVersion={catalog.version} downloadedSongs={downloadedLibrarySongs.length} availableSongs={allSongs.length} />}
+        {route.name === 'admin' && secureAccount.enabled && secureAccount.profile?.role === 'admin' && <AdminPage cloudSync={cloudSync} online={online} onNavigate={navigate} onOpenSong={openSong} songs={allSongs} catalogVersion={catalog.version} downloadedSongs={downloadedLibrarySongs.length} availableSongs={allSongs.length} />}
         {route.name === 'offline' && <OfflineContent catalog={catalog} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} offlineGrant={secureAccount.offlineGrant} downloadedLibrarySongs={downloadedLibrarySongs} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
         {route.name === 'install' && <InstallPage canPrompt={installPrompt.canPrompt} installed={installPrompt.installed} isIosLike={installPrompt.isIosLike} onInstall={installPrompt.install} onNavigate={navigate} />}
         {route.name === 'help' && <HelpPage onNavigate={navigate} />}
-        {route.name === 'diagnostics' && import.meta.env.DEV && <DiagnosticsPage onBack={() => navigate('settings')} />}
+        {route.name === 'diagnostics' && <DiagnosticsPage onBack={() => navigate('settings')} />}
         {route.name === 'song' && selectedSong && <SongReader key={selectedSong.id} song={selectedSong} catalogVersion={catalog.version} userState={userState} secureProfile={secureAccount.profile} onUserStateChange={setUserState} onBack={() => navigate(readerSequence.length ? 'setlists' : 'songs')} previousSong={previousReaderSong} nextSong={nextReaderSong} onPreviousSong={previousReaderSong ? () => openReaderSibling(previousReaderSong) : undefined} onNextSong={nextReaderSong ? () => openReaderSibling(nextReaderSong) : undefined} />}
         {route.name === 'public-setlist' && selectedPublicSetlist && <PublicSetlistPage setlist={selectedPublicSetlist} songs={catalog.songs} onOpenSong={(id) => openSong(id, selectedPublicSetlist.songIds)} onBack={() => navigate('setlists')} />}
         {((route.name === 'song' && !selectedSong) || (route.name === 'public-setlist' && !selectedPublicSetlist) || (route.name === 'admin' && (!secureAccount.enabled || secureAccount.profile?.role !== 'admin')) || route.name === 'not-found') && <section className="info-page not-found"><p className="eyebrow">404</p><h1>Tato stránka ve zpěvníku není</h1><p>Odkaz může být starý nebo chybný.</p><button type="button" className="primary-button" onClick={() => navigate('')}>Přejít na písně</button></section>}
@@ -416,7 +425,7 @@ export default function App() {
         <button type="button" className={navScreen === 'offline' ? 'active' : ''} aria-current={navScreen === 'offline' ? 'page' : undefined} onPointerEnter={() => void loadOfflineContent()} onFocus={() => void loadOfflineContent()} onClick={() => navigate('offline')}><Icon name="download" />Offline</button>
         <button type="button" className={navScreen === 'settings' ? 'active' : ''} aria-current={navScreen === 'settings' ? 'page' : undefined} onPointerEnter={() => void loadSettings()} onFocus={() => void loadSettings()} onClick={() => navigate('settings')}><Icon name="settings" />Nastavení</button>
       </nav>}
-      <AppStatusCenter open={statusCenterOpen} online={online} profile={secureAccount.profile} offlineAuthenticated={secureAccount.authState.status === 'authenticated-offline'} cloudSync={cloudSync} downloadedSongs={downloadedLibrarySongs.length} availableSongs={allSongs.length} catalogVersion={catalog.version} onClose={() => setStatusCenterOpen(false)} onNavigate={navigate} />
+      <AppStatusCenter open={statusCenterOpen} online={online} profile={secureAccount.profile} offlineAuthenticated={secureAccount.authState.status === 'authenticated-offline'} cloudSync={cloudSync} downloadedSongs={downloadedLibrarySongs.length} availableSongs={allSongs.length} catalogVersion={catalog.version} updateAvailable={updateAvailable} onUpdateAvailable={() => setUpdateAvailable(true)} onInstallUpdate={activateWaitingUpdate} onClose={() => setStatusCenterOpen(false)} onNavigate={navigate} />
       {firstRunOpen && <FirstRunGuide userId={userProfile.id} role={userProfile.role} onClose={() => setFirstRunOpen(false)} onNavigate={navigate} />}
     </div>
   );

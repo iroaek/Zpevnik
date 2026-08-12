@@ -11,6 +11,23 @@ export default defineConfig(({ mode }) => {
 
   return {
     base: basePath,
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            const moduleId = id.replaceAll('\\', '/');
+            if (!moduleId.includes('/node_modules/')) return undefined;
+            if (/\/node_modules\/(react|react-dom|scheduler)\//.test(moduleId)) return 'react-core';
+            if (moduleId.includes('/node_modules/@neondatabase/')) return 'neon-data';
+            if (/\/node_modules\/(zod|idb)\//.test(moduleId)) return 'validation-storage';
+            if (/\/node_modules\/(pdfjs-dist|sql\.js|csv-parse)\//.test(moduleId)) return 'pdf-engine';
+            if (/\/node_modules\/(opensheetmusicdisplay|jszip|fast-xml-parser)\//.test(moduleId)) return 'music-renderer';
+            if (moduleId.includes('/node_modules/qrcode/')) return 'qr-renderer';
+            return undefined;
+          },
+        },
+      },
+    },
     plugins: [
       personalLibraryPlugin(process.cwd(), mode !== 'mobile'),
       {
@@ -60,6 +77,8 @@ export default defineConfig(({ mode }) => {
             'personal-library/**/*',
             'assets/opensheetmusicdisplay*.js',
             'assets/jszip*.js',
+            'assets/music-renderer*.js',
+            'assets/pdf-engine*.js',
           ],
           navigateFallback: `${basePath}index.html`,
           cleanupOutdatedCaches: true,
@@ -75,7 +94,7 @@ export default defineConfig(({ mode }) => {
               },
             },
             {
-              urlPattern: /\/assets\/(?:opensheetmusicdisplay|jszip)[^/]*\.js$/,
+              urlPattern: /\/assets\/(?:opensheetmusicdisplay|jszip|music-renderer|pdf-engine)[^/]*\.js$/,
               handler: 'CacheFirst',
               options: {
                 cacheName: 'zpevnik-score-renderer-v2',

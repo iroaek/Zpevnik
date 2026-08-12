@@ -106,6 +106,17 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
     return () => window.removeEventListener('scroll', update);
   }, []);
 
+  useEffect(() => {
+    if (!quickSongId) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setQuickSongId(null);
+      setConfirmDelete(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [quickSongId]);
+
   const options = useMemo(() => ({
     keys: [...new Set(songs.map((song) => song.originalKey).filter(Boolean))] as string[],
     languages: [...new Set(songs.map((song) => song.language))],
