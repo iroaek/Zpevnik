@@ -70,6 +70,46 @@ describe('migrace IndexedDB', () => {
     expect(await databaseModule.loadSongSubmissions()).toContainEqual(submission);
   });
 
+  it('uchová offline přihlášení pro další otevření aplikace', async () => {
+    const databaseModule = await import('./database');
+    const userId = '11111111-1111-4111-8111-111111111111';
+    const record = {
+      schemaVersion: 1 as const,
+      provider: 'neon-auth' as const,
+      token: 'synthetic.signed.grant',
+      payload: {
+        version: 1 as const,
+        issuer: 'https://auth.example.test',
+        audience: 'https://auth.example.test',
+        subject: userId,
+        displayName: 'Testovací člen',
+        scopes: ['songs:read'],
+        contentPackages: ['members'],
+        contentVersion: 'abcdef123456',
+        issuedAt: '2026-08-11T00:00:00.000Z',
+        notBefore: '2026-08-11T00:00:00.000Z',
+        offlineValidUntil: '2026-09-10T00:00:00.000Z',
+        keyId: 'synthetic-key',
+        deviceId: 'synthetic-device',
+      },
+      profile: {
+        id: userId,
+        auth_user_id: userId,
+        email: 'clen@example.test',
+        display_name: 'Testovací člen',
+        status: 'approved' as const,
+        role: 'member' as const,
+        created_at: '2026-08-11T00:00:00.000Z',
+        reviewed_at: '2026-08-11T00:00:00.000Z',
+        last_seen_at: '2026-08-11T00:00:00.000Z',
+      },
+      verifiedAt: '2026-08-11T00:00:00.000Z',
+    };
+
+    await databaseModule.saveOfflineGrantRecord(record);
+    expect(await databaseModule.loadOfflineGrantRecord()).toEqual(record);
+  });
+
   it('uloží osobní píseň i její ChordPro obsah odděleně', async () => {
     const databaseModule = await import('./database');
     const song = personalSongFixture('personal-upload-synteticka', 'Syntetický import');

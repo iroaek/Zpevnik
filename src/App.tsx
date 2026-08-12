@@ -18,6 +18,8 @@ import { Settings } from './components/Settings';
 import { SongReader } from './components/SongReader';
 import { UpdateBanner } from './components/UpdateBanner';
 import { DiagnosticsPage } from './components/DiagnosticsPage';
+import { FirstRunGuide } from './components/FirstRunGuide';
+import { hasCompletedFirstRunGuide } from './components/firstRunState';
 import { catalogSchema, type Catalog } from './domain/song';
 import { useConnectivity } from './hooks/useConnectivity';
 import { useCloudUserState } from './hooks/useCloudUserState';
@@ -100,9 +102,16 @@ export default function App() {
   const [updateAvailable, setUpdateAvailable] = useState(hasWaitingUpdate);
   const [systemMessage, setSystemMessage] = useState('');
   const [readerSequence, setReaderSequence] = useState<string[]>([]);
+  const [firstRunOpen, setFirstRunOpen] = useState(false);
   const libraryScroll = useRef(0);
   const online = useConnectivity();
   const installPrompt = useInstallPrompt();
+
+  useEffect(() => {
+    if (import.meta.env.MODE === 'e2e' || !userProfile || hasCompletedFirstRunGuide(userProfile.id)) return;
+    const timer = window.setTimeout(() => setFirstRunOpen(true), 450);
+    return () => window.clearTimeout(timer);
+  }, [userProfile]);
 
   useEffect(() => {
     const serverProfile = secureAccount.profile;
@@ -300,7 +309,7 @@ export default function App() {
         {route.name === 'library' && <Library entry={route.entry} songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} setlists={userState.setlists} onOpenSong={(id) => openSong(id)} onToggleFavorite={(id) => setUserState((current) => toggleFavorite(current, id))} onAddToSetlist={(songId, setlistId) => setUserState((current) => { const setlist = current.setlists.find((candidate) => candidate.id === setlistId); return !setlist || setlist.songIds.includes(songId) ? current : updateSetlistSongs(current, setlistId, [...setlist.songIds, songId]); })} onAddToTonight={addToTonightSetlist} onDeleteSong={deleteDeviceSong} onNotify={setSystemMessage} />}
         {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id) => navigate(`setlists/${id}`)} />}
         {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} />}
-        {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} cloudSync={cloudSync} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} onRefreshSecureProfile={secureAccount.refresh} />}
+        {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} cloudSync={cloudSync} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} onRefreshSecureProfile={secureAccount.refresh} onOpenGuide={() => setFirstRunOpen(true)} />}
         {route.name === 'admin' && secureAccount.enabled && secureAccount.profile?.role === 'admin' && <AdminPage cloudSync={cloudSync} online={online} onNavigate={navigate} />}
         {route.name === 'offline' && <OfflineContent catalog={catalog} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} offlineGrant={secureAccount.offlineGrant} downloadedLibrarySongs={downloadedLibrarySongs} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
         {route.name === 'install' && <InstallPage canPrompt={installPrompt.canPrompt} installed={installPrompt.installed} isIosLike={installPrompt.isIosLike} onInstall={installPrompt.install} onNavigate={navigate} />}
@@ -318,6 +327,7 @@ export default function App() {
         <button type="button" className={navScreen === 'offline' ? 'active' : ''} aria-current={navScreen === 'offline' ? 'page' : undefined} onClick={() => navigate('offline')}><span aria-hidden="true">⇩</span>Offline</button>
         <button type="button" className={navScreen === 'settings' ? 'active' : ''} aria-current={navScreen === 'settings' ? 'page' : undefined} onClick={() => navigate('settings')}><span aria-hidden="true">⚙</span>Nastavení</button>
       </nav>}
+      {firstRunOpen && <FirstRunGuide userId={userProfile.id} role={userProfile.role} onClose={() => setFirstRunOpen(false)} onNavigate={navigate} />}
     </div>
   );
 }

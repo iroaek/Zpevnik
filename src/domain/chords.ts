@@ -63,7 +63,9 @@ const INTERNATIONAL_NOTES: Record<string, CanonicalPitch> = {
   B: { pitchClass: 11, accidental: 'natural' },
 };
 
-const CZECH_SHARPS = ['C', 'Cis', 'D', 'Dis', 'E', 'F', 'Fis', 'G', 'Gis', 'A', 'Ais', 'H'];
+// V českém značení zůstává H/B, ale zvýšené C zobrazujeme běžnějším a
+// jednoznačnějším zápisem C#. Parser nadále přijímá i starší vstup `Cis`.
+const CZECH_SHARPS = ['C', 'C#', 'D', 'Dis', 'E', 'F', 'Fis', 'G', 'Gis', 'A', 'Ais', 'H'];
 const CZECH_FLATS = ['C', 'Des', 'D', 'Es', 'E', 'F', 'Ges', 'G', 'As', 'A', 'B', 'H'];
 const INTERNATIONAL_SHARPS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const INTERNATIONAL_FLATS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -72,6 +74,18 @@ function splitQuality(suffix: string): Pick<CanonicalChord, 'quality' | 'extensi
   const qualityMatch = suffix.match(/^(maj|min|dim|aug|sus|m|\+|−|-|°|ø)/i);
   if (!qualityMatch) return { quality: '', extension: suffix };
   return { quality: qualityMatch[0], extension: suffix.slice(qualityMatch[0].length) };
+}
+
+const VALID_CHORD_SUFFIX_PATTERN = /^(?:(?:maj|min|mi|dim|aug|sus|add|no|m|M)|\d{1,2}|[#b/+\-−°ø(),])*$/;
+
+export function isValidChordSymbol(input: string, notation: ChordNotation): boolean {
+  const parsed = parseChord(input, notation);
+  return Boolean(parsed && VALID_CHORD_SUFFIX_PATTERN.test(`${parsed.quality}${parsed.extension}`));
+}
+
+export function normalizeCSharpSpelling(input: string, notation: ChordNotation): string {
+  if (notation !== 'czech') return input;
+  return input.replace(/^Cis/, 'C#').replace(/\/Cis$/, '/C#');
 }
 
 function matchNote(input: string, notation: ChordNotation): [CanonicalPitch, string] | null {

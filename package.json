@@ -17,6 +17,7 @@
     "import:data": "tsx scripts/import-data.ts",
     "import:pdf-songbooks": "python scripts/import-pdf-songbooks.py",
     "build:private-library": "tsx scripts/build-private-library.ts",
+    "audit:private-library": "tsx scripts/audit-private-library.ts",
     "upload:neon-content": "tsx scripts/upload-neon-content.ts",
     "encrypt:personal-library": "tsx scripts/encrypt-personal-library.ts",
     "lint": "eslint .",

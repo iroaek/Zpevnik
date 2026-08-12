@@ -1,3 +1,5 @@
+import { isValidChordSymbol } from './chords.js';
+
 export interface ChordToken {
   chord: string | null;
   lyric: string;
@@ -36,7 +38,9 @@ export function sanitizeImportedText(value: string): string {
 }
 
 export function stripChords(line: string): string {
-  return line.replace(/\[[^\]]{1,64}\]/g, '').trim();
+  return line.replace(/\[([^\]\n[]{1,64})\]/g, (token, candidate: string) => (
+    isValidChordSymbol(candidate.trim(), 'czech') || isValidChordSymbol(candidate.trim(), 'international') ? '' : token
+  )).trim();
 }
 
 export function parseChordLine(line: string): ChordToken[] {
@@ -44,14 +48,16 @@ export function parseChordLine(line: string): ChordToken[] {
   // význam a na úzkém displeji vytváří falešné prázdné sloupce.
   line = line.trimStart();
   const tokens: ChordToken[] = [];
-  const matcher = /\[([^\]\n]{1,64})\]/g;
+  const matcher = /\[([^\]\n[]{1,64})\]/g;
   let cursor = 0;
   let activeChord: string | null = null;
   let match: RegExpExecArray | null;
   while ((match = matcher.exec(line)) !== null) {
+    const candidate = match[1].trim();
+    if (!isValidChordSymbol(candidate, 'czech') && !isValidChordSymbol(candidate, 'international')) continue;
     const lyric = line.slice(cursor, match.index);
     if (lyric || activeChord !== null) tokens.push({ chord: activeChord, lyric });
-    activeChord = match[1].trim();
+    activeChord = candidate;
     cursor = matcher.lastIndex;
   }
   const tail = line.slice(cursor);

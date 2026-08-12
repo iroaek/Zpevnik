@@ -1,5 +1,5 @@
 import { sanitizeImportedText, stripChords } from './chordpro.js';
-import { parseChord, renderPitch, type ChordNotation } from './chords.js';
+import { isValidChordSymbol, normalizeCSharpSpelling, parseChord, renderPitch, type ChordNotation } from './chords.js';
 
 export interface LayoutConversionOptions {
   title: string;
@@ -21,7 +21,6 @@ interface ChordMarker {
   index: number;
 }
 
-const SUFFIX_PATTERN = /^(?:(?:maj|min|mi|dim|aug|sus|add|no|m|M)|\d{1,2}|[#b/+\-−°ø(),])*$/;
 const BEAT_SEPARATOR_PATTERN = /^(?:[-–—_.]+|[|:]+)$/;
 const UNKNOWN_GLYPH_PATTERN = /�|\(cid:\d+\)/;
 
@@ -39,9 +38,8 @@ export function recognizedChord(rawToken: string, notation: ChordNotation): stri
   if (token.startsWith('(') && token.endsWith(')')) token = token.slice(1, -1);
   token = token.replace(/^_+|[_*]+$/g, '').replace(/5-$/, 'b5');
   if (!token || token.length > 24) return null;
-  const parsed = parseChord(token, notation);
-  if (!parsed || !SUFFIX_PATTERN.test(`${parsed.quality}${parsed.extension}`)) return null;
-  return token;
+  if (!isValidChordSymbol(token, notation)) return null;
+  return normalizeCSharpSpelling(token, notation);
 }
 
 export function chordMarkers(line: string, notation: ChordNotation): ChordMarker[] {
@@ -84,9 +82,11 @@ export function findLikelyMalformedChordTokens(source: string, notation: ChordNo
 }
 
 function inlineChordLine(chordLine: string, lyricLine: string, notation: ChordNotation): { line: string; markers: ChordMarker[] } {
-  const markers = chordMarkers(chordLine, notation);
-  const requiredLength = Math.max(lyricLine.length, ...markers.map((marker) => marker.index));
-  const paddedLyric = lyricLine.padEnd(requiredLength, ' ');
+  const expandedChordLine = chordLine.replaceAll('\t', '    ');
+  const markers = chordMarkers(expandedChordLine, notation);
+  const expandedLyric = lyricLine.replaceAll('\t', '    ');
+  const requiredLength = Math.max(expandedLyric.length, ...markers.map((marker) => marker.index));
+  const paddedLyric = expandedLyric.padEnd(requiredLength, ' ');
   let cursor = 0;
   let output = '';
   for (const marker of markers) {
@@ -123,6 +123,16 @@ function removeDetectedHeaders(lines: string[], title: string, artist?: string):
   });
 }
 
+function canReceiveChordLine(line: string, notation: ChordNotation): boolean {
+  const trimmed = line.trim();
+  if (!trimmed || looksLikeChordLine(line, notation)) return false;
+  if (/^\{[^}]+\}$/.test(trimmed)) return false;
+  if (/^\(?\s*(?:capo|kapo)\b.*\)?$/i.test(trimmed)) return false;
+  if (/^(?:úvod|intro|mezihra|outro|solo|ref(?:rén)?|r)\s*:?\s*$/i.test(trimmed)) return false;
+  if (/^(?:[EADGBeH]\|\||.*[-|]{6,})/.test(trimmed)) return false;
+  return true;
+}
+
 export function convertLayoutTextToChordPro(source: string, options: LayoutConversionOptions): LayoutConversionResult {
   const sanitized = sanitizeImportedText(source);
   const lines = removeDetectedHeaders(sanitized.split('\n'), options.title, options.artist);
@@ -135,13 +145,15 @@ export function convertLayoutTextToChordPro(source: string, options: LayoutConve
       body.push(line);
       continue;
     }
-    const nextLine = lines[index + 1];
-    const conversion = nextLine?.trim() && !looksLikeChordLine(nextLine, options.sourceNotation)
+    let lyricIndex = index + 1;
+    while (lyricIndex < lines.length && !lines[lyricIndex].trim() && lyricIndex - index <= 3) lyricIndex += 1;
+    const nextLine = lines[lyricIndex];
+    const conversion = nextLine && canReceiveChordLine(nextLine, options.sourceNotation)
       ? inlineChordLine(line, nextLine, options.sourceNotation)
       : standaloneChordLine(line, options.sourceNotation);
     body.push(conversion.line);
     allMarkers.push(...conversion.markers);
-    if (nextLine?.trim() && !looksLikeChordLine(nextLine, options.sourceNotation)) index += 1;
+    if (nextLine && canReceiveChordLine(nextLine, options.sourceNotation)) index = lyricIndex;
   }
 
   const firstParsed = allMarkers

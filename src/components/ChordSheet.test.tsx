@@ -34,4 +34,12 @@ describe('sazba textu a akordů', () => {
     expect(screen.getByRole('img', { name: 'Kytarový hmat G' })).toBeVisible();
     expect(screen.getByRole('img', { name: 'Klavírní tóny akordu G' })).toBeVisible();
   });
+
+  it('zobrazí F jako barré hmat', async () => {
+    render(<ChordSheet source={'[F]Syntetický text'} />);
+    await userEvent.click(screen.getByRole('button', { name: /Akord F; zobrazit hmat/ }));
+    expect(screen.getByRole('img', { name: 'Kytarový hmat F s barré' })).toBeVisible();
+    expect(document.querySelector('.chord-diagrams line.barre')).not.toBeNull();
+    expect(screen.getByText(/barré/)).toBeVisible();
+  });
 });

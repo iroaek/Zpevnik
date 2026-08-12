@@ -18,8 +18,8 @@ describe('transpozice českých a mezinárodních akordů', () => {
     expect(transposeChord('Bb', 1, 'international')).toBe('B');
   });
 
-  it('české G/H +2 je A/Cis', () => {
-    expect(transposeChord('G/H', 2, 'czech')).toBe('A/Cis');
+  it('české G/H +2 je A/C#', () => {
+    expect(transposeChord('G/H', 2, 'czech')).toBe('A/C#');
   });
 
   it.each(['maj7', 'sus4', 'dim', 'add9', 'm7'])('zachová příponu %s', (suffix) => {

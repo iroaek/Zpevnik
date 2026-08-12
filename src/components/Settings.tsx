@@ -18,6 +18,7 @@ interface SettingsProps {
   onPersonalLibraryChanged: () => Promise<void>;
   onNavigate: (path: string) => void;
   onRefreshSecureProfile?: () => Promise<void>;
+  onOpenGuide?: () => void;
 }
 
 export function Settings({
@@ -32,6 +33,7 @@ export function Settings({
   onPersonalLibraryChanged,
   onNavigate,
   onRefreshSecureProfile,
+  onOpenGuide,
 }: SettingsProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState('');
@@ -154,7 +156,7 @@ export function Settings({
 
       <section className="backup-card"><h2>Přenos celého zpěvníku souborem</h2><p>Záloha obsahuje nastavení, oblíbené, setlisty i všechny osobní písně ({personalSongs.length}). Soubor zůstane u vás a lze jej ručně načíst v telefonu.</p><div className="button-row"><button type="button" className="secondary-button" disabled={backupBusy} onClick={() => void exportBackup()}>{backupBusy ? 'Pracuji…' : 'Exportovat celou zálohu'}</button><label className={backupBusy ? 'secondary-button file-button disabled' : 'secondary-button file-button'}>Importovat celou zálohu<input ref={fileRef} type="file" accept="application/json,.json" disabled={backupBusy} onChange={(event) => void importBackup(event.target.files?.[0])} /></label></div>{message && <p role="status">{message}</p>}</section>
       <section className="privacy-card"><h2>Soukromí a offline provoz</h2><p>{secureMode ? 'Účet, schválení a návrhy zpracovává zabezpečený server. Soukromé soubory podléhají pravidlům účtu; veřejná PWA je neobsahuje.' : 'V místním režimu se profil, importované písně ani návrhy ze zařízení neodesílají.'} Po stažení mohou vybrané písně fungovat offline.</p></section>
-      <section className="settings-links" aria-label="Nápověda a instalace"><button className="secondary-button" type="button" onClick={() => onNavigate('install')}>Nainstalovat zpěvník</button><button className="secondary-button" type="button" onClick={() => onNavigate('offline')}>Offline obsah</button><button className="secondary-button" type="button" onClick={() => onNavigate('help')}>Nápověda pro táborníky</button>{import.meta.env.DEV && <button className="secondary-button" type="button" onClick={() => onNavigate('diagnostics')}>Vývojová diagnostika</button>}</section>
+      <section className="settings-links" aria-label="Nápověda a instalace">{onOpenGuide && <button className="secondary-button" type="button" onClick={onOpenGuide}>Spustit úvodního průvodce</button>}<button className="secondary-button" type="button" onClick={() => onNavigate('install')}>Nainstalovat zpěvník</button><button className="secondary-button" type="button" onClick={() => onNavigate('offline')}>Offline obsah</button><button className="secondary-button" type="button" onClick={() => onNavigate('help')}>Nápověda pro táborníky</button>{import.meta.env.DEV && <button className="secondary-button" type="button" onClick={() => onNavigate('diagnostics')}>Vývojová diagnostika</button>}</section>
     </section>
   );
 }

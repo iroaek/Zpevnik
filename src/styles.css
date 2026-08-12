@@ -295,6 +295,7 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
 .chord-diagrams svg { display: block; width: 100%; height: auto; }
 .chord-diagrams line { stroke: var(--text); stroke-width: 1.4; }
 .chord-diagrams line.nut { stroke-width: 4; }
+.chord-diagrams line.barre { stroke: var(--primary); stroke-width: 13; stroke-linecap: round; }
 .chord-diagrams circle { fill: var(--primary); }
 .chord-diagrams circle.open { fill: transparent; stroke: var(--text); stroke-width: 2; }
 .chord-diagrams text { fill: var(--muted); text-anchor: middle; font-size: 13px; font-weight: 800; }
@@ -376,6 +377,26 @@ select, input:not([type="range"]):not([type="checkbox"]) { min-height: 3rem; pad
 .file-button input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .settings-links { display: grid; grid-template-columns: 1fr; gap: 0.7rem; margin-top: 1rem; }
 .settings-links button { width: 100%; }
+.first-run-scrim { position: fixed; z-index: 120; inset: 0; display: grid; place-items: center; padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left)); background: color-mix(in srgb, #080605 76%, transparent); backdrop-filter: blur(12px); animation: first-run-scrim-in 260ms var(--motion-ease) both; }
+.first-run-guide { display: grid; gap: 1rem; width: min(100%, 34rem); max-height: min(46rem, calc(100dvh - 2rem)); padding: clamp(1.1rem, 4vw, 1.7rem); overflow-y: auto; color: var(--text); border: 1px solid var(--border); border-radius: 26px; background: linear-gradient(160deg, color-mix(in srgb, var(--primary) 10%, var(--surface-strong)), var(--surface-strong) 46%); box-shadow: 0 30px 100px rgba(0,0,0,.48); outline: none; animation: first-run-guide-in 340ms var(--motion-ease) both; }
+.first-run-guide > header { display: flex; align-items: center; justify-content: space-between; }
+.first-run-brand { display: grid; place-items: center; width: 3.25rem; height: 3.25rem; color: var(--on-primary); font-size: 1.45rem; font-weight: 900; border-radius: 18px; background: var(--primary); box-shadow: 0 10px 30px color-mix(in srgb, var(--primary) 28%, transparent); }
+.first-run-close { display: grid; place-items: center; width: 2.85rem; height: 2.85rem; color: var(--text); font-size: 1.45rem; border: 1px solid var(--border); border-radius: 50%; background: var(--surface); }
+.first-run-copy h1 { margin-bottom: .65rem; font-size: clamp(2rem, 8vw, 3.15rem); line-height: .98; }
+.first-run-copy > p:not(.eyebrow) { margin: 0; color: var(--muted); font-size: 1rem; line-height: 1.62; }
+.first-run-copy aside { display: grid; gap: .2rem; margin-top: .9rem; padding: .8rem; border-left: 4px solid var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--surface)); }
+.first-run-copy aside span { color: var(--muted); line-height: 1.45; }
+.first-run-progress { display: grid; grid-template-columns: repeat(4, 1fr); gap: .4rem; margin: .2rem 0; padding: 0; list-style: none; }
+.first-run-progress li { position: relative; display: grid; place-items: center; min-height: 2.4rem; color: var(--muted); }
+.first-run-progress li::before { position: absolute; z-index: 0; right: 50%; left: -50%; height: 2px; background: var(--border); content: ''; }
+.first-run-progress li:first-child::before { display: none; }
+.first-run-progress li.complete::before, .first-run-progress li.active::before { background: var(--primary); }
+.first-run-progress span { position: relative; z-index: 1; display: grid; place-items: center; width: 2rem; height: 2rem; font-size: .8rem; font-weight: 850; border: 2px solid var(--border); border-radius: 50%; background: var(--surface-strong); }
+.first-run-progress li.active span, .first-run-progress li.complete span { color: var(--on-primary); border-color: var(--primary); background: var(--primary); }
+.first-run-guide > footer { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: .6rem; }
+.first-run-guide > footer button { min-height: 3.1rem; }
+@keyframes first-run-scrim-in { from { opacity: 0; } }
+@keyframes first-run-guide-in { from { opacity: 0; transform: translateY(1.2rem) scale(.975); } }
 .qr-generator-card { display: grid; gap: 1.1rem; border-color: var(--accent); }
 .qr-generator-copy > p:not(.eyebrow) { color: var(--muted); line-height: 1.5; }
 .qr-generator-copy form { display: grid; gap: 0.55rem; }

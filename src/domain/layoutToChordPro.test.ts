@@ -51,6 +51,19 @@ describe('převod rozvrženého textu na ChordPro', () => {
     expect(result.chordCount).toBe(2);
   });
 
+  it('sjednotí český zápis Cis na C# včetně basového tónu', () => {
+    expect(recognizedChord('Cismi7', 'czech')).toBe('C#mi7');
+    expect(recognizedChord('G/Cis', 'czech')).toBe('G/C#');
+  });
+
+  it('spojí řádek akordů s textem i přes prázdný řádek z PDF', () => {
+    const result = convertLayoutTextToChordPro('C        G\n\nVymyšlená věta pokračuje', {
+      title: 'Syntetická píseň',
+      sourceNotation: 'czech',
+    });
+    expect(result.chordPro).toContain('[C]Vymyšlená[G] věta pokračuje');
+  });
+
   it('označí neznámé znaky a pravděpodobně poškozené akordy ke kontrole', () => {
     const source = 'A   D/Em7   Asusa\nVymyšlený � řádek';
     expect(findLikelyMalformedChordTokens(source, 'czech')).toEqual(['D/Em7', 'Asusa']);

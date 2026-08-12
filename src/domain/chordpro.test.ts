@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseChordLine, parseChordPro, sanitizeImportedText } from './chordpro';
+import { parseChordLine, parseChordPro, sanitizeImportedText, stripChords } from './chordpro';
 
 describe('ChordPro parser', () => {
   it('zarovná akord s následující slabikou bez HTML', () => {
@@ -22,5 +22,14 @@ describe('ChordPro parser', () => {
   it('převede skutečné i omylem zapsané Unicode mezery na běžné mezery', () => {
     expect(sanitizeImportedText('\\u00a0[Ami]Řádek\u00A0textu\\xA0')).toBe(' [Ami]Řádek textu ');
     expect(parseChordPro('\\u00a0[Ami]Ve třicátém týdnu').firstLine).toBe('Ve třicátém týdnu');
+  });
+
+  it('nepovažuje hranaté značky opakování ani nadpis sloky za akordy', () => {
+    expect(parseChordLine('[: [G]Vymyšlený text :]')).toEqual([
+      { chord: null, lyric: '[: ' },
+      { chord: 'G', lyric: 'Vymyšlený text :]' },
+    ]);
+    expect(parseChordLine('[Verse 1]')).toEqual([{ chord: null, lyric: '[Verse 1]' }]);
+    expect(stripChords('[: [C]La :]')).toBe('[: La :]');
   });
 });

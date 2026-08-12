@@ -115,6 +115,26 @@ describe('soukromé knihovní balíky', () => {
     expect(adminSong.tags).toEqual(expect.arrayContaining(['review:missing_chords', 'review:malformed_chord_layout']));
   });
 
+  it('u přesně stejného obsahu ponechá jedinou věrohodnější verzi', () => {
+    const source = snapshot();
+    const duplicate = {
+      ...source.catalog.songs[0],
+      id: 'personal-synteticka-pisen-neuvedena',
+      authors: ['Neuvedený interpret'],
+      attribution: 'Neuvedený interpret',
+      sourceIdentifier: 'songs_data/zpevnik1.pdf#page=2',
+    };
+    source.catalog.songs = [duplicate, source.catalog.songs[0]];
+    source.contentBySongId.set(duplicate.id, '[C]Vymyšlený testovací řádek, který je dostatečně dlouhý pro bezpečný otisk přesné duplicity.');
+    source.contentBySongId.set('personal-synteticka-pisen', '[C]Vymyšlený testovací řádek, který je dostatečně dlouhý pro bezpečný otisk přesné duplicity.');
+
+    const admin = createPrivateLibraryBackup(source, 'admin');
+
+    expect(admin.personalSongs).toHaveLength(1);
+    expect(admin.personalSongs[0].song.id).toBe('personal-synteticka-pisen');
+    expect(admin.personalSongs[0].song.authors).toEqual(['Testovací autor']);
+  });
+
   it('odmítne oprávnění pro jiné nebo změněné dokumenty', () => {
     expect(() => applyMemberLibraryGrant(snapshot(), {
       schemaVersion: 1,

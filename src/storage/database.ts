@@ -1,6 +1,6 @@
 import { openDB } from 'idb';
 import { z } from 'zod';
-import type { ChordNotation } from '../domain/chords';
+import { normalizeCSharpSpelling, type ChordNotation } from '../domain/chords';
 import { sanitizeImportedText } from '../domain/chordpro';
 import { createUuid } from '../domain/browserCompatibility';
 import { readBlobText } from '../domain/readBlobBytes';
@@ -719,11 +719,14 @@ export async function loadPersonalSongs(userId?: string): Promise<Song[]> {
   return stored.flatMap((value) => {
     const parsed = songSchema.safeParse(value);
     if (!parsed.success || !parsed.data.personalOnly) return [];
-    if (!isDownloadedLibrarySong(parsed.data)) return [parsed.data];
-    const owner = protectedOwners.get(parsed.data.id);
+    const normalizedSong = parsed.data.originalKey?.startsWith('Cis')
+      ? { ...parsed.data, originalKey: normalizeCSharpSpelling(parsed.data.originalKey, 'czech') }
+      : parsed.data;
+    if (!isDownloadedLibrarySong(normalizedSong)) return [normalizedSong];
+    const owner = protectedOwners.get(normalizedSong.id);
     // Starší balíčky před schématem 5 neměly vlastníka. Zůstanou čitelné do
     // první online obnovy; nový import je už vždy uživatelsky oddělený.
-    return !owner || owner === userId ? [parsed.data] : [];
+    return !owner || owner === userId ? [normalizedSong] : [];
   });
 }
 

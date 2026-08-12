@@ -51,6 +51,58 @@ export interface PrivateLibraryBackup {
   personalSongs: Array<{ song: Song; content: string }>;
 }
 
+interface PrivateLibraryEntry {
+  song: Song;
+  content: string;
+}
+
+function normalizedTitle(value: string): string {
+  return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('cs').replace(/[^a-z0-9]+/g, '');
+}
+
+function contentBody(value: string): string {
+  return value
+    .normalize('NFC')
+    .split('\n')
+    .filter((line) => !/^\s*\{(?:title|artist|chord_notation)\s*:/i.test(line))
+    .join('\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function entryQuality(entry: PrivateLibraryEntry): number {
+  const author = entry.song.authors[0]?.toLocaleLowerCase('cs') ?? '';
+  const specificSource = /songs_data\/(?:zpevnik_[^123]|(?!zpevnik[123]\.pdf)[^/]+)\.pdf/i.test(entry.song.sourceIdentifier);
+  const knownAuthor = Boolean(author && !/(?:neuveden|různí interpreti)/.test(author));
+  const qualityFlags = (entry.song.reviewFlags ?? []).filter((flag) => flag !== 'possible_duplicate').length;
+  return (entry.song.chordsVerified ? 1_000_000 : 0)
+    + (qualityFlags === 0 ? 100_000 : -qualityFlags * 10_000)
+    + (knownAuthor ? 5_000 : 0)
+    + (specificSource ? 1_000 : 0)
+    + Math.min(contentBody(entry.content).length, 10_000);
+}
+
+function deduplicateExactSongs(entries: PrivateLibraryEntry[]): PrivateLibraryEntry[] {
+  const winners = new Map<string, PrivateLibraryEntry>();
+  for (const entry of entries) {
+    const body = contentBody(entry.content);
+    // Krátké shodné nápisy jako „REF“ nejsou dostatečný důkaz duplicity.
+    if (body.length < 80) {
+      winners.set(`unique:${entry.song.id}`, entry);
+      continue;
+    }
+    const fingerprint = createHash('sha256').update(body).digest('hex');
+    const key = `${normalizedTitle(entry.song.title)}:${fingerprint}`;
+    const current = winners.get(key);
+    if (!current || entryQuality(entry) > entryQuality(current)
+      || (entryQuality(entry) === entryQuality(current) && entry.song.sourceIdentifier.localeCompare(current.song.sourceIdentifier, 'cs') < 0)) {
+      winners.set(key, entry);
+    }
+  }
+  return [...winners.values()];
+}
+
 function sameHashes(actual: Record<string, string>, granted: Record<string, string>): boolean {
   const actualEntries = Object.entries(actual).sort(([left], [right]) => left.localeCompare(right));
   const grantedEntries = Object.entries(granted).sort(([left], [right]) => left.localeCompare(right));
@@ -88,7 +140,7 @@ export function createPrivateLibraryBackup(
   scope: PrivateLibraryScope,
   exportedAt = new Date().toISOString(),
 ): PrivateLibraryBackup {
-  const personalSongs = snapshot.catalog.songs.flatMap((rawSong) => {
+  const candidates = snapshot.catalog.songs.flatMap((rawSong): PrivateLibraryEntry[] => {
     const parsed = songSchema.parse(rawSong);
     if (scope === 'members' && !isPublishable(parsed)) return [];
     const content = snapshot.contentBySongId.get(parsed.id);
@@ -107,6 +159,7 @@ export function createPrivateLibraryBackup(
     });
     return [{ song, content }];
   });
+  const personalSongs = deduplicateExactSongs(candidates);
   const contentBytes = personalSongs.reduce((sum, entry) => sum + Buffer.byteLength(entry.content, 'utf8'), 0);
   const version = createHash('sha256')
     .update(JSON.stringify(personalSongs.map(({ song, content }) => [song.id, song.updatedAt, Buffer.byteLength(content, 'utf8')])))
