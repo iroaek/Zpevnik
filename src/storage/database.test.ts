@@ -119,6 +119,15 @@ describe('migrace IndexedDB', () => {
     expect(await databaseModule.getPersonalSongContent(song.id)).toBe(content);
   });
 
+  it('uloží a odstraní lokální opravu písně bez změny katalogu', async () => {
+    const databaseModule = await import('./database');
+    const songId = 'synteticka-lokalni-oprava';
+    await databaseModule.saveLocalSongOverride(songId, '[C]Bezpečná syntetická oprava\u0000');
+    expect(await databaseModule.getLocalSongOverride(songId)).toBe('[C]Bezpečná syntetická oprava');
+    await databaseModule.removeLocalSongOverride(songId);
+    expect(await databaseModule.getLocalSongOverride(songId)).toBeNull();
+  });
+
   it('obnoví celou zálohu včetně osobních písní a přepíše jejich cestu na IndexedDB', async () => {
     const databaseModule = await import('./database');
     const song = { ...personalSongFixture('personal-backup-synteticka', 'Píseň ze zálohy'), chordProPath: '/__personal_library/content/personal-backup-synteticka.txt' };

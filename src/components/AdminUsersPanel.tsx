@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loadAllProfiles, type SecureProfile } from '../auth/secureAccess';
 import { isProfileOnline } from './adminUserPresence';
+import { friendlyError } from '../ui/friendlyError';
 
 const statusLabels: Record<SecureProfile['status'], string> = {
   pending: 'Čeká na schválení',
@@ -29,7 +30,7 @@ export function AdminUsersPanel() {
       setObservedAt(Date.now());
       setMessage('');
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : 'Seznam uživatelů se nepodařilo načíst.');
+      setMessage(friendlyError(caught, 'Seznam uživatelů se nepodařilo načíst.'));
     } finally {
       setLoading(false);
     }

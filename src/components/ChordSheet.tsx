@@ -11,6 +11,11 @@ interface ChordSheetProps {
   showChords?: boolean;
   collapseRepeatedChoruses?: boolean;
   fontSize?: number;
+  chordScale?: number;
+  lineHeight?: number;
+  columnWidth?: number;
+  focusSections?: boolean;
+  onSuggestCorrection?: (chord: string) => void;
 }
 
 function displayedChord(chord: string, semitones: number, sourceNotation: ChordNotation, notation: ChordNotation): string {
@@ -87,9 +92,15 @@ export function ChordSheet({
   showChords = true,
   collapseRepeatedChoruses = true,
   fontSize = 20,
+  chordScale = 1,
+  lineHeight = 1.3,
+  columnWidth = 760,
+  focusSections = false,
+  onSuggestCorrection,
 }: ChordSheetProps) {
   const parsed = useMemo(() => parseChordPro(source), [source]);
   const [popover, setPopover] = useState<ChordPopoverState | null>(null);
+  const [activeSection, setActiveSection] = useState<number | null>(null);
   useEffect(() => {
     if (!popover) return;
     const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setPopover(null); };
@@ -97,7 +108,7 @@ export function ChordSheet({
     return () => window.removeEventListener('keydown', close);
   }, [popover]);
   return (
-    <div className="chord-sheet" style={{ '--song-font-size': `${fontSize}px` } as React.CSSProperties}>
+    <div className={`chord-sheet ${focusSections && activeSection !== null ? 'chord-sheet--focus-active' : ''}`} style={{ '--song-font-size': `${fontSize}px`, '--chord-scale': chordScale, '--song-line-height': lineHeight, '--song-column-width': `${columnWidth}px` } as React.CSSProperties}>
       {parsed.sections.map((section, sectionIndex) => {
         if (section.kind === 'comment') {
           return <p className="song-comment" key={`comment-${sectionIndex}`}>{section.label}</p>;
@@ -106,7 +117,7 @@ export function ChordSheet({
           return <p className="chorus-repeat" key={`repeat-${sectionIndex}`} aria-label="Opakuje se refrén">↻ Refrén znovu</p>;
         }
         return (
-          <section className={`song-section song-section--${section.kind}`} key={`section-${sectionIndex}`}>
+          <section className={`song-section song-section--${section.kind} ${activeSection === sectionIndex ? 'song-section--active' : ''}`} tabIndex={focusSections ? 0 : undefined} aria-label={focusSections ? `${section.label || 'Sloka'}; klepnutím zvýraznit` : undefined} onClick={focusSections ? () => setActiveSection((current) => current === sectionIndex ? null : sectionIndex) : undefined} onKeyDown={focusSections ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setActiveSection((current) => current === sectionIndex ? null : sectionIndex); } } : undefined} key={`section-${sectionIndex}`}>
             {section.label && <h3>{section.label}</h3>}
             {section.lines.map((line, lineIndex) => {
               const lineHasChords = showChords && line.some((token) => Boolean(token.chord));
@@ -115,6 +126,7 @@ export function ChordSheet({
                   <span className="chord-token" data-has-chord={Boolean(token.chord)} key={`token-${tokenIndex}`}>
                     {lineHasChords && (token.chord
                       ? <button type="button" className="chord" aria-label={`Akord ${displayedChord(token.chord, semitones, sourceNotation, notation)}; zobrazit hmat`} aria-haspopup="dialog" onClick={(event) => {
+                        event.stopPropagation();
                         const rect = event.currentTarget.getBoundingClientRect();
                         const width = Math.min(300, window.innerWidth - 24);
                         const estimatedHeight = 320;
@@ -133,7 +145,7 @@ export function ChordSheet({
           </section>
         );
       })}
-      {popover && createPortal(<><button type="button" className="chord-popover-scrim" aria-label="Zavřít diagram akordu" onClick={() => setPopover(null)} /><section className="chord-popover" role="dialog" aria-modal="true" aria-label={`Hmat akordu ${popover.chord}`} style={{ top: popover.top, left: popover.left }}><header><span><small>Akord</small><strong>{popover.chord}</strong></span><button type="button" aria-label="Zavřít" onClick={() => setPopover(null)}>×</button></header><ChordDiagram chord={popover.chord} sourceNotation={notation} /></section></>, document.body)}
+      {popover && createPortal(<><button type="button" className="chord-popover-scrim" aria-label="Zavřít diagram akordu" onClick={() => setPopover(null)} /><section className="chord-popover" role="dialog" aria-modal="true" aria-label={`Hmat akordu ${popover.chord}`} style={{ top: popover.top, left: popover.left }}><header><span><small>Akord</small><strong>{popover.chord}</strong></span><button type="button" aria-label="Zavřít" onClick={() => setPopover(null)}>×</button></header><ChordDiagram chord={popover.chord} sourceNotation={notation} />{onSuggestCorrection && <button type="button" className="secondary-button chord-report-button" onClick={() => { onSuggestCorrection(popover.chord); setPopover(null); }}>Nahlásit chybný akord nebo polohu</button>}</section></>, document.body)}
     </div>
   );
 }

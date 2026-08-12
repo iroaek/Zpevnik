@@ -22,6 +22,7 @@ import {
   type DownloadedLibraryMetadata,
   type LibraryManifest,
 } from '../storage/database';
+import { friendlyError } from '../ui/friendlyError';
 
 const LIBRARY_PAGE_SIZE = 40;
 
@@ -117,7 +118,7 @@ export function OfflineContent({
       await refresh();
       setNotice({ tone: 'success', text: kind === 'songs' ? 'Ukázkové písně byly staženy a ověřeny.' : 'Všechny notové party byly staženy a ověřeny.' });
     } catch (error) {
-      setNotice({ tone: 'error', text: error instanceof Error ? `Stažení se nezdařilo: ${error.message}` : 'Stažení se nezdařilo.' });
+      setNotice({ tone: 'error', text: friendlyError(error, 'Stažení se nezdařilo. Zkontrolujte připojení a volné místo.') });
     } finally {
       setOperation(null);
     }
@@ -144,7 +145,7 @@ export function OfflineContent({
             : 'Všechna stažená data včetně soukromé knihovny byla odstraněna. Aplikace a vlastní PDF importy zůstaly zachované.',
       });
     } catch (error) {
-      setNotice({ tone: 'error', text: error instanceof Error ? `Odstranění se nezdařilo: ${error.message}` : 'Odstranění se nezdařilo.' });
+      setNotice({ tone: 'error', text: friendlyError(error, 'Odstranění se nezdařilo.') });
     } finally {
       setConfirmRemove(false);
       setOperation(null);
@@ -166,7 +167,7 @@ export function OfflineContent({
             : 'Aktualizační služba ještě není aktivní. Nechte aplikaci online, zavřete ji a znovu otevřete.',
       });
     } catch (error) {
-      setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Kontrola aktualizace se nezdařila.' });
+      setNotice({ tone: 'error', text: friendlyError(error, 'Kontrola aktualizace se nezdařila.') });
     } finally {
       setOperation(null);
     }
@@ -179,7 +180,7 @@ export function OfflineContent({
       await activateWaitingUpdate();
       setUpdateReady(false);
     } catch (error) {
-      setNotice({ tone: 'error', text: error instanceof Error ? `Aktualizaci nelze nainstalovat: ${error.message}` : 'Aktualizaci nelze nainstalovat.' });
+      setNotice({ tone: 'error', text: friendlyError(error, 'Aktualizaci nelze nainstalovat. Zkuste aplikaci zavřít a znovu otevřít.') });
     } finally {
       setOperation(null);
     }
@@ -197,7 +198,7 @@ export function OfflineContent({
         ? `Hotovo: do tohoto zařízení bylo bezpečně uloženo ${result.count} ${secureProfile.role === 'admin' ? 'správcovských' : 'členských'} písní.`
         : `Knihovna je aktuální. V zařízení už je všech ${result.count} písní této verze.` });
     } catch (error) {
-      setNotice({ tone: 'error', text: error instanceof Error ? `Členskou knihovnu nelze stáhnout: ${error.message}` : 'Členskou knihovnu nelze stáhnout.' });
+      setNotice({ tone: 'error', text: friendlyError(error, 'Členskou knihovnu nelze stáhnout. Obnovte oprávnění účtu a zkuste to znovu.') });
     } finally {
       setOperation(null);
     }
@@ -212,7 +213,7 @@ export function OfflineContent({
       setLocalManifest(null);
       setNotice({ tone: 'success', text: `Stažená soukromá knihovna byla z tohoto zařízení odstraněna (${removed} písní). Vlastní PDF importy zůstaly zachované.` });
     } catch (error) {
-      setNotice({ tone: 'error', text: error instanceof Error ? `Knihovnu se nepodařilo odstranit: ${error.message}` : 'Knihovnu se nepodařilo odstranit.' });
+      setNotice({ tone: 'error', text: friendlyError(error, 'Knihovnu se nepodařilo odstranit.') });
     } finally {
       setConfirmRemoveLibrary(false);
       setOperation(null);
@@ -228,7 +229,7 @@ export function OfflineContent({
       await onPersonalLibraryChanged?.();
       setNotice({ tone: 'success', text: `Píseň „${song.title}“ byla odstraněna pouze z tohoto zařízení.` });
     } catch (error) {
-      setNotice({ tone: 'error', text: error instanceof Error ? `Píseň se nepodařilo odstranit: ${error.message}` : 'Píseň se nepodařilo odstranit.' });
+      setNotice({ tone: 'error', text: friendlyError(error, 'Píseň se nepodařilo odstranit.') });
     } finally {
       setConfirmRemoveSong(null);
       setOperation(null);

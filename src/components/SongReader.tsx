@@ -1,11 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { submitSecureSong, type SecureProfile } from '../auth/secureAccess';
 import { metadataValue, parseChordPro, sanitizeImportedText } from '../domain/chordpro';
 import { calculateCapoOptions, parseChord, renderPitch, transposeCanonicalChord } from '../domain/chords';
 import type { Song } from '../domain/song';
 import { fetchContent } from '../pwa/contentCache';
-import { getPersonalSongContent, toggleFavorite, updateSetlistSongs, type UserState } from '../storage/database';
+import { getLocalSongOverride, getPersonalSongContent, removeLocalSongOverride, saveLocalSongOverride, toggleFavorite, updateSetlistSongs, type UserState } from '../storage/database';
 import { ChordSheet } from './ChordSheet';
-import { ScoreViewer } from './ScoreViewer';
+import { Icon } from '../ui/Icon';
+import { friendlyError } from '../ui/friendlyError';
+
+const ScoreViewer = lazy(() => import('./ScoreViewer').then((module) => ({ default: module.ScoreViewer })));
 
 interface SongReaderProps {
   song: Song;
@@ -17,9 +21,10 @@ interface SongReaderProps {
   nextSong?: Song;
   onPreviousSong?: () => void;
   onNextSong?: () => void;
+  secureProfile?: SecureProfile | null;
 }
 
-export function SongReader({ song, userState, onUserStateChange, onBack, catalogVersion, previousSong, nextSong, onPreviousSong, onNextSong }: SongReaderProps) {
+export function SongReader({ song, userState, onUserStateChange, onBack, catalogVersion, previousSong, nextSong, onPreviousSong, onNextSong, secureProfile = null }: SongReaderProps) {
   const [source, setSource] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [semitones, setSemitones] = useState(0);
@@ -35,6 +40,18 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [readerProgress, setReaderProgress] = useState(0);
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [chordScale, setChordScale] = useState(1);
+  const [readerLineHeight, setReaderLineHeight] = useState(1.3);
+  const [readerColumnWidth, setReaderColumnWidth] = useState(760);
+  const [focusSections, setFocusSections] = useState(false);
+  const [correctionOpen, setCorrectionOpen] = useState(false);
+  const [correctionChord, setCorrectionChord] = useState('');
+  const [correctionNote, setCorrectionNote] = useState('');
+  const [editableSource, setEditableSource] = useState('');
+  const [hasLocalOverride, setHasLocalOverride] = useState(false);
+  const [correctionBusy, setCorrectionBusy] = useState(false);
+  const [correctionMessage, setCorrectionMessage] = useState('');
+  const [sourceRevision, setSourceRevision] = useState(0);
   const readerRef = useRef<HTMLElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const settings = userState.settings;
@@ -42,25 +59,38 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
 
   useEffect(() => {
     const controller = new AbortController();
-    const response = song.chordProPath.startsWith('indexeddb:')
-      ? getPersonalSongContent(song.id).then((content) => {
-        if (content === null) throw new Error('Obsah osobní písně v tomto zařízení chybí.');
-        return new Response(content, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
-      })
-      : song.personalOnly
-        ? fetch(song.chordProPath, { cache: 'no-store', signal: controller.signal })
-        : fetchContent(song.chordProPath, 'songs', catalogVersion, controller.signal);
-    response
-      .then((response) => {
+    Promise.resolve().then(() => {
+      setLoadError(null);
+      setSource('');
+      return getLocalSongOverride(song.id);
+    })
+      .then(async (override) => {
+        if (override !== null) {
+          setHasLocalOverride(true);
+          return override;
+        }
+        setHasLocalOverride(false);
+        const response = song.chordProPath.startsWith('indexeddb:')
+          ? await getPersonalSongContent(song.id).then((content) => {
+            if (content === null) throw new Error('Obsah osobní písně v tomto zařízení chybí.');
+            return new Response(content, { headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+          })
+          : song.personalOnly
+            ? await fetch(song.chordProPath, { cache: 'no-store', signal: controller.signal })
+            : await fetchContent(song.chordProPath, 'songs', catalogVersion, controller.signal);
         if (!response.ok) throw new Error(`Soubor písně se nepodařilo načíst (${response.status}).`);
         return response.text();
       })
-      .then((text) => setSource(sanitizeImportedText(text)))
+      .then((text) => {
+        const sanitized = sanitizeImportedText(text);
+        setSource(sanitized);
+        setEditableSource(sanitized);
+      })
       .catch((error: unknown) => {
-        if ((error as Error).name !== 'AbortError') setLoadError(error instanceof Error ? error.message : 'Píseň je nečitelná.');
+        if ((error as Error).name !== 'AbortError') setLoadError(friendlyError(error, 'Píseň je nečitelná nebo není uložená v tomto zařízení.'));
       });
     return () => controller.abort();
-  }, [catalogVersion, song]);
+  }, [catalogVersion, song, sourceRevision]);
 
   useEffect(() => {
     if (!autoScroll) return;
@@ -207,13 +237,69 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
     }
   };
 
+  const openCorrection = (chord = '') => {
+    setCorrectionChord(chord);
+    setCorrectionNote(chord ? `Akord ${chord}: ` : 'Popis chyby nebo špatné polohy akordu: ');
+    setEditableSource(source);
+    setCorrectionMessage('');
+    setCorrectionOpen(true);
+  };
+
+  const saveLocalCorrection = async () => {
+    if (!editableSource.trim()) return;
+    setCorrectionBusy(true);
+    try {
+      const sanitized = sanitizeImportedText(editableSource);
+      await saveLocalSongOverride(song.id, sanitized);
+      setSource(sanitized);
+      setHasLocalOverride(true);
+      setCorrectionMessage('Vaše lokální verze byla uložena pouze v tomto zařízení.');
+    } catch (error) {
+      setCorrectionMessage(friendlyError(error, 'Lokální opravu se nepodařilo uložit.'));
+    } finally {
+      setCorrectionBusy(false);
+    }
+  };
+
+  const resetLocalCorrection = async () => {
+    setCorrectionBusy(true);
+    try {
+      await removeLocalSongOverride(song.id);
+      setHasLocalOverride(false);
+      setCorrectionOpen(false);
+      setSourceRevision((current) => current + 1);
+    } catch (error) {
+      setCorrectionMessage(friendlyError(error, 'Původní verzi se nepodařilo obnovit.'));
+      setCorrectionBusy(false);
+    }
+  };
+
+  const submitCorrection = async () => {
+    if (!secureProfile || !correctionNote.trim()) return;
+    setCorrectionBusy(true);
+    try {
+      await submitSecureSong({
+        profile: secureProfile,
+        kind: 'request',
+        title: `Oprava: ${song.title}`,
+        artist: song.authors.join(', '),
+        notes: `${correctionChord ? `Označený akord: ${correctionChord}. ` : ''}${correctionNote.trim()}\nID písně: ${song.id}`,
+      });
+      setCorrectionMessage('Návrh opravy byl bezpečně odeslán administrátorovi ke kontrole.');
+    } catch (error) {
+      setCorrectionMessage(friendlyError(error, 'Návrh opravy se nepodařilo odeslat.'));
+    } finally {
+      setCorrectionBusy(false);
+    }
+  };
+
   return (
     <article ref={readerRef} className="song-reader" onPointerDown={(event) => { if (event.pointerType === 'touch') swipeStart.current = { x: event.clientX, y: event.clientY }; }} onPointerUp={(event) => { const start = swipeStart.current; swipeStart.current = null; if (!start || event.pointerType !== 'touch') return; const x = event.clientX - start.x; const y = event.clientY - start.y; if (Math.abs(x) < 70 || Math.abs(x) < Math.abs(y) * 1.5) return; if (x < 0) onNextSong?.(); else onPreviousSong?.(); }} onPointerCancel={() => { swipeStart.current = null; }}>
       <div className="song-progress-track" role="progressbar" aria-label="Postup písní" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(readerProgress * 100)}><span style={{ transform: `scaleX(${readerProgress})` }} /></div>
       <header className="reader-header">
-        <button type="button" className="icon-button" aria-label="Zpět do seznamu" onClick={onBack}>‹</button>
+        <button type="button" className="icon-button" aria-label="Zpět do seznamu" onClick={onBack}><Icon name="back" /></button>
         <div><p className="eyebrow">{song.categories.join(' · ')}</p><h1>{song.title}</h1><p>{song.authors.join(', ') || 'Autor neuveden'}</p></div>
-        <button type="button" className="icon-button" aria-label={isFavorite ? 'Odebrat z oblíbených' : 'Přidat do oblíbených'} aria-pressed={isFavorite} onClick={() => onUserStateChange((current) => toggleFavorite(current, song.id))}>{isFavorite ? '★' : '☆'}</button>
+        <button type="button" className="icon-button" aria-label={isFavorite ? 'Odebrat z oblíbených' : 'Přidat do oblíbených'} aria-pressed={isFavorite} onClick={() => onUserStateChange((current) => toggleFavorite(current, song.id))}><Icon name={isFavorite ? 'star' : 'heart'} /></button>
       </header>
 
       <div className="song-facts" aria-label="Informace o písni">
@@ -237,19 +323,21 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
             <div className="toolbar-actions">
               {isLayoutText && <button type="button" className="icon-button" aria-label={wrapLayoutText ? 'Použít původní šířku řádků' : 'Zalomit dlouhé řádky'} aria-pressed={wrapLayoutText} onClick={() => setWrapLayoutText((value) => !value)}>↵</button>}
               <button type="button" className="icon-button reader-settings-button" aria-label="Otevřít nastavení zobrazení" onClick={() => setSettingsOpen(true)}>Aa</button>
-              <button type="button" className="icon-button" aria-label="Celoobrazovkový režim" onClick={toggleFullscreen}>⛶</button>
-              <button type="button" className="icon-button fire-button" aria-label="Režim U ohně" aria-pressed={fireMode} onClick={toggleFireMode}>U ohně</button>
+              <button type="button" className="icon-button" aria-label="Nahlásit nebo lokálně opravit píseň" onClick={() => openCorrection()}><Icon name="flag" /></button>
+              <button type="button" className="icon-button" aria-label="Celoobrazovkový režim" onClick={toggleFullscreen}><Icon name="expand" /></button>
+              <button type="button" className="icon-button fire-button" aria-label="Režim U ohně" aria-pressed={fireMode} onClick={toggleFireMode}><Icon name="fire" /><span>U ohně</span></button>
             </div>
           </section>
           {!isLayoutText && <div className={`reader-segmented ${settings.showChords ? '' : 'reader-segmented--lyrics'}`} role="group" aria-label="Zobrazení textu"><span aria-hidden="true" /><button type="button" aria-pressed={settings.showChords} onClick={() => updateSettings({ showChords: true })}>Akordy + text</button><button type="button" aria-pressed={!settings.showChords} onClick={() => updateSettings({ showChords: false })}>Pouze text</button></div>}
           {targetKey && capoOptions.length > 1 && <p className="capo-hint">Možnosti kapodastru: {capoOptions.map((option) => option.capo === 0 ? `bez kapodastru (${option.shapeKey})` : `${option.capo}. pražec, hraj ${option.shapeKey}`).join(' · ')}</p>}
           {song.chordsVerified && <p className="verified-chords-note">✓ Akordy jsou označené jako zkontrolované. Transpozice i návrhy kapodastru jsou aktivní.</p>}
+          {hasLocalOverride && <p className="local-override-note"><Icon name="database" size={18} />Používá se vaše lokální oprava uložená pouze v tomto zařízení. <button type="button" className="text-button" onClick={() => openCorrection()}>Upravit</button></p>}
           {loadError && <p className="error-message" role="alert">{loadError}</p>}
           {!source && !loadError && <p role="status">Načítám píseň…</p>}
           {source && <div className="fire-tap-zone">
             {isLayoutText
               ? <pre className={wrapLayoutText ? 'layout-song-sheet layout-song-sheet--wrap' : 'layout-song-sheet'} style={{ '--song-font-size': `${readerFontSize}px` } as React.CSSProperties}>{source}</pre>
-              : <ChordSheet source={source} semitones={semitones} notation={settings.notation} sourceNotation={sourceNotation} showChords={settings.showChords} collapseRepeatedChoruses={settings.collapseRepeatedChoruses} fontSize={readerFontSize} />}
+              : <ChordSheet source={source} semitones={semitones} notation={settings.notation} sourceNotation={sourceNotation} showChords={settings.showChords} collapseRepeatedChoruses={settings.collapseRepeatedChoruses} fontSize={readerFontSize} chordScale={chordScale} lineHeight={readerLineHeight} columnWidth={readerColumnWidth} focusSections={focusSections} onSuggestCorrection={openCorrection} />}
           </div>}
           <section className="field-actions" aria-label="Funkce pro zpívání">
             <label>Rychlost <input type="range" min="5" max="100" value={settings.autoScrollSpeed} onChange={(event) => updateSettings({ autoScrollSpeed: Number(event.target.value) })} /></label>
@@ -263,9 +351,10 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
           {(previousSong || nextSong) && <nav className="reader-sequence-nav" aria-label="Pohyb v setlistu"><button type="button" className="secondary-button" disabled={!previousSong} onClick={onPreviousSong}><span aria-hidden="true">←</span><span><small>Předchozí</small><strong>{previousSong?.title ?? 'Začátek setlistu'}</strong></span></button><button type="button" className="secondary-button" disabled={!nextSong} onClick={onNextSong}><span><small>Další</small><strong>{nextSong?.title ?? 'Konec setlistu'}</strong></span><span aria-hidden="true">→</span></button><small>Na telefonu lze mezi písněmi také přejet prstem doleva nebo doprava.</small></nav>}
           {fireMode && <div className="fire-dock" aria-label="Rychlé ovládání režimu U ohně"><div className="fire-font-control" role="group" aria-label="Velikost textu"><span>Text</span><button type="button" aria-label="Zmenšit text v režimu U ohně" disabled={fireFontSize <= 14} onClick={() => setFireFontSize((value) => Math.max(14, value - 2))}>A−</button><output aria-label="Aktuální velikost textu">{fireFontSize} px</output><button type="button" aria-label="Zvětšit text v režimu U ohně" disabled={fireFontSize >= 34} onClick={() => setFireFontSize((value) => Math.min(34, value + 2))}>A+</button></div><label className="fire-speed-control"><span>Rychlost posunu</span><input type="range" min="5" max="100" value={settings.autoScrollSpeed} onChange={(event) => updateSettings({ autoScrollSpeed: Number(event.target.value) })} /><output>{settings.autoScrollSpeed}</output></label><button type="button" className={autoScroll ? 'primary-button' : 'secondary-button'} onClick={() => setAutoScroll((value) => !value)}>{autoScroll ? '■ Stop' : '▶ Posun'}</button>{screen.orientation.lock && <button type="button" className="secondary-button" aria-label={orientationLocked ? 'Odemknout otočení obrazovky' : 'Zamknout obrazovku na výšku'} aria-pressed={orientationLocked} onClick={() => void toggleOrientationLock()}>{orientationLocked ? 'Volné' : 'Výška'}</button>}<button type="button" className="secondary-button fire-exit-button" aria-label="Ukončit U ohně" onClick={toggleFireMode}>Zavřít</button></div>}
           {!fireMode && <button type="button" className={`performance-fab ${autoScroll ? 'performance-fab--active' : ''}`} aria-label={autoScroll ? 'Pozastavit automatický posun' : countdown !== null ? 'Zrušit odpočet' : 'Spustit odpočet a automatický posun'} aria-pressed={autoScroll} onClick={performanceAction}><span aria-hidden="true">{autoScroll ? 'Ⅱ' : countdown ?? '▶'}</span><small>{autoScroll ? 'Pauza' : countdown !== null ? 'Start' : 'Posun'}</small></button>}
-          {settingsOpen && <div className="reader-sheet-backdrop" role="presentation" onClick={() => setSettingsOpen(false)}><section className="reader-settings-sheet" role="dialog" aria-modal="true" aria-labelledby="reader-settings-heading" onClick={(event) => event.stopPropagation()}><div className="sheet-handle" aria-hidden="true" /><header><span><small>Nastavení výkonu</small><h2 id="reader-settings-heading">Zobrazení písně</h2></span><button type="button" className="icon-button" aria-label="Zavřít nastavení" onClick={() => setSettingsOpen(false)}>×</button></header><label htmlFor="reader-font-size"><span>Velikost textu</span><output>{settings.fontSize} px</output><input id="reader-font-size" aria-label="Nastavit velikost textu" type="range" min="14" max="34" step="2" value={settings.fontSize} onChange={(event) => updateSettings({ fontSize: Number(event.target.value) })} /></label><label htmlFor="reader-scroll-speed"><span>Rychlost posunu</span><output>{settings.autoScrollSpeed}</output><input id="reader-scroll-speed" aria-label="Nastavit rychlost posunu" type="range" min="5" max="100" value={settings.autoScrollSpeed} onChange={(event) => updateSettings({ autoScrollSpeed: Number(event.target.value) })} /></label><div className="sheet-theme-options" role="group" aria-label="Motiv čtečky">{(['light', 'dark', 'system'] as const).map((theme) => <button type="button" className={settings.theme === theme ? 'active' : ''} aria-pressed={settings.theme === theme} onClick={() => updateSettings({ theme })} key={theme}>{theme === 'light' ? 'Světlý' : theme === 'dark' ? 'Tmavý' : 'Systém'}</button>)}</div><button type="button" className="primary-button" onClick={() => setSettingsOpen(false)}>Hotovo</button></section></div>}
+          {settingsOpen && <div className="reader-sheet-backdrop" role="presentation" onClick={() => setSettingsOpen(false)}><section className="reader-settings-sheet" role="dialog" aria-modal="true" aria-labelledby="reader-settings-heading" onClick={(event) => event.stopPropagation()}><div className="sheet-handle" aria-hidden="true" /><header><span><small>Nastavení výkonu</small><h2 id="reader-settings-heading">Zobrazení písně</h2></span><button type="button" className="icon-button" aria-label="Zavřít nastavení" onClick={() => setSettingsOpen(false)}><Icon name="close" /></button></header><div className="reader-control-grid"><label htmlFor="reader-font-size"><span>Velikost textu</span><output>{settings.fontSize} px</output><input id="reader-font-size" aria-label="Nastavit velikost textu" type="range" min="14" max="34" step="2" value={settings.fontSize} onChange={(event) => updateSettings({ fontSize: Number(event.target.value) })} /></label><label htmlFor="reader-chord-size"><span>Velikost akordů</span><output>{Math.round(chordScale * 100)} %</output><input id="reader-chord-size" type="range" min="0.75" max="1.4" step="0.05" value={chordScale} onChange={(event) => setChordScale(Number(event.target.value))} /></label><label htmlFor="reader-line-height"><span>Řádkování</span><output>{readerLineHeight.toFixed(1)}</output><input id="reader-line-height" type="range" min="1.15" max="1.8" step="0.05" value={readerLineHeight} onChange={(event) => setReaderLineHeight(Number(event.target.value))} /></label><label htmlFor="reader-column-width"><span>Šířka textu</span><output>{readerColumnWidth} px</output><input id="reader-column-width" type="range" min="320" max="980" step="20" value={readerColumnWidth} onChange={(event) => setReaderColumnWidth(Number(event.target.value))} /></label><label htmlFor="reader-scroll-speed"><span>Rychlost posunu</span><output>{settings.autoScrollSpeed}</output><input id="reader-scroll-speed" aria-label="Nastavit rychlost posunu" type="range" min="5" max="100" value={settings.autoScrollSpeed} onChange={(event) => updateSettings({ autoScrollSpeed: Number(event.target.value) })} /></label><label className="switch-row"><input type="checkbox" checked={focusSections} onChange={(event) => setFocusSections(event.target.checked)} /> Režim soustředění – klepnutím zvýraznit aktuální sloku</label></div><div className="sheet-theme-options" role="group" aria-label="Motiv čtečky">{(['light', 'dark', 'system'] as const).map((theme) => <button type="button" className={settings.theme === theme ? 'active' : ''} aria-pressed={settings.theme === theme} onClick={() => updateSettings({ theme })} key={theme}>{theme === 'light' ? 'Světlý' : theme === 'dark' ? 'Tmavý' : 'Systém'}</button>)}</div><button type="button" className="primary-button" onClick={() => setSettingsOpen(false)}>Hotovo</button></section></div>}
+          {correctionOpen && <div className="reader-sheet-backdrop" role="presentation" onClick={() => setCorrectionOpen(false)}><section className="reader-settings-sheet correction-sheet" role="dialog" aria-modal="true" aria-labelledby="correction-heading" onClick={(event) => event.stopPropagation()}><div className="sheet-handle" aria-hidden="true" /><header><span><small>Oprava bez rizika</small><h2 id="correction-heading">Opravit nebo navrhnout změnu</h2></span><button type="button" className="icon-button" aria-label="Zavřít opravu" onClick={() => setCorrectionOpen(false)}><Icon name="close" /></button></header><p>Lokální verze zůstane pouze v tomto zařízení. Návrh správci se uloží do soukromé fronty ke kontrole a nic automaticky nezveřejní.</p><label>Poznámka pro administrátora<textarea value={correctionNote} maxLength={2000} onChange={(event) => setCorrectionNote(event.target.value)} placeholder="Co je špatně a kde přesně?" /></label><button type="button" className="secondary-button" disabled={!secureProfile || correctionBusy || !correctionNote.trim()} onClick={() => void submitCorrection()}><Icon name="upload" />{secureProfile ? 'Odeslat návrh administrátorovi' : 'Přihlášení je nutné pro odeslání'}</button><details className="local-source-editor"><summary><Icon name="edit" />Upravit lokální ChordPro verzi</summary><label>Text a akordy<textarea value={editableSource} spellCheck={false} onChange={(event) => setEditableSource(event.target.value)} /></label><div className="button-row"><button type="button" className="primary-button" disabled={correctionBusy || !editableSource.trim()} onClick={() => void saveLocalCorrection()}><Icon name="database" />Uložit jen do tohoto zařízení</button>{hasLocalOverride && <button type="button" className="secondary-button" disabled={correctionBusy} onClick={() => void resetLocalCorrection()}>Obnovit původní verzi</button>}</div></details>{correctionMessage && <p className="info-message" role="status">{correctionMessage}</p>}</section></div>}
         </>
-      ) : <ScoreViewer assets={song.scoreAssets} catalogVersion={catalogVersion} />}
+      ) : <Suspense fallback={<p className="score-note" role="status">Načítám notový modul až nyní…</p>}><ScoreViewer assets={song.scoreAssets} catalogVersion={catalogVersion} /></Suspense>}
     </article>
   );
 }

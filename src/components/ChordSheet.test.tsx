@@ -1,7 +1,7 @@
 import { cleanup, render } from '@testing-library/react';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ChordSheet } from './ChordSheet';
 
 describe('sazba textu a akordů', () => {
@@ -41,5 +41,22 @@ describe('sazba textu a akordů', () => {
     expect(screen.getByRole('img', { name: 'Kytarový hmat F s barré' })).toBeVisible();
     expect(document.querySelector('.chord-diagrams line.barre')).not.toBeNull();
     expect(screen.getByText(/barré/)).toBeVisible();
+  });
+
+  it('umožní soustředit se na jednu sloku bez změny zdrojového textu', async () => {
+    const view = render(<ChordSheet focusSections source={'{soc}\n[C]První syntetická věta\n{eoc}\n[G]Druhá syntetická věta'} />);
+    const sections = view.container.querySelectorAll('.song-section');
+    expect(sections).toHaveLength(2);
+    await userEvent.click(sections[0]);
+    expect(view.container.querySelector('.chord-sheet')).toHaveClass('chord-sheet--focus-active');
+    expect(sections[0]).toHaveClass('song-section--active');
+  });
+
+  it('předá hlášený akord do bezpečného návrhu opravy', async () => {
+    const onSuggestCorrection = vi.fn();
+    render(<ChordSheet source={'[Am7]Syntetický text'} onSuggestCorrection={onSuggestCorrection} />);
+    await userEvent.click(screen.getByRole('button', { name: /Akord Am7/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Nahlásit chybný akord nebo polohu' }));
+    expect(onSuggestCorrection).toHaveBeenCalledWith('Am7');
   });
 });

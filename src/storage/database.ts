@@ -748,11 +748,30 @@ export async function getPersonalSongContent(songId: string): Promise<string | n
   return typeof content === 'string' ? content : null;
 }
 
+const LOCAL_SONG_OVERRIDE_PREFIX = 'local-override:';
+
+export async function getLocalSongOverride(songId: string): Promise<string | null> {
+  const database = await databasePromise;
+  const content = await database.get('personalSongContent', `${LOCAL_SONG_OVERRIDE_PREFIX}${songId}`) as unknown;
+  return typeof content === 'string' ? sanitizeImportedText(content) : null;
+}
+
+export async function saveLocalSongOverride(songId: string, content: string): Promise<void> {
+  const database = await databasePromise;
+  await database.put('personalSongContent', sanitizeImportedText(content), `${LOCAL_SONG_OVERRIDE_PREFIX}${songId}`);
+}
+
+export async function removeLocalSongOverride(songId: string): Promise<void> {
+  const database = await databasePromise;
+  await database.delete('personalSongContent', `${LOCAL_SONG_OVERRIDE_PREFIX}${songId}`);
+}
+
 export async function removePersonalSong(songId: string): Promise<void> {
   const database = await databasePromise;
   const transaction = database.transaction(['personalSongs', 'personalSongContent'], 'readwrite');
   await transaction.objectStore('personalSongs').delete(songId);
   await transaction.objectStore('personalSongContent').delete(songId);
+  await transaction.objectStore('personalSongContent').delete(`${LOCAL_SONG_OVERRIDE_PREFIX}${songId}`);
   await transaction.done;
 }
 
@@ -763,6 +782,7 @@ export async function removeProtectedSong(userId: string, songId: string): Promi
   const transaction = database.transaction(['personalSongs', 'personalSongContent', 'contentPackages'], 'readwrite');
   await transaction.objectStore('personalSongs').delete(songId);
   await transaction.objectStore('personalSongContent').delete(songId);
+  await transaction.objectStore('personalSongContent').delete(`${LOCAL_SONG_OVERRIDE_PREFIX}${songId}`);
   await transaction.objectStore('contentPackages').put({
     ...contentPackage,
     songIds: contentPackage.songIds.filter((id) => id !== songId),
@@ -787,6 +807,7 @@ export async function removeDownloadedLibrarySongs(userId?: string): Promise<num
   for (const songId of songIds) {
     await transaction.objectStore('personalSongs').delete(songId);
     await transaction.objectStore('personalSongContent').delete(songId);
+    await transaction.objectStore('personalSongContent').delete(`${LOCAL_SONG_OVERRIDE_PREFIX}${songId}`);
   }
   if (userId) await transaction.objectStore('contentPackages').delete(userId);
   await transaction.objectStore('metadata').delete('downloadedLibrary');

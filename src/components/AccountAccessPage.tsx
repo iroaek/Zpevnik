@@ -8,6 +8,7 @@ import {
   signInSecureAccountWithCode,
   verifyEmailVerificationCode,
 } from '../auth/secureAccess';
+import { friendlyError } from '../ui/friendlyError';
 
 interface AccountAccessPageProps {
   canInstall: boolean;
@@ -63,7 +64,7 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
         setPassword('');
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Požadavek se nepodařilo dokončit.');
+      setError(friendlyError(caught, 'Požadavek se nepodařilo dokončit. Zkontrolujte údaje a zkuste to znovu.'));
     } finally {
       setBusy(false);
     }
@@ -80,7 +81,7 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
       await sendPasswordReset(email);
       setMessage('Pokud účet existuje, na e-mail dorazí odkaz pro nastavení nového hesla.');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Obnovu hesla se nepodařilo zahájit.');
+      setError(friendlyError(caught, 'Obnovu hesla se nepodařilo zahájit.'));
     } finally {
       setBusy(false);
     }
@@ -96,7 +97,7 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
       setVerificationCode('');
       setMessage('Poslali jsme nový kód. Platí pět minut a nahrazuje všechny dříve zaslané kódy.');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Nový kód se nepodařilo odeslat.');
+      setError(friendlyError(caught, 'Nový kód se nepodařilo odeslat.'));
     } finally {
       setBusy(false);
     }

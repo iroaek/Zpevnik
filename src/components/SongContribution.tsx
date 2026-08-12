@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadRemoteSongSubmissions, submitSecureSong, type SecureProfile } from '../auth/secureAccess';
 import { loadSongSubmissions, saveSongSubmission, type SongSubmission, type UserProfile } from '../storage/database';
+import { friendlyError } from '../ui/friendlyError';
 
 interface SongContributionProps {
   userProfile: UserProfile;
@@ -62,7 +63,7 @@ export function SongContribution({ userProfile, secureProfile = null, secureMode
       if (uploadRef.current) uploadRef.current.value = '';
       setMessage(kind === 'upload' ? 'Soubor byl bezpečně odeslán správci ke kontrole.' : 'Žádost byla odeslána správci ke kontrole.');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Návrh se nepodařilo uložit.');
+      setMessage(friendlyError(error, 'Návrh se nepodařilo uložit. Zkontrolujte připojení a zkuste to znovu.'));
     } finally {
       setBusy(false);
     }

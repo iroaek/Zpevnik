@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import type { Song } from '../domain/song';
+import { Icon } from '../ui/Icon';
 
 interface HomeDashboardProps {
   songs: Song[];
@@ -26,22 +27,22 @@ export function HomeDashboard({ songs, favorites, recent, setlistCount, onOpenSo
         </div>
         <nav className="dashboard-orbits" aria-label="Hudební rozcestník">
           <button type="button" onClick={() => lastSong ? onOpenSong(lastSong.id) : onNavigate('songs')}>
-            <span aria-hidden="true">▶</span><strong>Pokračovat</strong><small>{lastSong?.title ?? 'Vybrat píseň'}</small>
+            <span aria-hidden="true"><Icon name="play" size={36} /></span><strong>Pokračovat</strong><small>{lastSong?.title ?? 'Vybrat píseň'}</small>
           </button>
           <button type="button" onClick={() => onNavigate('songs')}>
-            <span aria-hidden="true">♯</span><strong>Akordy</strong><small>{songs.length} písní</small>
+            <span aria-hidden="true"><Icon name="music" size={36} /></span><strong>Akordy</strong><small>{songs.length} písní</small>
           </button>
           <button type="button" onClick={() => onNavigate('songs/favorites')}>
-            <span aria-hidden="true">♡</span><strong>Oblíbené</strong><small>{favorites.length} písní</small>
+            <span aria-hidden="true"><Icon name="heart" size={36} /></span><strong>Oblíbené</strong><small>{favorites.length} písní</small>
           </button>
           <button type="button" onClick={() => onNavigate('songs/artists')}>
-            <span aria-hidden="true">♙</span><strong>Interpreti</strong><small>Podle autora</small>
+            <span aria-hidden="true"><Icon name="users" size={36} /></span><strong>Interpreti</strong><small>Podle autora</small>
           </button>
           <button type="button" onClick={() => onNavigate('setlists')}>
-            <span aria-hidden="true">♫</span><strong>Setlisty</strong><small>{setlistCount} seznamů</small>
+            <span aria-hidden="true"><Icon name="list" size={36} /></span><strong>Setlisty</strong><small>{setlistCount} seznamů</small>
           </button>
           <button type="button" onClick={() => onNavigate('import')}>
-            <span aria-hidden="true">＋</span><strong>Přidat</strong><small>PDF nebo píseň</small>
+            <span aria-hidden="true"><Icon name="plus" size={36} /></span><strong>Přidat</strong><small>PDF nebo píseň</small>
           </button>
         </nav>
       </section>

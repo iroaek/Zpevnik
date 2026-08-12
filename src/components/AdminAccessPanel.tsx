@@ -7,6 +7,7 @@ import {
   type RemoteSongSubmission,
   type SecureProfile,
 } from '../auth/secureAccess';
+import { friendlyError } from '../ui/friendlyError';
 
 export function AdminAccessPanel({ mode = 'all' }: { mode?: 'all' | 'accounts' | 'songs' }) {
   const [profiles, setProfiles] = useState<SecureProfile[]>([]);
@@ -21,7 +22,7 @@ export function AdminAccessPanel({ mode = 'all' }: { mode?: 'all' | 'accounts' |
       setSubmissions(nextSubmissions.filter((submission) => submission.status === 'pending_review'));
       setMessage('');
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : 'Administraci se nepodařilo načíst.');
+      setMessage(friendlyError(caught, 'Administraci se nepodařilo načíst.'));
     }
   }, []);
 
@@ -37,7 +38,7 @@ export function AdminAccessPanel({ mode = 'all' }: { mode?: 'all' | 'accounts' |
       await refresh();
       setMessage(decision === 'approved' ? `Účet ${profile.display_name} byl schválen.` : `Registrace ${profile.display_name} byla zamítnuta.`);
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : 'Rozhodnutí se nepodařilo uložit.');
+      setMessage(friendlyError(caught, 'Rozhodnutí se nepodařilo uložit.'));
     } finally {
       setBusyId('');
     }
@@ -50,7 +51,7 @@ export function AdminAccessPanel({ mode = 'all' }: { mode?: 'all' | 'accounts' |
       await refresh();
       setMessage(decision === 'accepted_for_review' ? `Návrh „${submission.title}“ byl převzat ke kontrole.` : `Návrh „${submission.title}“ byl zamítnut.`);
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : 'Rozhodnutí se nepodařilo uložit.');
+      setMessage(friendlyError(caught, 'Rozhodnutí se nepodařilo uložit.'));
     } finally {
       setBusyId('');
     }

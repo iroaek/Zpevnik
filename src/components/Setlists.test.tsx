@@ -65,4 +65,18 @@ describe('soukromé setlisty', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Duplikovat' }));
     expect(screen.getByRole('tab', { name: /Večer – kopie/ })).toHaveAttribute('aria-selected', 'true');
   });
+
+  it('oddělí moje, sdílené a veřejné setlisty bez ztráty kontextu', async () => {
+    render(<SetlistsHarness />);
+    expect(screen.getByRole('tab', { name: /Moje/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByLabelText('Název nového setlistu')).toBeVisible();
+
+    await userEvent.click(screen.getByRole('tab', { name: /Sdílené/ }));
+    expect(screen.getByRole('tab', { name: /Sdílené/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'Členské setlisty' })).toBeVisible();
+    expect(screen.queryByLabelText('Název nového setlistu')).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('tab', { name: /Veřejné/ }));
+    expect(screen.getByRole('heading', { name: 'Veřejné setlisty' })).toBeVisible();
+  });
 });

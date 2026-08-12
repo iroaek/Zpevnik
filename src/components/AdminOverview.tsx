@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'r
 import { loadAllProfiles, loadRemoteSongSubmissions, type SecureProfile } from '../auth/secureAccess';
 import type { CloudSyncState } from '../hooks/useCloudUserState';
 import { isProfileOnline } from './adminUserPresence';
+import { Icon } from '../ui/Icon';
+import { friendlyError } from '../ui/friendlyError';
 
 type AdminDestination = 'users' | 'requests' | 'songs' | 'system';
 
@@ -36,7 +38,7 @@ export function AdminOverview({
       setObservedAt(Date.now());
       setError('');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Provozní přehled se nepodařilo načíst.');
+      setError(friendlyError(caught, 'Provozní přehled se nepodařilo načíst.'));
     } finally {
       setLoading(false);
     }
@@ -67,15 +69,15 @@ export function AdminOverview({
   return <section className="admin-overview" aria-labelledby="admin-overview-heading">
     <div className="admin-command-bar">
       <span><p className="eyebrow">Živý provoz</p><h2 id="admin-overview-heading">Přehled administrace</h2><small>{observedAt ? `Aktualizováno ${new Date(observedAt).toLocaleTimeString('cs-CZ')}` : 'Načítám aktuální stav z Neonu…'}</small></span>
-      <button type="button" className="secondary-button" disabled={loading || !online} onClick={() => void refresh()}><span aria-hidden="true">↻</span>{loading ? 'Načítám…' : 'Obnovit data'}</button>
+      <button type="button" className="secondary-button" disabled={loading || !online} onClick={() => void refresh()}><Icon name="sync" />{loading ? 'Načítám…' : 'Obnovit data'}</button>
     </div>
     {error && <p className="error-message" role="alert">{error}</p>}
 
     <div className="admin-kpi-grid" aria-label="Hlavní provozní ukazatele">
-      <button type="button" onClick={() => onOpen('users')}><span className="admin-kpi-icon" aria-hidden="true">◎</span><small>Registrovaní</small><strong>{profiles.length}</strong><em>celkem profilů</em></button>
-      <button type="button" onClick={() => onOpen('users')}><span className="admin-kpi-icon admin-kpi-icon--online" aria-hidden="true">●</span><small>Online nyní</small><strong>{onlineCount}</strong><em>poslední 2 minuty</em></button>
-      <button type="button" onClick={() => onOpen('users')}><span className="admin-kpi-icon" aria-hidden="true">✓</span><small>Autorizovaní</small><strong>{statusCounts.approved}</strong><em>{approvalPercentage} % účtů</em></button>
-      <button type="button" className={pendingTotal ? 'admin-kpi--attention' : ''} onClick={() => onOpen(statusCounts.pending ? 'requests' : pendingSongs ? 'songs' : 'system')}><span className="admin-kpi-icon" aria-hidden="true">!</span><small>Vyžaduje pozornost</small><strong>{pendingTotal}</strong><em>účty, písně a sync</em></button>
+      <button type="button" onClick={() => onOpen('users')}><span className="admin-kpi-icon"><Icon name="users" /></span><small>Registrovaní</small><strong>{profiles.length}</strong><em>celkem profilů</em></button>
+      <button type="button" onClick={() => onOpen('users')}><span className="admin-kpi-icon admin-kpi-icon--online"><Icon name="wifi" /></span><small>Online nyní</small><strong>{onlineCount}</strong><em>poslední 2 minuty</em></button>
+      <button type="button" onClick={() => onOpen('users')}><span className="admin-kpi-icon"><Icon name="check" /></span><small>Autorizovaní</small><strong>{statusCounts.approved}</strong><em>{approvalPercentage} % účtů</em></button>
+      <button type="button" className={pendingTotal ? 'admin-kpi--attention' : ''} onClick={() => onOpen(statusCounts.pending ? 'requests' : pendingSongs ? 'songs' : 'system')}><span className="admin-kpi-icon"><Icon name="alert" /></span><small>Vyžaduje pozornost</small><strong>{pendingTotal}</strong><em>účty, písně a sync</em></button>
     </div>
 
     <div className="admin-insight-grid">
@@ -97,9 +99,9 @@ export function AdminOverview({
 
       <article className="admin-queue-card">
         <header><span><small>Pracovní fronta</small><h3>Co čeká na vyřízení</h3></span><strong>{pendingTotal}</strong></header>
-        <button type="button" onClick={() => onOpen('requests')}><span aria-hidden="true">♙</span><span><strong>Nové registrace</strong><small>Schválit nebo zamítnout účet</small></span><em>{statusCounts.pending}</em></button>
-        <button type="button" onClick={() => onOpen('songs')}><span aria-hidden="true">♫</span><span><strong>Návrhy písní</strong><small>Ruční kontrola práv a obsahu</small></span><em>{pendingSongs}</em></button>
-        <button type="button" onClick={() => onOpen('system')}><span aria-hidden="true">↻</span><span><strong>Čekající synchronizace</strong><small>Změny uložené v zařízení</small></span><em>{cloudSync.pendingCount}</em></button>
+        <button type="button" onClick={() => onOpen('requests')}><Icon name="users" /><span><strong>Nové registrace</strong><small>Schválit nebo zamítnout účet</small></span><em>{statusCounts.pending}</em></button>
+        <button type="button" onClick={() => onOpen('songs')}><Icon name="music" /><span><strong>Návrhy písní</strong><small>Ruční kontrola práv a obsahu</small></span><em>{pendingSongs}</em></button>
+        <button type="button" onClick={() => onOpen('system')}><Icon name="sync" /><span><strong>Čekající synchronizace</strong><small>Změny uložené v zařízení</small></span><em>{cloudSync.pendingCount}</em></button>
       </article>
 
       <article className="admin-health-card">

@@ -1,10 +1,13 @@
-import { useRef, useState } from 'react';
+import { lazy, Suspense, useRef, useState } from 'react';
 import { beginMigratedAccountActivation, signOutSecureAccount, type SecureProfile } from '../auth/secureAccess';
 import type { Song } from '../domain/song';
 import type { CloudSyncState } from '../hooks/useCloudUserState';
 import { downloadPersonalLibrary } from '../personalLibraryDownload';
 import { exportFullBackup, importFullBackup, type UserProfile, type UserState } from '../storage/database';
-import { QrCodeGenerator } from './QrCodeGenerator';
+import { Icon } from '../ui/Icon';
+import { friendlyError } from '../ui/friendlyError';
+
+const QrCodeGenerator = lazy(() => import('./QrCodeGenerator').then((module) => ({ default: module.QrCodeGenerator })));
 
 interface SettingsProps {
   userState: UserState;
@@ -60,7 +63,7 @@ export function Settings({
       await onRefreshSecureProfile();
       setPermissionMessage('Oprávnění účtu byla obnovena ze serveru.');
     } catch (error) {
-      setPermissionMessage(error instanceof Error ? `Oprávnění nelze obnovit: ${error.message}` : 'Oprávnění nelze obnovit.');
+      setPermissionMessage(friendlyError(error, 'Oprávnění nelze obnovit. Zkontrolujte připojení a zkuste to znovu.'));
     } finally {
       setPermissionBusy(false);
     }
@@ -72,7 +75,7 @@ export function Settings({
     try {
       await beginMigratedAccountActivation();
     } catch (error) {
-      setPermissionMessage(error instanceof Error ? `Aktivaci nelze zahájit: ${error.message}` : 'Aktivaci nelze zahájit.');
+      setPermissionMessage(friendlyError(error, 'Aktivaci nelze zahájit. Zkuste to znovu.'));
       setPermissionBusy(false);
     }
   };
@@ -84,7 +87,7 @@ export function Settings({
       const count = await exportFullBackup(userState, personalSongs);
       setMessage(`Záloha byla vytvořena: ${count} osobních písní a nastavení.`);
     } catch (error) {
-      setMessage(error instanceof Error ? `Zálohu nelze vytvořit: ${error.message}` : 'Zálohu nelze vytvořit.');
+      setMessage(friendlyError(error, 'Zálohu nelze vytvořit.'));
     } finally {
       setBackupBusy(false);
     }
@@ -99,7 +102,7 @@ export function Settings({
       await onPersonalLibraryChanged();
       setMessage(`Záloha byla obnovena${imported.personalSongCount ? ` včetně ${imported.personalSongCount} osobních písní` : ''}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? `Zálohu nelze načíst: ${error.message}` : 'Zálohu nelze načíst.');
+      setMessage(friendlyError(error, 'Zálohu nelze načíst.'));
     } finally {
       setBackupBusy(false);
       if (fileRef.current) fileRef.current.value = '';
@@ -117,7 +120,7 @@ export function Settings({
       setAccessCode('');
       setMessage(`Hotovo: do tohoto zařízení bylo uloženo ${imported.personalSongCount} osobních písní.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Osobní písně nelze stáhnout.');
+      setMessage(friendlyError(error, 'Osobní písně nelze stáhnout.'));
     } finally {
       setBackupBusy(false);
     }
@@ -135,7 +138,7 @@ export function Settings({
       {secureMode && <section className={`account-role-card ${serverAdmin ? 'account-role-card--admin' : ''}`} aria-label="Oprávnění účtu"><span><small>Oprávnění účtu</small><strong>{serverAdmin ? 'Administrátor' : 'Schválený člen'}</strong><p>{serverAdmin ? 'Správa uživatelů a návrhů písní je aktivní.' : 'Administrace je dostupná pouze správcům.'}</p></span><button type="button" className="secondary-button" disabled={permissionBusy} onClick={() => void refreshPermissions()}>{permissionBusy ? 'Obnovuji…' : 'Obnovit oprávnění'}</button></section>}
       {secureMode && !secureProfile?.auth_user_id && <section className="migration-note account-activation-note" aria-label="Aktivace Neon účtu"><strong>Dokončete přechod na nové přihlášení</strong><span>Stažené písně zůstanou v tomto zařízení. Po ověření stejného e-mailu se obnoví vaše schválení, role i setlisty.</span><button type="button" className="primary-button" disabled={permissionBusy} onClick={() => void activateMigratedAccount()}>{permissionBusy ? 'Připravuji…' : 'Aktivovat přihlášení přes Neon'}</button></section>}
       {permissionMessage && <p className="info-message" role="status">{permissionMessage}</p>}
-      {secureMode && cloudSync && <section className={`cloud-sync-card cloud-sync-card--${cloudSync.status}`} aria-label="Synchronizace mezi zařízeními"><span className="cloud-sync-icon" aria-hidden="true">↻</span><span><small>Synchronizace</small><strong>{pendingSyncLabel ?? (cloudSync.status === 'synced' ? 'Synchronizováno' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Ukládám změny…' : cloudSync.status === 'offline' ? 'Čeká na připojení' : cloudSync.status === 'error' ? 'Vyžaduje pozornost' : 'Není aktivní')}</strong><p>{cloudSync.error ?? (cloudSync.lastSyncedAt ? `Naposledy ${new Date(cloudSync.lastSyncedAt).toLocaleString('cs-CZ')}` : 'Čeká na první synchronizaci.')}{nextSyncAttempt}</p></span><button type="button" className="secondary-button" disabled={cloudSync.status === 'loading' || cloudSync.status === 'syncing'} onClick={() => void cloudSync.refresh()}>Obnovit</button></section>}
+      {secureMode && cloudSync && <section className={`cloud-sync-card cloud-sync-card--${cloudSync.status}`} aria-label="Synchronizace mezi zařízeními"><span className="cloud-sync-icon" aria-hidden="true"><Icon name="sync" /></span><span><small>Synchronizace</small><strong>{pendingSyncLabel ?? (cloudSync.status === 'synced' ? 'Synchronizováno' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Ukládám změny…' : cloudSync.status === 'offline' ? 'Čeká na připojení' : cloudSync.status === 'error' ? 'Vyžaduje pozornost' : 'Není aktivní')}</strong><p>{cloudSync.error ? friendlyError(cloudSync.error) : (cloudSync.lastSyncedAt ? `Naposledy ${new Date(cloudSync.lastSyncedAt).toLocaleString('cs-CZ')}` : 'Čeká na první synchronizaci.')}{nextSyncAttempt}</p></span><button type="button" className="secondary-button" disabled={cloudSync.status === 'loading' || cloudSync.status === 'syncing'} onClick={() => void cloudSync.refresh()}><Icon name="sync" />Obnovit</button></section>}
 
       {serverAdmin && <section className="admin-entry-card" aria-label="Administrace"><span><small>Pouze administrátor</small><strong>Správa zpěvníku</strong><p>Uživatelé, žádosti, písně a systém.</p></span><button type="button" className="primary-button" onClick={() => onNavigate('admin')}>Otevřít administraci</button></section>}
 
@@ -152,7 +155,7 @@ export function Settings({
 
       {!secureMode && <section className="backup-card personal-download-card"><h2>{userProfile.role === 'admin' ? 'Stáhnout moji osobní knihovnu' : 'Aktivovat správcovské zařízení'}</h2><p>Balíček je na serveru pouze v zašifrované podobě. Správný osobní kód odemkne písně v tomto zařízení a aktivuje administrátorské funkce.</p><form onSubmit={(event) => { event.preventDefault(); void downloadLegacyLibrary(); }}><label htmlFor="library-access-code">Osobní administrátorský kód</label><div className="access-code-row"><input id="library-access-code" type="password" autoComplete="off" spellCheck={false} value={accessCode} onChange={(event) => setAccessCode(event.target.value)} placeholder="XXXX-XXXX-XXXX-XXXX" disabled={backupBusy} /><button type="submit" className="primary-button" disabled={backupBusy || !accessCode.trim()}>{backupBusy ? 'Stahuji…' : 'Odemknout a stáhnout'}</button></div></form></section>}
 
-      {localAdmin && !serverAdmin && <QrCodeGenerator />}
+      {localAdmin && !serverAdmin && <Suspense fallback={<div className="route-loading route-loading--compact" role="status" aria-label="Načítám generátor QR kódu"><span className="route-loading__compact-bar" /></div>}><QrCodeGenerator /></Suspense>}
 
       <section className="backup-card"><h2>Přenos celého zpěvníku souborem</h2><p>Záloha obsahuje nastavení, oblíbené, setlisty i všechny osobní písně ({personalSongs.length}). Soubor zůstane u vás a lze jej ručně načíst v telefonu.</p><div className="button-row"><button type="button" className="secondary-button" disabled={backupBusy} onClick={() => void exportBackup()}>{backupBusy ? 'Pracuji…' : 'Exportovat celou zálohu'}</button><label className={backupBusy ? 'secondary-button file-button disabled' : 'secondary-button file-button'}>Importovat celou zálohu<input ref={fileRef} type="file" accept="application/json,.json" disabled={backupBusy} onChange={(event) => void importBackup(event.target.files?.[0])} /></label></div>{message && <p role="status">{message}</p>}</section>
       <section className="privacy-card"><h2>Soukromí a offline provoz</h2><p>{secureMode ? 'Účet, schválení a návrhy zpracovává zabezpečený server. Soukromé soubory podléhají pravidlům účtu; veřejná PWA je neobsahuje.' : 'V místním režimu se profil, importované písně ani návrhy ze zařízení neodesílají.'} Po stažení mohou vybrané písně fungovat offline.</p></section>

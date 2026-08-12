@@ -10,6 +10,7 @@ import {
 import { createUuid } from '../domain/browserCompatibility';
 import { isPublishable, type Song } from '../domain/song';
 import type { Setlist } from '../storage/database';
+import { friendlyError } from '../ui/friendlyError';
 
 interface SharedSetlistsProps {
   songs: Song[];
@@ -66,7 +67,7 @@ export function SharedSetlists({
       setRecords(next);
       setSelectedSharedId((current) => preferredId || (next.some((record) => record.id === current) ? current : next[0]?.id ?? ''));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Sdílené setlisty se nepodařilo načíst.');
+      setError(friendlyError(caught, 'Sdílené setlisty se nepodařilo načíst.'));
     } finally {
       setBusy('');
     }
@@ -96,7 +97,7 @@ export function SharedSetlists({
         ? `Sdílený setlist byl aktualizován.${excluded ? ` ${excluded} neveřejných položek zůstalo jen u vás.` : ''}`
         : `Setlist nyní vidí všichni schválení členové.${excluded ? ` ${excluded} neveřejných položek zůstalo jen u vás.` : ''}`);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Setlist se nepodařilo sdílet.');
+      setError(friendlyError(caught, 'Setlist se nepodařilo sdílet.'));
     } finally {
       setBusy('');
     }
@@ -133,7 +134,7 @@ export function SharedSetlists({
         ? 'Administrátorská úprava sdíleného setlistu byla uložena.'
         : 'Sdílený setlist byl upraven.');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Úpravy se nepodařilo uložit.');
+      setError(friendlyError(caught, 'Úpravy se nepodařilo uložit.'));
     } finally {
       setBusy('');
     }
@@ -149,7 +150,7 @@ export function SharedSetlists({
       await refresh();
       setMessage(record.owner_id === profile?.id ? 'Sdílení setlistu bylo zrušeno.' : 'Sdílený setlist byl administrátorem odstraněn.');
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Sdílený setlist se nepodařilo odstranit.');
+      setError(friendlyError(caught, 'Sdílený setlist se nepodařilo odstranit.'));
     } finally {
       setBusy('');
     }

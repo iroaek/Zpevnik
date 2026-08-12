@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { updateSecurePassword } from '../auth/secureAccess';
+import { friendlyError } from '../ui/friendlyError';
 
 interface PasswordRecoveryPageProps {
   onComplete: () => void;
@@ -22,7 +23,7 @@ export function PasswordRecoveryPage({ onComplete }: PasswordRecoveryPageProps) 
       await updateSecurePassword(password);
       onComplete();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Heslo se nepodařilo změnit.');
+      setError(friendlyError(caught, 'Heslo se nepodařilo změnit. Vyžádejte si nový odkaz a zkuste to znovu.'));
     } finally {
       setBusy(false);
     }
