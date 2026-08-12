@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { signOutSecureAccount, type SecureProfile } from '../auth/secureAccess';
+import { beginMigratedAccountActivation, signOutSecureAccount, type SecureProfile } from '../auth/secureAccess';
 import type { Song } from '../domain/song';
 import type { CloudSyncState } from '../hooks/useCloudUserState';
 import { downloadPersonalLibrary } from '../personalLibraryDownload';
@@ -64,6 +64,17 @@ export function Settings({
     }
   };
 
+  const activateMigratedAccount = async () => {
+    setPermissionBusy(true);
+    setPermissionMessage('Připravuji bezpečnou aktivaci Neon účtu…');
+    try {
+      await beginMigratedAccountActivation();
+    } catch (error) {
+      setPermissionMessage(error instanceof Error ? `Aktivaci nelze zahájit: ${error.message}` : 'Aktivaci nelze zahájit.');
+      setPermissionBusy(false);
+    }
+  };
+
   const exportBackup = async () => {
     setBackupBusy(true);
     setMessage('Připravuji zálohu osobní knihovny…');
@@ -120,6 +131,7 @@ export function Settings({
       </section>
 
       {secureMode && <section className={`account-role-card ${serverAdmin ? 'account-role-card--admin' : ''}`} aria-label="Oprávnění účtu"><span><small>Oprávnění účtu</small><strong>{serverAdmin ? 'Administrátor' : 'Schválený člen'}</strong><p>{serverAdmin ? 'Správa uživatelů a návrhů písní je aktivní.' : 'Administrace je dostupná pouze správcům.'}</p></span><button type="button" className="secondary-button" disabled={permissionBusy} onClick={() => void refreshPermissions()}>{permissionBusy ? 'Obnovuji…' : 'Obnovit oprávnění'}</button></section>}
+      {secureMode && !secureProfile?.auth_user_id && <section className="migration-note account-activation-note" aria-label="Aktivace Neon účtu"><strong>Dokončete přechod na nové přihlášení</strong><span>Stažené písně zůstanou v tomto zařízení. Po ověření stejného e-mailu se obnoví vaše schválení, role i setlisty.</span><button type="button" className="primary-button" disabled={permissionBusy} onClick={() => void activateMigratedAccount()}>{permissionBusy ? 'Připravuji…' : 'Aktivovat přihlášení přes Neon'}</button></section>}
       {permissionMessage && <p className="info-message" role="status">{permissionMessage}</p>}
       {secureMode && cloudSync && <section className={`cloud-sync-card cloud-sync-card--${cloudSync.status}`} aria-label="Synchronizace mezi zařízeními"><span className="cloud-sync-icon" aria-hidden="true">↻</span><span><small>Synchronizace</small><strong>{pendingSyncLabel ?? (cloudSync.status === 'synced' ? 'Synchronizováno' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Ukládám změny…' : cloudSync.status === 'offline' ? 'Čeká na připojení' : cloudSync.status === 'error' ? 'Vyžaduje pozornost' : 'Není aktivní')}</strong><p>{cloudSync.error ?? (cloudSync.lastSyncedAt ? `Naposledy ${new Date(cloudSync.lastSyncedAt).toLocaleString('cs-CZ')}` : 'Čeká na první synchronizaci.')}{nextSyncAttempt}</p></span><button type="button" className="secondary-button" disabled={cloudSync.status === 'loading' || cloudSync.status === 'syncing'} onClick={() => void cloudSync.refresh()}>Obnovit</button></section>}
 

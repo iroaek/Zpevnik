@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   clearSecureAccountLocalData,
+  clearSecureAuthorizationData,
   importFullBackup,
   libraryManifestSchema,
   loadDownloadedLibraryMetadata,
@@ -249,6 +250,15 @@ export async function signOutSecureAccount(): Promise<void> {
   await clearSecureAccountLocalData(session?.user.id);
   emitSession('SIGNED_OUT', null);
   if (error) throw readableError(error, 'Serverové odhlášení z Neonu se nepodařilo, místní oprávnění však bylo odstraněno.');
+}
+
+export async function beginMigratedAccountActivation(): Promise<void> {
+  const { error } = await requireNeonClient().auth.signOut();
+  // Při jednorázové aktivaci rušíme jen starou relaci a offline grant. Stažený
+  // balíček zůstane na zařízení a po propojení stejného profilu se znovu použije.
+  await clearSecureAuthorizationData();
+  emitSession('SIGNED_OUT', null);
+  if (error) throw readableError(error, 'Starou relaci se nepodařilo ukončit. Zkuste aktivaci znovu online.');
 }
 
 export async function requestNeonSessionJwt(): Promise<string> {

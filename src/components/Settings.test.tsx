@@ -6,7 +6,8 @@ import type { SecureProfile } from '../auth/secureAccess';
 import { defaultUserState, type UserProfile } from '../storage/database';
 import { Settings } from './Settings';
 
-vi.mock('../auth/secureAccess', () => ({ signOutSecureAccount: vi.fn() }));
+const auth = vi.hoisted(() => ({ activate: vi.fn(), signOut: vi.fn() }));
+vi.mock('../auth/secureAccess', () => ({ beginMigratedAccountActivation: auth.activate, signOutSecureAccount: auth.signOut }));
 vi.mock('../personalLibraryDownload', () => ({ downloadPersonalLibrary: vi.fn() }));
 vi.mock('./AdminUsersPanel', () => ({ AdminUsersPanel: () => <section><h2 id="admin-users-heading">Databáze uživatelů</h2></section> }));
 vi.mock('./AdminAccessPanel', () => ({ AdminAccessPanel: () => <section><h2 id="admin-access-heading">Schvalování</h2></section> }));
@@ -58,5 +59,23 @@ describe('administrátorské nastavení', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Obnovit oprávnění' }));
     expect(refresh).toHaveBeenCalledOnce();
     expect(await screen.findByText('Oprávnění účtu byla obnovena ze serveru.')).toBeVisible();
+  });
+
+  it('nabídne aktivaci starého offline profilu bez odstranění knihovny', async () => {
+    auth.activate.mockResolvedValueOnce(undefined);
+    render(<Settings
+      userState={defaultUserState}
+      userProfile={localProfile}
+      secureProfile={{ ...secureAdmin, auth_user_id: null }}
+      secureMode
+      personalSongs={[]}
+      onUserStateChange={vi.fn()}
+      onUserProfileChange={vi.fn()}
+      onPersonalLibraryChanged={vi.fn().mockResolvedValue(undefined)}
+      onNavigate={vi.fn()}
+    />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Aktivovat přihlášení přes Neon' }));
+    expect(auth.activate).toHaveBeenCalledOnce();
   });
 });

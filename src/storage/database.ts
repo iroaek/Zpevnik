@@ -794,6 +794,10 @@ export async function removeDownloadedLibrarySongs(userId?: string): Promise<num
 export async function clearSecureAccountLocalData(userId?: string): Promise<void> {
   if (userId) await removeDownloadedLibrarySongs(userId);
   else await removeDownloadedLibrarySongs();
+  await clearSecureAuthorizationData(userId);
+}
+
+export async function clearSecureAuthorizationData(userId?: string): Promise<void> {
   const database = await databasePromise;
   const transaction = database.transaction(['offlineAuth', 'account', 'pendingMutations'], 'readwrite');
   await transaction.objectStore('offlineAuth').delete('current');
