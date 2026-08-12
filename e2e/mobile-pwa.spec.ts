@@ -115,12 +115,14 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
   await page.evaluate(() => {
     Object.defineProperty(document, 'startViewTransition', { configurable: true, value: undefined });
   });
-  const transitionFinished = page.evaluate(() => new Promise<{ duration: number; frames: number; blankFrames: number; overlapFrames: number; phases: string[] }>((resolve) => {
+  const transitionFinished = page.evaluate(() => new Promise<{ duration: number; frames: number; blankFrames: number; overlapFrames: number; maxFrameGap: number; phases: string[] }>((resolve) => {
     let start = 0;
+    let previousFrame = 0;
     let started = false;
     let frames = 0;
     let blankFrames = 0;
     let overlapFrames = 0;
+    let maxFrameGap = 0;
     const phases = new Set<string>();
     const sample = () => {
       const active = document.documentElement.dataset.viewTransition === 'active';
@@ -132,6 +134,9 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
         started = true;
         start = performance.now();
       }
+      const now = performance.now();
+      if (previousFrame > 0) maxFrameGap = Math.max(maxFrameGap, now - previousFrame);
+      previousFrame = now;
       frames += 1;
       const stage = document.querySelector('.route-stage');
       if (!stage || stage.getBoundingClientRect().height < 1) blankFrames += 1;
@@ -139,7 +144,7 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
       const phase = document.documentElement.dataset.transitionPhase;
       if (phase) phases.add(phase);
       if (active) requestAnimationFrame(sample);
-      else resolve({ duration: performance.now() - start, frames, blankFrames, overlapFrames, phases: [...phases] });
+      else resolve({ duration: performance.now() - start, frames, blankFrames, overlapFrames, maxFrameGap, phases: [...phases] });
     };
     requestAnimationFrame(sample);
   }));
@@ -147,11 +152,12 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
   await expect(page.getByRole('heading', { name: 'Setlisty', exact: true })).toBeVisible();
   await expect.poll(() => page.locator('html').getAttribute('data-view-transition')).toBeNull();
   const transitionMetrics = await transitionFinished;
-  expect(transitionMetrics.duration).toBeGreaterThanOrEqual(400);
+  expect(transitionMetrics.duration).toBeGreaterThanOrEqual(250);
   expect(transitionMetrics.frames).toBeGreaterThanOrEqual(8);
   expect(transitionMetrics.blankFrames).toBe(0);
-  expect(transitionMetrics.overlapFrames).toBeGreaterThanOrEqual(8);
-  expect(transitionMetrics.phases).toEqual(expect.arrayContaining(['preparing', 'entering']));
+  expect(transitionMetrics.overlapFrames).toBe(0);
+  expect(transitionMetrics.maxFrameGap).toBeLessThan(100);
+  expect(transitionMetrics.phases).toEqual(expect.arrayContaining(['leaving', 'entering']));
   await expectNoPageOverflow(page);
 
   await page.emulateMedia({ reducedMotion: 'reduce' });

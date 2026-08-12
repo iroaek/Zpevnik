@@ -55,24 +55,26 @@ describe('směr navigačního pohybu', () => {
     expect(document.documentElement.dataset.viewTransition).toBeUndefined();
   });
 
-  it('překryje starou a novou stránku bez prázdného snímku', async () => {
-    vi.useFakeTimers();
+  it('použije nativní kompozitorový přechod bez kopírování katalogu', async () => {
     reducedMotion(false);
-    document.body.innerHTML = '<main><div class="route-stage">Původní</div></main>';
-    const update = vi.fn(() => { document.querySelector('.route-stage')!.textContent = 'Nová'; });
+    let finish!: () => void;
+    const finished = new Promise<void>((resolve) => { finish = resolve; });
+    const start = vi.fn((callback: () => void) => {
+      callback();
+      return { finished };
+    });
+    Object.defineProperty(document, 'startViewTransition', { configurable: true, value: start });
+    const update = vi.fn();
 
     runRouteTransition(update, 'forward');
-    expect(document.documentElement.dataset.viewTransition).toBe('active');
-    expect(document.documentElement.dataset.transitionPhase).toBe('preparing');
-    expect(document.querySelector('.route-transition-snapshot')).not.toBeNull();
-    await vi.advanceTimersToNextTimerAsync();
-    await vi.advanceTimersToNextTimerAsync();
-    expect(document.documentElement.dataset.transitionPhase).toBe('entering');
-    expect(document.querySelector('.route-transition-snapshot')?.getAttribute('data-transition-phase')).toBe('leaving');
-    await vi.advanceTimersByTimeAsync(500);
-
+    expect(start).toHaveBeenCalledOnce();
     expect(update).toHaveBeenCalledOnce();
-    expect(document.documentElement.dataset.viewTransition).toBeUndefined();
+    expect(document.documentElement.dataset.viewTransition).toBe('active');
     expect(document.querySelector('.route-transition-snapshot')).toBeNull();
+    finish();
+    await finished;
+    await Promise.resolve();
+
+    expect(document.documentElement.dataset.viewTransition).toBeUndefined();
   });
 });

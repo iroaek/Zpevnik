@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Song } from '../domain/song';
@@ -49,5 +49,15 @@ describe('Knihovna', () => {
     expect(view.container.querySelector('.song-list--compact')).not.toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Karty' }));
     expect(view.container.querySelector('.song-list--cards')).not.toBeNull();
+  });
+
+  it('přejetí doleva otevře rychlé akce i při okamžitém dokončení gesta', () => {
+    render(<Library songs={[song]} favorites={[]} recent={[]} onOpenSong={vi.fn()} />);
+    const card = screen.getByRole('button', { name: /^Žlutá zkouška/ }).closest('article');
+    expect(card).not.toBeNull();
+    fireEvent.pointerDown(card!, { pointerType: 'touch', clientX: 120, clientY: 30 });
+    fireEvent.pointerMove(card!, { pointerType: 'touch', clientX: 45, clientY: 32 });
+    fireEvent.pointerUp(card!, { pointerType: 'touch', clientX: 45, clientY: 32 });
+    expect(screen.getByRole('dialog', { name: 'Žlutá zkouška' })).toBeVisible();
   });
 });

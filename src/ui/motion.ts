@@ -1,6 +1,13 @@
 export type MotionDirection = 'forward' | 'back' | 'lateral';
 
+type ViewTransitionLike = { finished: Promise<unknown> };
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (update: () => void) => ViewTransitionLike;
+};
+
 const PRIMARY_ROUTE_ORDER = ['home', 'library', 'setlists', 'import', 'offline', 'settings'];
+let transitionSequence = 0;
+let fallbackAnimations: Animation[] = [];
 
 export function routeMotionDirection(current: string, target: string): MotionDirection {
   if (target === 'song' || target === 'public-setlist') return current === target ? 'lateral' : 'forward';
@@ -12,6 +19,9 @@ export function routeMotionDirection(current: string, target: string): MotionDir
 }
 
 export function runRouteTransition(update: () => void, direction: MotionDirection): void {
+  const transitionId = ++transitionSequence;
+  fallbackAnimations.forEach((animation) => animation.cancel());
+  fallbackAnimations = [];
   const reduced = typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduced) {
@@ -22,44 +32,77 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
   root.dataset.navigationDirection = direction;
   root.dataset.viewTransition = 'active';
   const cleanup = () => {
+    if (transitionId !== transitionSequence) return;
+    fallbackAnimations.forEach((animation) => animation.cancel());
+    fallbackAnimations = [];
     delete root.dataset.viewTransition;
     delete root.dataset.navigationDirection;
     delete root.dataset.transitionPhase;
   };
+
+  const startViewTransition = (document as ViewTransitionDocument).startViewTransition;
+  if (typeof startViewTransition === 'function') {
+    let updated = false;
+    try {
+      root.dataset.transitionPhase = 'entering';
+      const transition = startViewTransition.call(document, () => {
+        updated = true;
+        update();
+      });
+      void transition.finished.then(cleanup, cleanup);
+      return;
+    } catch {
+      if (!updated) update();
+      cleanup();
+      return;
+    }
+  }
+
   const currentStage = document.querySelector<HTMLElement>('.route-stage');
-  if (!currentStage) {
+  if (!currentStage || typeof currentStage.animate !== 'function') {
     update();
     cleanup();
     return;
   }
 
-  const bounds = currentStage.getBoundingClientRect();
-  const snapshot = currentStage.cloneNode(true) as HTMLElement;
-  snapshot.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
-  snapshot.classList.add('route-transition-snapshot');
-  snapshot.setAttribute('aria-hidden', 'true');
-  snapshot.setAttribute('inert', '');
-  snapshot.style.setProperty('--route-snapshot-top', `${bounds.top}px`);
-  snapshot.style.setProperty('--route-snapshot-left', `${bounds.left}px`);
-  snapshot.style.setProperty('--route-snapshot-width', `${bounds.width}px`);
-  snapshot.style.setProperty('--route-snapshot-height', `${bounds.height}px`);
-  document.body.append(snapshot);
+  const travel = direction === 'lateral' ? 0 : direction === 'forward' ? -10 : 10;
+  root.dataset.transitionPhase = 'leaving';
+  const leaving = currentStage.animate([
+    { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+    { opacity: 0.12, transform: `translate3d(${travel}px, 0, 0)` },
+  ], {
+    duration: 110,
+    easing: 'cubic-bezier(.4, 0, 1, 1)',
+    fill: 'forwards',
+  });
+  fallbackAnimations = [leaving];
 
-  root.dataset.transitionPhase = 'preparing';
-  try {
-    update();
-  } catch (error) {
-    snapshot.remove();
-    cleanup();
-    throw error;
-  }
-
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    root.dataset.transitionPhase = 'entering';
-    snapshot.dataset.transitionPhase = 'leaving';
-    window.setTimeout(() => {
-      snapshot.remove();
+  const enter = () => {
+    if (transitionId !== transitionSequence) return;
+    try {
+      update();
+    } catch (error) {
       cleanup();
-    }, 500);
-  }));
+      queueMicrotask(() => { throw error; });
+      return;
+    }
+    root.dataset.transitionPhase = 'entering';
+    leaving.cancel();
+    const nextStage = document.querySelector<HTMLElement>('.route-stage');
+    if (!nextStage || typeof nextStage.animate !== 'function') {
+      cleanup();
+      return;
+    }
+    const entering = nextStage.animate([
+      { opacity: 0.12, transform: `translate3d(${-travel}px, 0, 0)` },
+      { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+    ], {
+      duration: 240,
+      easing: 'cubic-bezier(.22, 1, .36, 1)',
+      fill: 'both',
+    });
+    fallbackAnimations = [entering];
+    void entering.finished.then(cleanup, cleanup);
+  };
+  void leaving.finished.then(enter, enter);
 }

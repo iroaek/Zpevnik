@@ -18,8 +18,8 @@
   --shadow: 0 14px 36px rgba(72, 40, 25, 0.1);
   --radius: 20px;
   --motion-fast: 140ms;
-  --motion-page: 460ms;
-  --motion-ease: cubic-bezier(0.2, 0.82, 0.2, 1);
+  --motion-page: 360ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -140,18 +140,18 @@ h3 { font-size: 1.08rem; line-height: 1.25; }
 .route-stage { width: 100%; }
 .route-stage > section:not(.home-dashboard-page):not(.song-reader) { animation: content-settle 320ms var(--motion-ease) both; }
 @keyframes content-settle { from { opacity: 0; transform: translateY(.5rem); } }
-:root[data-view-transition="active"][data-transition-phase="preparing"] .route-stage:not(.route-transition-snapshot) { pointer-events: none; opacity: 0; transform: translate3d(.85rem, 0, 0) scale(0.996); }
-:root[data-view-transition="active"][data-transition-phase="entering"] .route-stage:not(.route-transition-snapshot) { pointer-events: none; animation: route-overlap-enter var(--motion-page) var(--motion-ease) both; }
+:root[data-view-transition="active"] .route-stage { pointer-events: none; will-change: transform, opacity; backface-visibility: hidden; }
+:root[data-view-transition="active"] .route-stage > section:not(.home-dashboard-page):not(.song-reader) { animation: none; }
 :root[data-view-transition="active"] .bottom-nav { pointer-events: none; }
-:root[data-navigation-direction="back"][data-transition-phase="preparing"] .route-stage:not(.route-transition-snapshot) { transform: translate3d(-.85rem, 0, 0) scale(0.996); }
-:root[data-navigation-direction="back"][data-transition-phase="entering"] .route-stage:not(.route-transition-snapshot) { animation-name: route-overlap-enter-back; }
-.route-transition-snapshot { position: fixed; z-index: 18; top: var(--route-snapshot-top); left: var(--route-snapshot-left); width: var(--route-snapshot-width); height: var(--route-snapshot-height); max-width: none; margin: 0; overflow: hidden; pointer-events: none; background: var(--bg); transform-origin: 50% 22%; contain: layout paint style; }
-.route-transition-snapshot[data-transition-phase="leaving"] { animation: route-overlap-leave var(--motion-page) var(--motion-ease) both; }
-:root[data-navigation-direction="back"] .route-transition-snapshot[data-transition-phase="leaving"] { animation-name: route-overlap-leave-back; }
-@keyframes route-overlap-leave { from { opacity: 1; transform: none; } 34% { opacity: .96; } to { opacity: 0; transform: translate3d(-.85rem, 0, 0) scale(.996); } }
-@keyframes route-overlap-enter { from { opacity: 0; transform: translate3d(.85rem, 0, 0) scale(.996); } 22% { opacity: .28; } to { opacity: 1; transform: none; } }
-@keyframes route-overlap-leave-back { from { opacity: 1; transform: none; } 34% { opacity: .96; } to { opacity: 0; transform: translate3d(.85rem, 0, 0) scale(.996); } }
-@keyframes route-overlap-enter-back { from { opacity: 0; transform: translate3d(-.85rem, 0, 0) scale(.996); } 22% { opacity: .28; } to { opacity: 1; transform: none; } }
+::view-transition-group(root) { animation-duration: var(--motion-page); animation-timing-function: var(--motion-ease); }
+::view-transition-old(root) { animation: native-route-leave var(--motion-page) var(--motion-ease) both; }
+::view-transition-new(root) { animation: native-route-enter var(--motion-page) var(--motion-ease) both; }
+:root[data-navigation-direction="back"]::view-transition-old(root) { animation-name: native-route-leave-back; }
+:root[data-navigation-direction="back"]::view-transition-new(root) { animation-name: native-route-enter-back; }
+@keyframes native-route-leave { from { opacity: 1; transform: none; } to { opacity: .2; transform: translate3d(-.55rem, 0, 0); } }
+@keyframes native-route-enter { from { opacity: .2; transform: translate3d(.55rem, 0, 0); } to { opacity: 1; transform: none; } }
+@keyframes native-route-leave-back { from { opacity: 1; transform: none; } to { opacity: .2; transform: translate3d(.55rem, 0, 0); } }
+@keyframes native-route-enter-back { from { opacity: .2; transform: translate3d(-.55rem, 0, 0); } to { opacity: 1; transform: none; } }
 .global-warning, .error-message { padding: 0.9rem 1rem; color: #7c1d18; background: #ffe5df; border-left: 5px solid #b52e25; }
 .success-message { padding: 0.9rem 1rem; color: #144d34; background: #dff4e8; border-left: 5px solid #32865b; }
 .info-message { padding: 0.9rem 1rem; color: var(--text); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border-left: 5px solid var(--accent); }
@@ -620,8 +620,9 @@ select:focus, input:not([type="range"]):not([type="checkbox"]):focus { border-co
 .library-view-controls > div { display: flex; padding: 0.2rem; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); }
 .library-view-controls > div button { min-width: 2.55rem; min-height: 2.35rem; color: var(--muted); border: 0; border-radius: 9px; background: transparent; }
 .library-view-controls > div button.active { color: var(--on-primary); background: var(--primary); }
-.song-card-shell { position: relative; min-width: 0; overflow: hidden; border-radius: 15px; background: var(--surface); touch-action: pan-y; }
-.song-card-motion { position: relative; z-index: 1; background: var(--surface); transition: transform 220ms var(--motion-ease); }
+.song-card-shell { position: relative; display: grid; min-width: 0; overflow: hidden; border-radius: 15px; background: var(--surface); touch-action: pan-y; }
+.song-card-motion { position: relative; z-index: 1; display: grid; min-width: 0; height: 100%; background: var(--surface); transition: transform 220ms var(--motion-ease); }
+.song-card-motion .song-card { height: 100%; }
 .song-card-shell--swiping .song-card-motion { transition: none; }
 .song-card-shell .song-card { padding-right: 3.4rem; }
 .song-quick-button { position: absolute; z-index: 2; top: 50%; right: 0.35rem; width: 2.75rem; min-height: 2.75rem; padding: 0; color: var(--muted); letter-spacing: -0.12rem; border: 0; border-radius: 50%; background: transparent; transform: translateY(-50%); }
@@ -995,24 +996,32 @@ select:focus, input:not([type="range"]):not([type="checkbox"]):focus { border-co
 
 @media (max-width: 43.99rem) {
   .settings-page { padding-top: 0.25rem; }
+  .settings-page, .offline-page, .setlists-page, .admin-page { width: 100%; }
+  .settings-page > *, .offline-page > *, .setlists-page > *, .admin-page > * { max-width: 100%; }
   .settings-page > h1 { margin-bottom: 1rem; font-size: clamp(2.25rem, 12vw, 3.25rem); }
-  .profile-card { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; }
+  .profile-card { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; width: 100%; }
   .profile-signout { grid-column: 1 / -1; width: 100%; margin-left: 0; }
-  .account-role-card, .admin-entry-card { align-items: stretch; flex-direction: column; }
+  .account-role-card, .admin-entry-card { align-items: stretch; flex-direction: column; width: 100%; }
   .account-role-card > button, .admin-entry-card > button { width: 100%; }
   .cloud-sync-card { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
   .cloud-sync-icon { display: none; }
-  .cloud-sync-card > span:nth-child(2) { grid-column: 1; }
+  .cloud-sync-card > span:nth-child(2) { grid-column: 1; width: 100%; }
   .cloud-sync-card button { grid-column: 1 / -1; width: 100%; }
+  .profile-card :is(strong, small), .account-role-card :is(strong, p, small), .admin-entry-card :is(strong, p, small), .cloud-sync-card :is(strong, p, small) { max-width: 100%; word-break: normal; overflow-wrap: break-word; }
   .reader-toolbar { display: grid; align-items: stretch; }
   .transpose-control, .toolbar-actions { width: 100%; }
   .toolbar-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(2.75rem, 1fr)); }
   .toolbar-actions .icon-button { width: 100%; }
+  .reader-header { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .reader-header > div { width: 100%; }
+  .reader-settings-sheet > label:not(.reader-song-preference) { grid-template-columns: minmax(0, 1fr); }
   .chord-sheet { padding-top: 1rem; font-size: min(var(--song-font-size), 26px); }
   :root[data-fire-mode="true"] .chord-sheet { font-size: var(--song-font-size); }
   .song-section { margin-bottom: 1.1em; }
   .song-section--chorus { padding: 0.7em 0.55em; }
   .chord-line { max-width: 100%; }
+  .chord-line--with-chords .chord-token { flex: 0 1 auto; max-width: 100%; }
+  .chord-token .lyric { max-width: 100%; word-break: normal; overflow-wrap: break-word; }
   .offline-integrity-card { grid-template-columns: 1fr; }
   .offline-integrity-card button { width: 100%; }
   .admin-user-toolbar { grid-template-columns: 1fr; }
@@ -1157,6 +1166,13 @@ select:focus, input:not([type="range"]):not([type="checkbox"]):focus { border-co
   .chord-sheet { width: 100%; }
   .chord-sheet--focus-active .song-section:not(.song-section--active) { opacity: .48; transform: none; }
   .local-override-note .text-button { width: 100%; margin-left: 0; }
+}
+
+@media (max-width: 31rem) {
+  .status-center-actions, .admin-bulk-actions .button-row { grid-template-columns: minmax(0, 1fr); }
+  .status-center-actions button, .admin-bulk-actions button { min-width: 0; width: 100%; }
+  .diagnostics-list article, .device-song-list > article { grid-template-columns: minmax(0, 1fr); align-items: stretch; }
+  .diagnostics-list article > button, .device-song-list > article > button { width: 100%; }
 }
 
 @media (min-width: 60rem) {
