@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import catalogJson from './generated/catalog.json';
 import { AccountAccessPage } from './components/AccountAccessPage';
@@ -30,7 +30,7 @@ import { canonicalUrl, relativeRoute, routePath } from './pwa/paths';
 import { activateWaitingUpdate, hasWaitingUpdate } from './pwa/updateManager';
 import { addRecent, createSetlist, createUserProfile, isDownloadedLibrarySong, loadPersonalSongs, removePersonalSong, removeProtectedSong, toggleFavorite, updateSetlistSongs } from './storage/database';
 import type { PersonalLibrarySummary } from './personalLibrary';
-import { routeMotionDirection, runRouteTransition } from './ui/motion';
+import { routeMotionDirection, runRouteTransition, scrollWindowInstantly } from './ui/motion';
 import { Icon } from './ui/Icon';
 import { friendlyError } from './ui/friendlyError';
 
@@ -238,9 +238,11 @@ export default function App() {
     document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.setAttribute('href', canonical);
     const label = route.name === 'song' ? selectedSong?.title : route.name === 'public-setlist' ? selectedPublicSetlist?.title : ({ home: 'Úvod', library: 'Písně', setlists: 'Setlisty', import: 'Import PDF', settings: 'Nastavení', admin: 'Administrace', offline: 'Offline obsah', install: 'Instalace', help: 'Nápověda', diagnostics: 'Diagnostika', 'not-found': 'Nenalezeno' } as const)[route.name];
     document.title = label ? `${label} · Český zpěvník` : 'Český digitální zpěvník';
-    if (route.name === 'library') requestAnimationFrame(() => window.scrollTo({ top: libraryScroll.current }));
-    else window.scrollTo({ top: 0 });
   }, [route, selectedPublicSetlist?.title, selectedSong?.title]);
+
+  useLayoutEffect(() => {
+    scrollWindowInstantly(route.name === 'library' ? libraryScroll.current : 0);
+  }, [route]);
 
   const navigate = (relative: string, replace = false) => {
     const destination = routePath(relative);

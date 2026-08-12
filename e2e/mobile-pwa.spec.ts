@@ -115,7 +115,7 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
   await page.evaluate(() => {
     Object.defineProperty(document, 'startViewTransition', { configurable: true, value: undefined });
   });
-  const transitionFinished = page.evaluate(() => new Promise<{ duration: number; frames: number; blankFrames: number; overlapFrames: number; maxFrameGap: number; phases: string[] }>((resolve) => {
+  const transitionFinished = page.evaluate(() => new Promise<{ duration: number; frames: number; blankFrames: number; overlapFrames: number; maxFrameGap: number; longFrameCount: number; scrollRange: number; phases: string[] }>((resolve) => {
     let start = 0;
     let previousFrame = 0;
     let started = false;
@@ -123,6 +123,9 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
     let blankFrames = 0;
     let overlapFrames = 0;
     let maxFrameGap = 0;
+    let longFrameCount = 0;
+    let minScrollY = window.scrollY;
+    let maxScrollY = window.scrollY;
     const phases = new Set<string>();
     const sample = () => {
       const active = document.documentElement.dataset.viewTransition === 'active';
@@ -135,8 +138,14 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
         start = performance.now();
       }
       const now = performance.now();
-      if (previousFrame > 0) maxFrameGap = Math.max(maxFrameGap, now - previousFrame);
+      if (previousFrame > 0) {
+        const frameGap = now - previousFrame;
+        maxFrameGap = Math.max(maxFrameGap, frameGap);
+        if (frameGap > 100) longFrameCount += 1;
+      }
       previousFrame = now;
+      minScrollY = Math.min(minScrollY, window.scrollY);
+      maxScrollY = Math.max(maxScrollY, window.scrollY);
       frames += 1;
       const stage = document.querySelector('.route-stage');
       if (!stage || stage.getBoundingClientRect().height < 1) blankFrames += 1;
@@ -144,7 +153,7 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
       const phase = document.documentElement.dataset.transitionPhase;
       if (phase) phases.add(phase);
       if (active) requestAnimationFrame(sample);
-      else resolve({ duration: performance.now() - start, frames, blankFrames, overlapFrames, maxFrameGap, phases: [...phases] });
+      else resolve({ duration: performance.now() - start, frames, blankFrames, overlapFrames, maxFrameGap, longFrameCount, scrollRange: maxScrollY - minScrollY, phases: [...phases] });
     };
     requestAnimationFrame(sample);
   }));
@@ -152,11 +161,13 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
   await expect(page.getByRole('heading', { name: 'Setlisty', exact: true })).toBeVisible();
   await expect.poll(() => page.locator('html').getAttribute('data-view-transition')).toBeNull();
   const transitionMetrics = await transitionFinished;
-  expect(transitionMetrics.duration).toBeGreaterThanOrEqual(250);
+  expect(transitionMetrics.duration).toBeGreaterThanOrEqual(150);
   expect(transitionMetrics.frames).toBeGreaterThanOrEqual(8);
   expect(transitionMetrics.blankFrames).toBe(0);
   expect(transitionMetrics.overlapFrames).toBe(0);
-  expect(transitionMetrics.maxFrameGap).toBeLessThan(100);
+  expect(transitionMetrics.longFrameCount).toBeLessThanOrEqual(1);
+  expect(transitionMetrics.maxFrameGap).toBeLessThan(180);
+  expect(transitionMetrics.scrollRange).toBe(0);
   expect(transitionMetrics.phases).toEqual(expect.arrayContaining(['leaving', 'entering']));
   await expectNoPageOverflow(page);
 

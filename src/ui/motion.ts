@@ -18,6 +18,15 @@ export function routeMotionDirection(current: string, target: string): MotionDir
   return targetIndex > currentIndex ? 'forward' : 'back';
 }
 
+export function scrollWindowInstantly(top: number): void {
+  const root = document.documentElement;
+  const previousScrollBehavior = root.style.scrollBehavior;
+  root.style.scrollBehavior = 'auto';
+  window.scrollTo({ top: Math.max(0, top), left: 0, behavior: 'auto' });
+  if (previousScrollBehavior) root.style.scrollBehavior = previousScrollBehavior;
+  else root.style.removeProperty('scroll-behavior');
+}
+
 export function runRouteTransition(update: () => void, direction: MotionDirection): void {
   const transitionId = ++transitionSequence;
   fallbackAnimations.forEach((animation) => animation.cancel());
@@ -65,19 +74,9 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
     return;
   }
 
-  const travel = direction === 'lateral' ? 0 : direction === 'forward' ? -10 : 10;
+  const travel = direction === 'lateral' ? 0 : direction === 'forward' ? 4 : -4;
   root.dataset.transitionPhase = 'leaving';
-  const leaving = currentStage.animate([
-    { opacity: 1, transform: 'translate3d(0, 0, 0)' },
-    { opacity: 0.12, transform: `translate3d(${travel}px, 0, 0)` },
-  ], {
-    duration: 110,
-    easing: 'cubic-bezier(.4, 0, 1, 1)',
-    fill: 'forwards',
-  });
-  fallbackAnimations = [leaving];
-
-  const enter = () => {
+  requestAnimationFrame(() => {
     if (transitionId !== transitionSequence) return;
     try {
       update();
@@ -87,22 +86,20 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
       return;
     }
     root.dataset.transitionPhase = 'entering';
-    leaving.cancel();
     const nextStage = document.querySelector<HTMLElement>('.route-stage');
     if (!nextStage || typeof nextStage.animate !== 'function') {
       cleanup();
       return;
     }
     const entering = nextStage.animate([
-      { opacity: 0.12, transform: `translate3d(${-travel}px, 0, 0)` },
+      { opacity: 0.94, transform: `translate3d(${travel}px, 0, 0)` },
       { opacity: 1, transform: 'translate3d(0, 0, 0)' },
     ], {
-      duration: 240,
+      duration: 190,
       easing: 'cubic-bezier(.22, 1, .36, 1)',
       fill: 'both',
     });
     fallbackAnimations = [entering];
     void entering.finished.then(cleanup, cleanup);
-  };
-  void leaving.finished.then(enter, enter);
+  });
 }

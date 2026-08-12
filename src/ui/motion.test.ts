@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { routeMotionDirection, runRouteTransition } from './motion';
+import { routeMotionDirection, runRouteTransition, scrollWindowInstantly } from './motion';
 
 function reducedMotion(matches: boolean): void {
   Object.defineProperty(window, 'matchMedia', {
@@ -18,6 +18,16 @@ afterEach(() => {
 });
 
 describe('směr navigačního pohybu', () => {
+  it('obnoví pozici stránky okamžitě bez zděděného smooth scrollu', () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {
+      expect(document.documentElement.style.scrollBehavior).toBe('auto');
+    });
+    document.documentElement.style.scrollBehavior = 'smooth';
+    scrollWindowInstantly(640);
+    expect(scrollTo).toHaveBeenCalledWith({ top: 640, left: 0, behavior: 'auto' });
+    expect(document.documentElement.style.scrollBehavior).toBe('smooth');
+  });
+
   it('otevírá detail dopředu a vrací se zpět', () => {
     expect(routeMotionDirection('library', 'song')).toBe('forward');
     expect(routeMotionDirection('song', 'library')).toBe('back');
