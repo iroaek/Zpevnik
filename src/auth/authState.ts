@@ -63,6 +63,9 @@ export function classifyAuthError(error: unknown): AuthFailure {
   if (typeof status === 'number' && status >= 500) {
     return { kind: 'server-unavailable', status, code, message };
   }
+  if (normalized.includes('authentication required') || normalized.includes('email claim required')) {
+    return { kind: 'session-invalid', status, code, message };
+  }
   if (code === 'account_revoked' || code === 'account_suspended' || normalized.includes('explicit access revoked')) {
     return { kind: 'access-revoked', status, code, message };
   }

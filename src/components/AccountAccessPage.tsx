@@ -86,11 +86,27 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
     }
   };
 
+  const resendVerificationCode = async () => {
+    setBusy(true);
+    setError('');
+    setMessage('');
+    try {
+      if (verificationPurpose === 'activate') await sendEmailSignInCode(email);
+      else await sendEmailVerificationCode(email);
+      setVerificationCode('');
+      setMessage('Poslali jsme nový kód. Platí pět minut a nahrazuje všechny dříve zaslané kódy.');
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Nový kód se nepodařilo odeslat.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <section className="registration-page" aria-labelledby="account-access-heading">
       <div className="registration-card account-access-card">
         <p className="eyebrow">Soukromý členský zpěvník</p>
-        <h1 id="account-access-heading">{mode === 'login' ? 'Přihlášení' : mode === 'activate' ? 'Aktivace původního účtu' : mode === 'register' ? 'Žádost o registraci' : 'Ověření e-mailu'}</h1>
+        <h1 id="account-access-heading">{mode === 'login' ? 'Přihlášení' : mode === 'activate' ? 'Přihlášení kódem' : mode === 'register' ? 'Žádost o registraci' : verificationPurpose === 'activate' ? 'Přihlášení kódem' : 'Ověření e-mailu'}</h1>
         <p className="lead">Písně nejsou veřejné. Každý nový účet musí před prvním použitím schválit administrátor.</p>
         {mode !== 'verify' && <div className="account-mode-switch" role="tablist" aria-label="Přihlášení nebo registrace">
           <button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'active' : ''} onClick={() => { setMode('login'); setError(''); setMessage(''); }}>Přihlásit se</button>
@@ -100,6 +116,7 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
         <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
           {mode === 'verify' ? <>
             <p className="migration-note">{verificationPurpose === 'activate' ? 'Po ověření stejného e-mailu se bezpečně připojí váš dřívější profil, role, schválení, oblíbené i setlisty.' : 'Po ověření e-mailu bude nový účet čekat na schválení administrátorem.'}</p>
+            <p className="account-code-hint">Použijte pouze nejnovější kód. Platí pět minut a každý nově odeslaný kód nahradí předchozí.</p>
             <label htmlFor="account-verification-code">Šestimístný kód<input id="account-verification-code" inputMode="numeric" autoComplete="one-time-code" required minLength={6} maxLength={8} value={verificationCode} onChange={(event) => setVerificationCode(event.target.value.replace(/\s/g, ''))} /></label>
           </> : <>
           {mode === 'register' && <label htmlFor="account-name">Jméno nebo přezdívka<input id="account-name" autoComplete="nickname" required minLength={2} maxLength={60} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label>}
@@ -111,6 +128,7 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
           </>}
           </>}
           <button type="submit" className="primary-button" disabled={busy}>{busy ? 'Ověřuji…' : mode === 'login' ? 'Přihlásit se' : mode === 'activate' ? 'Poslat přihlašovací kód' : mode === 'register' ? 'Odeslat registraci' : 'Ověřit kód'}</button>
+          {mode === 'verify' && <button type="button" className="secondary-button" disabled={busy} onClick={() => void resendVerificationCode()}>{busy ? 'Odesílám…' : 'Poslat nový kód'}</button>}
           {mode === 'login' && <button type="button" className="text-button" disabled={busy} onClick={() => void resetPassword()}>Zapomenuté heslo</button>}
           {(mode === 'verify' || mode === 'activate') && <button type="button" className="text-button" disabled={busy} onClick={() => { setMode('login'); setVerificationCode(''); setPassword(''); setPasswordAgain(''); }}>Zpět na přihlášení</button>}
         </form>

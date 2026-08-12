@@ -16,6 +16,7 @@ describe('auth stavový automat', () => {
     ['HTTP 500', { status: 500, message: 'Internal server error' }, 'server-unavailable'],
     ['HTTP 503', { status: 503, message: 'Service unavailable' }, 'server-unavailable'],
     ['HTTP 401', { status: 401, message: 'JWT expired' }, 'session-invalid'],
+    ['chybějící přihlášení z Data API', { status: 400, message: 'authentication required' }, 'session-invalid'],
     ['HTTP 403', { status: 403, message: 'Forbidden' }, 'access-forbidden'],
     ['explicitní revokace', { status: 403, code: 'account_revoked', message: 'explicit access revoked' }, 'access-revoked'],
   ])('rozliší %s', (_label, error, kind) => {

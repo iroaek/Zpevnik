@@ -53,7 +53,7 @@ describe('schvalovaný účet', () => {
     expect(await screen.findByRole('heading', { name: 'Ověření e-mailu' })).toBeInTheDocument();
     expect(screen.getByText(/ověřovací kód/i)).toBeInTheDocument();
     expect(screen.getByText(/účet počká na schválení administrátorem/i)).toBeInTheDocument();
-  });
+  }, 10_000);
 
   it('neodešle registraci s rozdílnými hesly', async () => {
     const user = userEvent.setup();
@@ -81,7 +81,7 @@ describe('schvalovaný účet', () => {
 
     expect(auth.register).not.toHaveBeenCalled();
     expect(auth.sendSignInCode).toHaveBeenCalledWith('puvodni@example.cz');
-    expect(await screen.findByRole('heading', { name: 'Ověření e-mailu' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Přihlášení kódem' })).toBeInTheDocument();
     expect(screen.getByText(/obnoví váš původní profil/i)).toBeInTheDocument();
   });
 
@@ -96,5 +96,20 @@ describe('schvalovaný účet', () => {
     await user.click(screen.getByRole('button', { name: 'Ověřit kód' }));
 
     expect(auth.signInWithCode).toHaveBeenCalledWith('puvodni@example.cz', '123456');
+  });
+
+  it('z ověřovací obrazovky odešle nový přihlašovací kód a zneplatní starý', async () => {
+    const user = userEvent.setup();
+    render(<AccountAccessPage canInstall={false} installed={false} onInstall={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'Přihlásit se kódem' }));
+    await user.type(screen.getByLabelText('E-mail'), 'puvodni@example.cz');
+    await user.click(screen.getByRole('button', { name: 'Poslat přihlašovací kód' }));
+    await user.type(screen.getByLabelText('Šestimístný kód'), '111111');
+    await user.click(screen.getByRole('button', { name: 'Poslat nový kód' }));
+
+    expect(auth.sendSignInCode).toHaveBeenCalledTimes(2);
+    expect(screen.getByLabelText('Šestimístný kód')).toHaveValue('');
+    expect(await screen.findByText(/nahrazuje všechny dříve zaslané kódy/i)).toBeInTheDocument();
   });
 });

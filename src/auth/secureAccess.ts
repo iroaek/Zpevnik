@@ -125,9 +125,13 @@ export class SecureAccessError extends Error {
 
 function readableError(error: { message?: string; status?: number; statusCode?: number | string; code?: string } | null, fallback: string): Error {
   const message = error?.message?.toLowerCase() ?? '';
+  const normalizedCode = error?.code?.toLowerCase() ?? '';
   const rawStatus = error?.status ?? error?.statusCode;
   const status = typeof rawStatus === 'number' ? rawStatus : typeof rawStatus === 'string' && /^\d+$/.test(rawStatus) ? Number(rawStatus) : undefined;
   const code = error?.code;
+  if (message.includes('otp expired') || normalizedCode.includes('otp_expired')) return new SecureAccessError('Platnost kódu vypršela. Pošlete si nový kód a použijte pouze ten nejnovější.', status, code);
+  if (message.includes('invalid otp') || normalizedCode.includes('invalid_otp')) return new SecureAccessError('Kód není platný. Pošlete si nový kód a opište pouze nejnovější zprávu.', status, code);
+  if (message.includes('too many attempts') || normalizedCode.includes('too_many_attempts')) return new SecureAccessError('Proběhlo příliš mnoho pokusů. Pošlete si nový kód a použijte jej do pěti minut.', status, code);
   if (message.includes('invalid') && (message.includes('password') || message.includes('credential'))) return new SecureAccessError('E-mail nebo heslo není správné. Pokud jste dosud používali starý účet, jednorázově si v Neonu nastavte nové heslo přes „Zapomenuté heslo“.', status, code);
   if (message.includes('email not verified') || message.includes('email_not_verified')) return new SecureAccessError('Nejprve ověřte e-mail pomocí kódu, který vám přišel.', status, code);
   if (message.includes('already') && (message.includes('user') || message.includes('email'))) return new SecureAccessError('Účet s tímto e-mailem už v Neonu existuje. Použijte přihlášení nebo obnovu hesla.', status, code);

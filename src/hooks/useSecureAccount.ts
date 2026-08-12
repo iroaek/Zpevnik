@@ -130,7 +130,9 @@ export function useSecureAccount(): SecureAccountState {
       } else {
         setProfile(null);
         setOfflineGrant(null);
-        setError(failure.kind === 'network' || failure.kind === 'timeout' || failure.kind === 'server-unavailable'
+        setError(failure.kind === 'session-invalid'
+          ? null
+          : failure.kind === 'network' || failure.kind === 'timeout' || failure.kind === 'server-unavailable'
           ? 'Server je dočasně nedostupný. Stažená data nebyla odstraněna.'
           : failure.message);
       }
