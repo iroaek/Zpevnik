@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { databaseTimestampSchema, secureProfileSchema } from './secureAccess';
 
-describe('časové údaje ze Supabase', () => {
+describe('časové údaje z Neon Data API', () => {
   it('přijme PostgreSQL timestamptz s časovým posunem a mikrosekundami', () => {
     const createdAt = '2026-08-06T14:18:44.123456+00:00';
     const reviewedAt = '2026-08-06T14:20:01.987654+02:00';

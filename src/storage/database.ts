@@ -5,7 +5,7 @@ import { sanitizeImportedText } from '../domain/chordpro';
 import { createUuid } from '../domain/browserCompatibility';
 import { readBlobText } from '../domain/readBlobBytes';
 import { songSchema, type Song } from '../domain/song';
-import type { OfflineGrantPayload } from '../auth/offlineGrant';
+import type { NeonOfflineKeySet, OfflineGrantPayload } from '../auth/offlineGrant';
 import type { SecureProfile } from '../auth/secureAccess';
 
 export interface Setlist {
@@ -52,10 +52,12 @@ export interface DownloadedLibraryMetadata extends LibraryManifest {
 
 export interface StoredOfflineGrantRecord {
   schemaVersion: 1;
+  provider?: 'legacy' | 'neon-auth';
   token: string;
   payload: OfflineGrantPayload;
   profile: SecureProfile;
   verifiedAt: string;
+  keySet?: NeonOfflineKeySet;
 }
 
 export interface ContentPackageRecord {

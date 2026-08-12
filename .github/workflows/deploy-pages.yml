@@ -19,15 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VITE_PUBLIC_BASE_URL: ${{ vars.VITE_PUBLIC_BASE_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
-      VITE_DATA_BACKEND: ${{ vars.VITE_DATA_BACKEND || 'supabase' }}
+      VITE_NEON_AUTH_URL: ${{ vars.VITE_NEON_AUTH_URL }}
       VITE_NEON_DATA_API_URL: ${{ vars.VITE_NEON_DATA_API_URL }}
-      VITE_NEON_OFFLINE_GRANT_URL: ${{ vars.VITE_NEON_OFFLINE_GRANT_URL }}
-      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+      VITE_NEON_OFFLINE_DAYS: ${{ vars.VITE_NEON_OFFLINE_DAYS || '30' }}
       VITE_REQUIRE_SECURE_ACCESS: ${{ vars.VITE_REQUIRE_SECURE_ACCESS || 'false' }}
-      VITE_OFFLINE_GRANT_ISSUER: ${{ vars.VITE_OFFLINE_GRANT_ISSUER }}
-      VITE_OFFLINE_GRANT_AUDIENCE: ${{ vars.VITE_OFFLINE_GRANT_AUDIENCE || 'cesky-zpevnik-offline' }}
-      VITE_OFFLINE_GRANT_PUBLIC_JWKS: ${{ vars.VITE_OFFLINE_GRANT_PUBLIC_JWKS }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6

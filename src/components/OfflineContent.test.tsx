@@ -44,6 +44,7 @@ const downloadedSong = {
 };
 const profile: SecureProfile = {
   id: '11111111-1111-4111-8111-111111111111',
+  auth_user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   email: 'clen@example.test',
   display_name: 'Mobilní člen',
   status: 'approved',

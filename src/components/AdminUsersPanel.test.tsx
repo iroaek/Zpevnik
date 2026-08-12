@@ -11,6 +11,7 @@ function profile(overrides: Partial<SecureProfile> & Pick<SecureProfile, 'id' | 
   const { id, display_name, email, ...rest } = overrides;
   return {
     id,
+    auth_user_id: null,
     display_name,
     email,
     status: 'pending',

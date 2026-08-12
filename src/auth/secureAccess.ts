@@ -1,4 +1,3 @@
-import { createClient, type AuthChangeEvent, type Session } from '@supabase/supabase-js';
 import { z } from 'zod';
 import {
   clearSecureAccountLocalData,
@@ -10,26 +9,24 @@ import {
   type UserState,
 } from '../storage/database';
 import { createUuid } from '../domain/browserCompatibility';
-import { readBlobBytes, readBlobText } from '../domain/readBlobBytes';
+import { readBlobBytes } from '../domain/readBlobBytes';
+import { neonInsert, neonRpc, neonSelect, neonUpsert } from '../backend/neonDataApi';
 import {
-  dataBackendProvider,
-  neonDataApiConfigured,
-  neonInsert,
-  neonRpc,
-  neonSelect,
-  neonUpsert,
-} from '../backend/neonDataApi';
+  neonAuthIssuer,
+  neonAuthJwksUrl,
+  neonAuthUrl,
+  neonClientConfigured,
+  requireNeonClient,
+} from '../backend/neonClient';
 
 export const ACCOUNT_STATUSES = ['pending', 'approved', 'rejected', 'suspended'] as const;
 export const ACCOUNT_ROLES = ['member', 'admin'] as const;
 
-// PostgreSQL `timestamptz` values returned by Supabase include an explicit
-// offset (usually `+00:00`). Keep the value as a string, but accept that valid
-// ISO 8601 representation in addition to the `Z` form used by local data.
 export const databaseTimestampSchema = z.string().datetime({ offset: true });
 
 export const secureProfileSchema = z.object({
   id: z.string().uuid(),
+  auth_user_id: z.string().uuid().nullable().default(null),
   email: z.string().email(),
   display_name: z.string().trim().min(2).max(60),
   status: z.enum(ACCOUNT_STATUSES),
@@ -58,9 +55,37 @@ const remoteSubmissionSchema = z.object({
   created_at: databaseTimestampSchema,
 });
 
+const contentPackageRowSchema = z.object({
+  scope: z.enum(['admin', 'members']),
+  version: z.string().min(1),
+  manifest: libraryManifestSchema,
+  package_bytes: z.number().int().positive(),
+  chunk_count: z.number().int().positive(),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+});
+
+const contentPackageChunkSchema = z.object({
+  chunk_index: z.number().int().nonnegative(),
+  byte_size: z.number().int().positive(),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  data_base64: z.string().min(1),
+});
+
 export type SecureProfile = z.infer<typeof secureProfileSchema>;
 export type RemoteSongSubmission = z.infer<typeof remoteSubmissionSchema>;
-export type SecureSession = Session;
+
+export interface SecureSession {
+  access_token: string;
+  expires_at: string;
+  user: {
+    id: string;
+    email: string;
+    emailVerified: boolean;
+    user_metadata: { display_name: string };
+  };
+}
+
+export type SecureAuthChangeEvent = 'INITIAL_SESSION' | 'SIGNED_IN' | 'SIGNED_OUT' | 'PASSWORD_RECOVERY';
 
 export interface ApprovedLibraryDownloadResult {
   count: number;
@@ -68,54 +93,26 @@ export interface ApprovedLibraryDownloadResult {
   manifest: LibraryManifest | null;
 }
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim() ?? '';
-const publishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() ?? '';
-
-export const offlineGrantIssuer = import.meta.env.VITE_OFFLINE_GRANT_ISSUER?.trim() ?? '';
-export const offlineGrantAudience = import.meta.env.VITE_OFFLINE_GRANT_AUDIENCE?.trim() || 'cesky-zpevnik-offline';
-export const offlineGrantPublicJwks = import.meta.env.VITE_OFFLINE_GRANT_PUBLIC_JWKS?.trim() ?? '';
-export const offlineGrantClientConfigured = Boolean(offlineGrantIssuer && offlineGrantPublicJwks);
-export const neonOfflineGrantUrl = import.meta.env.VITE_NEON_OFFLINE_GRANT_URL?.trim() ?? '';
-
-export const secureDataBackend = dataBackendProvider;
-export const secureAccessConfigured = import.meta.env.MODE !== 'e2e'
-  && Boolean(supabaseUrl && publishableKey)
-  && (dataBackendProvider !== 'neon' || Boolean(neonDataApiConfigured && neonOfflineGrantUrl));
+export const offlineGrantIssuer = neonAuthIssuer;
+export const offlineGrantAudience = neonAuthIssuer;
+export const offlineGrantJwksUrl = neonAuthJwksUrl;
+export const offlineGrantClientConfigured = Boolean(neonAuthIssuer && neonAuthJwksUrl);
+export const secureAccessConfigured = import.meta.env.MODE !== 'e2e' && neonClientConfigured;
 export const secureAccessRequired = import.meta.env.MODE !== 'e2e' && import.meta.env.VITE_REQUIRE_SECURE_ACCESS === 'true';
-
 export const secureAccessConfigurationError = secureAccessRequired && !secureAccessConfigured
-  ? dataBackendProvider === 'neon' && !neonDataApiConfigured
-    ? 'Neon Data API zatím není připojené. Správce musí doplnit jeho veřejnou HTTPS adresu.'
-    : dataBackendProvider === 'neon' && !neonOfflineGrantUrl
-      ? 'Neon offline oprávnění zatím není připojené. Správce musí doplnit jeho veřejnou HTTPS adresu.'
-    : 'Soukromý server zatím není připojený. Správce musí doplnit adresu projektu a veřejný klientský klíč.'
+  ? 'Neon Auth nebo Neon Data API zatím nejsou připojené. Správce musí doplnit obě veřejné HTTPS adresy.'
   : null;
 
-const client = secureAccessConfigured
-  ? createClient(supabaseUrl, publishableKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        flowType: 'pkce',
-        storageKey: 'cesky-zpevnik-auth',
-      },
-    })
-  : null;
+const sessionListeners = new Set<(event: SecureAuthChangeEvent, session: SecureSession | null) => void>();
 
-function requireClient() {
-  if (!client) throw new Error(secureAccessConfigurationError ?? 'Soukromý server není nakonfigurovaný.');
-  return client;
+function emitSession(event: SecureAuthChangeEvent, session: SecureSession | null): void {
+  for (const listener of sessionListeners) listener(event, session);
 }
 
-function appRedirectUrl(): string {
-  return new URL(import.meta.env.BASE_URL, window.location.origin).toString();
-}
-
-async function requireSecureAccessToken(): Promise<string> {
-  const { data, error } = await requireClient().auth.getSession();
-  if (error || !data.session?.access_token) throw readableError(error, 'Pro přístup k soukromým datům je nutné přihlášení.');
-  return data.session.access_token;
+function appRedirectUrl(extraQuery = ''): string {
+  const url = new URL(import.meta.env.BASE_URL, window.location.origin);
+  if (extraQuery) url.search = extraQuery;
+  return url.toString();
 }
 
 export class SecureAccessError extends Error {
@@ -130,152 +127,212 @@ function readableError(error: { message?: string; status?: number; statusCode?: 
   const rawStatus = error?.status ?? error?.statusCode;
   const status = typeof rawStatus === 'number' ? rawStatus : typeof rawStatus === 'string' && /^\d+$/.test(rawStatus) ? Number(rawStatus) : undefined;
   const code = error?.code;
-  if (message.includes('invalid login credentials')) return new SecureAccessError('E-mail nebo heslo není správné.', status, code);
-  if (message.includes('email not confirmed')) return new SecureAccessError('Nejprve potvrďte e-mail pomocí odkazu, který vám přišel.', status, code);
-  if (message.includes('user already registered')) return new SecureAccessError('Účet s tímto e-mailem už existuje.', status, code);
+  if (message.includes('invalid') && (message.includes('password') || message.includes('credential'))) return new SecureAccessError('E-mail nebo heslo není správné. Pokud jste dosud používali starý účet, jednorázově si v Neonu nastavte nové heslo přes „Zapomenuté heslo“.', status, code);
+  if (message.includes('email not verified') || message.includes('email_not_verified')) return new SecureAccessError('Nejprve ověřte e-mail pomocí kódu, který vám přišel.', status, code);
+  if (message.includes('already') && (message.includes('user') || message.includes('email'))) return new SecureAccessError('Účet s tímto e-mailem už v Neonu existuje. Použijte přihlášení nebo obnovu hesla.', status, code);
   if (message.includes('password')) return new SecureAccessError('Heslo nesplňuje bezpečnostní požadavky.', status, code);
+  if (message.includes('origin')) return new SecureAccessError('Tato adresa aplikace není v Neon Auth povolená. Obraťte se na správce.', status, code);
   return new SecureAccessError(error?.message || fallback, status, code);
 }
 
-export function subscribeToSecureSession(callback: (event: AuthChangeEvent, session: SecureSession | null) => void): () => void {
-  const supabase = requireClient();
-  const { data } = supabase.auth.onAuthStateChange((event, session) => callback(event, session));
-  return () => data.subscription.unsubscribe();
+function normalizeSession(data: Awaited<ReturnType<ReturnType<typeof requireNeonClient>['auth']['getSession']>>['data']): SecureSession | null {
+  if (!data?.session || !data.user) return null;
+  return {
+    access_token: data.session.token,
+    expires_at: new Date(data.session.expiresAt).toISOString(),
+    user: {
+      id: data.user.id,
+      email: data.user.email,
+      emailVerified: data.user.emailVerified,
+      user_metadata: { display_name: data.user.name || data.user.email.split('@')[0] || 'Člen' },
+    },
+  };
+}
+
+export function subscribeToSecureSession(callback: (event: SecureAuthChangeEvent, session: SecureSession | null) => void): () => void {
+  sessionListeners.add(callback);
+  let active = true;
+  window.setTimeout(() => {
+    void getSecureSession().then((session) => { if (active) callback('INITIAL_SESSION', session); }).catch(() => undefined);
+    if (new URL(window.location.href).searchParams.has('token')) callback('PASSWORD_RECOVERY', null);
+  }, 0);
+  return () => {
+    active = false;
+    sessionListeners.delete(callback);
+  };
 }
 
 export async function getSecureSession(): Promise<SecureSession | null> {
-  const { data, error } = await requireClient().auth.getSession();
-  if (error) throw readableError(error, 'Přihlášení se nepodařilo načíst.');
-  return data.session;
+  const { data, error } = await requireNeonClient().auth.getSession();
+  if (error) throw readableError(error, 'Přihlášení se nepodařilo načíst z Neon Auth.');
+  return normalizeSession(data);
 }
 
 export async function registerSecureAccount(input: { displayName: string; email: string; password: string }): Promise<{ needsEmailConfirmation: boolean }> {
-  const { data, error } = await requireClient().auth.signUp({
+  const { data, error } = await requireNeonClient().auth.signUp.email({
+    name: input.displayName.trim(),
     email: input.email.trim().toLocaleLowerCase('cs'),
     password: input.password,
-    options: {
-      emailRedirectTo: appRedirectUrl(),
-      data: { display_name: input.displayName.trim() },
-    },
+    callbackURL: appRedirectUrl(),
   });
-  if (error) throw readableError(error, 'Registraci se nepodařilo dokončit.');
-  return { needsEmailConfirmation: !data.session };
+  if (error) throw readableError(error, 'Registraci v Neon Auth se nepodařilo dokončit.');
+  const session = await getSecureSession().catch(() => null);
+  if (session) emitSession('SIGNED_IN', session);
+  return { needsEmailConfirmation: data?.user?.emailVerified !== true };
+}
+
+export async function sendEmailVerificationCode(email: string): Promise<void> {
+  const { error } = await requireNeonClient().auth.emailOtp.sendVerificationOtp({
+    email: email.trim().toLocaleLowerCase('cs'),
+    type: 'email-verification',
+  });
+  if (error) throw readableError(error, 'Ověřovací kód se nepodařilo odeslat.');
+}
+
+export async function verifyEmailVerificationCode(email: string, otp: string): Promise<void> {
+  const { error } = await requireNeonClient().auth.emailOtp.verifyEmail({
+    email: email.trim().toLocaleLowerCase('cs'),
+    otp: otp.trim(),
+  });
+  if (error) throw readableError(error, 'Ověřovací kód není platný nebo už vypršel.');
+  const session = await getSecureSession();
+  if (session) emitSession('SIGNED_IN', session);
 }
 
 export async function signInSecureAccount(email: string, password: string): Promise<void> {
-  const { error } = await requireClient().auth.signInWithPassword({
+  const { error } = await requireNeonClient().auth.signIn.email({
     email: email.trim().toLocaleLowerCase('cs'),
     password,
+    callbackURL: appRedirectUrl(),
   });
-  if (error) throw readableError(error, 'Přihlášení se nepodařilo.');
+  if (error) throw readableError(error, 'Přihlášení přes Neon Auth se nepodařilo.');
+  const session = await getSecureSession();
+  if (!session) throw new SecureAccessError('Neon Auth nevytvořil platnou relaci. Zkuste přihlášení zopakovat.');
+  emitSession('SIGNED_IN', session);
 }
 
 export async function sendPasswordReset(email: string): Promise<void> {
-  const { error } = await requireClient().auth.resetPasswordForEmail(email.trim().toLocaleLowerCase('cs'), {
-    redirectTo: appRedirectUrl(),
+  const { error } = await requireNeonClient().auth.requestPasswordReset({
+    email: email.trim().toLocaleLowerCase('cs'),
+    redirectTo: appRedirectUrl('?password-recovery=1'),
   });
-  if (error) throw readableError(error, 'Odkaz pro obnovu hesla se nepodařilo odeslat.');
+  if (error) throw readableError(error, 'Odkaz pro obnovu hesla se nepodařilo odeslat z Neon Auth.');
 }
 
 export async function updateSecurePassword(password: string): Promise<void> {
   if (password.length < 10) throw new Error('Heslo musí mít alespoň 10 znaků.');
-  const { error } = await requireClient().auth.updateUser({ password });
-  if (error) throw readableError(error, 'Nové heslo se nepodařilo uložit.');
+  const url = new URL(window.location.href);
+  const token = url.searchParams.get('token');
+  if (!token) throw new Error('Odkaz pro obnovu hesla je neplatný nebo už vypršel. Vyžádejte si nový.');
+  const { error } = await requireNeonClient().auth.resetPassword({ newPassword: password, token });
+  if (error) throw readableError(error, 'Nové heslo se nepodařilo uložit v Neon Auth.');
+  url.searchParams.delete('token');
+  url.searchParams.delete('password-recovery');
+  history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
 export async function signOutSecureAccount(): Promise<void> {
-  const { data } = await requireClient().auth.getSession();
-  const userId = data.session?.user.id;
-  const { error } = await requireClient().auth.signOut({ scope: 'local' });
-  await clearSecureAccountLocalData(userId);
-  if (error) throw readableError(error, 'Serverové odhlášení se nepodařilo, místní oprávnění však bylo odstraněno.');
+  const session = await getSecureSession().catch(() => null);
+  const { error } = await requireNeonClient().auth.signOut();
+  await clearSecureAccountLocalData(session?.user.id);
+  emitSession('SIGNED_OUT', null);
+  if (error) throw readableError(error, 'Serverové odhlášení z Neonu se nepodařilo, místní oprávnění však bylo odstraněno.');
 }
 
+export async function requestNeonSessionJwt(): Promise<string> {
+  if (!neonAuthUrl) throw new SecureAccessError('Neon Auth není nakonfigurovaný.', 503, 'neon_auth_not_configured');
+  const response = await fetch(`${neonAuthUrl}/token`, {
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  });
+  let data: unknown = null;
+  try { data = await response.json(); } catch { /* Zpracuje se níže. */ }
+  const token = data && typeof data === 'object' && typeof (data as { token?: unknown }).token === 'string'
+    ? (data as { token: string }).token
+    : '';
+  if (!response.ok || !token) throw new SecureAccessError('Neon Auth nevydal autorizační token.', response.status, 'neon_token_failed');
+  return token;
+}
+
+export async function loadNeonPublicJwks(): Promise<unknown> {
+  if (!neonAuthJwksUrl) throw new SecureAccessError('Veřejné klíče Neon Auth nejsou nakonfigurované.', 503, 'neon_jwks_not_configured');
+  const response = await fetch(neonAuthJwksUrl, { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new SecureAccessError('Veřejné klíče Neon Auth se nepodařilo načíst.', response.status, 'neon_jwks_failed');
+  return response.json();
+}
+
+async function requireSecureAccessToken(): Promise<string> {
+  return requestNeonSessionJwt();
+}
+
+const PROFILE_SELECT = 'id,auth_user_id,email,display_name,status,role,created_at,reviewed_at,last_seen_at';
+
 export async function loadSecureProfile(): Promise<SecureProfile | null> {
-  const supabase = requireClient();
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError) throw readableError(userError, 'Online relaci se nepodařilo ověřit.');
-  if (!userData.user) return null;
-  if (dataBackendProvider === 'neon') {
-    const token = await requireSecureAccessToken();
-    const query = { select: 'id,email,display_name,status,role,created_at,reviewed_at,last_seen_at', id: `eq.${userData.user.id}`, limit: '1' };
-    let rows = await neonSelect<unknown>('profiles', token, query);
-    if (!rows.length) {
-      await neonRpc('ensure_my_profile', token, {
-        requested_email: userData.user.email ?? '',
-        requested_display_name: String(userData.user.user_metadata?.display_name ?? userData.user.email?.split('@')[0] ?? 'Nový člen'),
-      });
-      rows = await neonSelect<unknown>('profiles', token, query);
-    }
-    return rows[0] ? secureProfileSchema.parse(rows[0]) : null;
-  }
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id,email,display_name,status,role,created_at,reviewed_at,last_seen_at')
-    .eq('id', userData.user.id)
-    .single();
-  if (error) throw readableError(error, 'Profil se nepodařilo načíst.');
-  return secureProfileSchema.parse(data);
+  const session = await getSecureSession();
+  if (!session) return null;
+  const token = await requireSecureAccessToken();
+  await neonRpc('ensure_my_profile', token, {
+    requested_email: session.user.email,
+    requested_display_name: session.user.user_metadata.display_name,
+  });
+  const rows = await neonSelect<unknown>('profiles', token, {
+    select: PROFILE_SELECT,
+    auth_user_id: `eq.${session.user.id}`,
+    limit: '1',
+  });
+  return rows[0] ? secureProfileSchema.parse(rows[0]) : null;
 }
 
 export async function loadPendingProfiles(): Promise<SecureProfile[]> {
-  if (dataBackendProvider === 'neon') {
-    const rows = await neonSelect<unknown>('profiles', await requireSecureAccessToken(), {
-      select: 'id,email,display_name,status,role,created_at,reviewed_at,last_seen_at',
-      status: 'eq.pending',
-      order: 'created_at.asc',
-    });
-    return z.array(secureProfileSchema).parse(rows);
-  }
-  const { data, error } = await requireClient()
-    .from('profiles')
-    .select('id,email,display_name,status,role,created_at,reviewed_at,last_seen_at')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: true });
-  if (error) throw readableError(error, 'Čekající uživatele se nepodařilo načíst.');
-  return z.array(secureProfileSchema).parse(data ?? []);
+  const rows = await neonSelect<unknown>('profiles', await requireSecureAccessToken(), {
+    select: PROFILE_SELECT,
+    status: 'eq.pending',
+    order: 'created_at.asc',
+  });
+  return z.array(secureProfileSchema).parse(rows);
 }
 
 export async function loadAllProfiles(): Promise<SecureProfile[]> {
-  if (dataBackendProvider === 'neon') {
-    const rows = await neonSelect<unknown>('profiles', await requireSecureAccessToken(), {
-      select: 'id,email,display_name,status,role,created_at,reviewed_at,last_seen_at',
-      order: 'display_name.asc',
-    });
-    return z.array(secureProfileSchema).parse(rows);
-  }
-  const { data, error } = await requireClient()
-    .from('profiles')
-    .select('id,email,display_name,status,role,created_at,reviewed_at,last_seen_at')
-    .order('display_name', { ascending: true });
-  if (error) throw readableError(error, 'Seznam uživatelů se nepodařilo načíst.');
-  return z.array(secureProfileSchema).parse(data ?? []);
+  const rows = await neonSelect<unknown>('profiles', await requireSecureAccessToken(), {
+    select: PROFILE_SELECT,
+    order: 'display_name.asc',
+  });
+  return z.array(secureProfileSchema).parse(rows);
 }
 
 export async function touchSecurePresence(): Promise<void> {
-  if (dataBackendProvider === 'neon') {
-    await neonRpc('touch_my_presence', await requireSecureAccessToken());
-    return;
-  }
-  const { error } = await requireClient().rpc('touch_my_presence');
-  if (error) throw readableError(error, 'Online aktivitu se nepodařilo zaznamenat.');
+  await neonRpc('touch_my_presence', await requireSecureAccessToken());
 }
 
 export async function reviewSecureProfile(userId: string, decision: 'approved' | 'rejected'): Promise<void> {
-  if (dataBackendProvider === 'neon') {
-    await neonRpc('review_account', await requireSecureAccessToken(), { target_user_id: userId, decision });
-    return;
-  }
-  const { error } = await requireClient().rpc('review_account', {
-    target_user_id: userId,
-    decision,
-  });
-  if (error) throw readableError(error, 'Rozhodnutí se nepodařilo uložit.');
+  await neonRpc('review_account', await requireSecureAccessToken(), { target_user_id: userId, decision });
 }
 
 function safeFileName(value: string): string {
   const cleaned = value.normalize('NFKC').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
   return cleaned.slice(0, 120) || 'podklad';
+}
+
+function encodeBase64(bytes: Uint8Array): string {
+  let binary = '';
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length)));
+  }
+  return btoa(binary);
+}
+
+function decodeBase64(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+async function sha256Bytes(bytes: Uint8Array): Promise<string> {
+  const copy = new Uint8Array(bytes.length);
+  copy.set(bytes);
+  const digest = await crypto.subtle.digest('SHA-256', copy.buffer);
+  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
 }
 
 export async function submitSecureSong(input: {
@@ -290,20 +347,11 @@ export async function submitSecureSong(input: {
   if (input.kind === 'upload' && !input.file) throw new Error('Vyberte soubor s písní.');
   if (input.file && input.file.size > 25 * 1024 * 1024) throw new Error('Soubor je větší než povolených 25 MB.');
 
-  const supabase = requireClient();
-  const neonToken = dataBackendProvider === 'neon' ? await requireSecureAccessToken() : null;
+  const token = await requireSecureAccessToken();
   const id = createUuid();
-  let filePath: string | null = null;
-  if (input.file) {
-    filePath = `${input.profile.id}/${id}/${safeFileName(input.file.name)}`;
-    const { error } = await supabase.storage.from('song-submissions').upload(filePath, input.file, {
-      cacheControl: '0',
-      contentType: input.file.type || 'application/octet-stream',
-      upsert: false,
-    });
-    if (error) throw readableError(error, 'Soubor se nepodařilo bezpečně nahrát.');
-  }
-
+  const fileBytes = input.file ? new Uint8Array(await readBlobBytes(input.file)) : null;
+  const chunkSize = 512 * 1024;
+  const fileChunkCount = fileBytes ? Math.ceil(fileBytes.length / chunkSize) : 0;
   const row = {
     id,
     user_id: input.profile.id,
@@ -311,186 +359,130 @@ export async function submitSecureSong(input: {
     title: input.title.trim(),
     artist: input.artist?.trim() ?? '',
     notes: input.notes?.trim() ?? '',
-    file_path: filePath,
+    file_path: input.file ? `neon-chunks:${id}/${safeFileName(input.file.name)}` : null,
     file_name: input.file?.name ?? null,
     file_type: input.file?.type || null,
     file_size: input.file?.size ?? 0,
+    file_sha256: fileBytes ? await sha256Bytes(fileBytes) : null,
+    file_chunk_count: fileChunkCount,
+    upload_complete: !input.file,
     rights_status: 'requires_review' as const,
     license: 'UNVERIFIED - requires admin review',
     attribution: input.profile.display_name,
     status: 'pending_review' as const,
     admin_note: '',
   };
-  if (neonToken) {
-    try {
-      const data = await neonInsert<unknown>('song_submissions', neonToken, row);
-      return remoteSubmissionSchema.parse(data[0]);
-    } catch (error) {
-      if (filePath) await supabase.storage.from('song-submissions').remove([filePath]);
-      throw readableError(error instanceof Error ? error : null, 'Návrh se nepodařilo odeslat.');
+  try {
+    const inserted = await neonInsert<unknown>('song_submissions', token, row);
+    if (fileBytes) {
+      for (let chunkIndex = 0; chunkIndex < fileChunkCount; chunkIndex += 1) {
+        const chunk = fileBytes.subarray(chunkIndex * chunkSize, Math.min((chunkIndex + 1) * chunkSize, fileBytes.length));
+        await neonInsert('song_submission_files', token, {
+          submission_id: id,
+          chunk_index: chunkIndex,
+          byte_size: chunk.length,
+          sha256: await sha256Bytes(chunk),
+          data_base64: encodeBase64(chunk),
+        });
+      }
+      await neonRpc('complete_my_song_upload', token, { target_submission_id: id });
     }
+    return remoteSubmissionSchema.parse(inserted[0]);
+  } catch (error) {
+    if (fileBytes) await neonRpc('abort_my_song_upload', token, { target_submission_id: id }).catch(() => undefined);
+    throw readableError(error instanceof Error ? error : null, 'Návrh se nepodařilo odeslat do Neonu.');
   }
-  const { data, error } = await supabase.from('song_submissions').insert(row).select('*').single();
-  if (error) {
-    if (filePath) await supabase.storage.from('song-submissions').remove([filePath]);
-    throw readableError(error, 'Návrh se nepodařilo odeslat.');
-  }
-  return remoteSubmissionSchema.parse(data);
 }
 
 export async function loadRemoteSongSubmissions(): Promise<RemoteSongSubmission[]> {
-  if (dataBackendProvider === 'neon') {
-    const rows = await neonSelect<unknown>('song_submissions', await requireSecureAccessToken(), { select: '*', order: 'created_at.desc' });
-    return z.array(remoteSubmissionSchema).parse(rows);
-  }
-  const { data, error } = await requireClient()
-    .from('song_submissions')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) throw readableError(error, 'Frontu návrhů se nepodařilo načíst.');
-  return z.array(remoteSubmissionSchema).parse(data ?? []);
+  const rows = await neonSelect<unknown>('song_submissions', await requireSecureAccessToken(), { select: '*', order: 'created_at.desc' });
+  return z.array(remoteSubmissionSchema).parse(rows);
 }
 
 export async function reviewRemoteSongSubmission(submissionId: string, decision: 'accepted_for_review' | 'rejected', adminNote = ''): Promise<void> {
-  if (dataBackendProvider === 'neon') {
-    await neonRpc('review_song_submission', await requireSecureAccessToken(), {
-      target_submission_id: submissionId,
-      decision,
-      note: adminNote.trim(),
-    });
-    return;
-  }
-  const { error } = await requireClient().rpc('review_song_submission', {
+  await neonRpc('review_song_submission', await requireSecureAccessToken(), {
     target_submission_id: submissionId,
     decision,
     note: adminNote.trim(),
   });
-  if (error) throw readableError(error, 'Kontrolu návrhu se nepodařilo uložit.');
 }
 
-function libraryPaths(profile: SecureProfile): { bundle: string; manifest: string; scope: 'admin' | 'members' } {
-  const scope = profile.role === 'admin' ? 'admin' : 'members';
-  return {
-    scope,
-    bundle: scope === 'admin' ? 'admin/admin-library.json' : 'members/member-library.json',
-    manifest: scope === 'admin' ? 'admin/admin-library.manifest.json' : 'members/member-library.manifest.json',
-  };
+function libraryScope(profile: SecureProfile): 'admin' | 'members' {
+  return profile.role === 'admin' ? 'admin' : 'members';
+}
+
+async function loadContentPackageRow(profile: SecureProfile) {
+  const scope = libraryScope(profile);
+  const rows = await neonSelect<unknown>('content_packages', await requireSecureAccessToken(), {
+    select: 'scope,version,manifest,package_bytes,chunk_count,sha256',
+    scope: `eq.${scope}`,
+    is_active: 'eq.true',
+    limit: '1',
+  });
+  return rows[0] ? contentPackageRowSchema.parse(rows[0]) : null;
 }
 
 export async function loadApprovedLibraryManifest(profile: SecureProfile): Promise<LibraryManifest | null> {
-  const { data, error } = await requireClient().storage.from('song-library').download(libraryPaths(profile).manifest);
-  if (error) {
-    if (error.message.toLowerCase().includes('not found') || error.message.includes('404')) return null;
-    throw readableError(error, 'Informace o verzi knihovny se nepodařilo načíst.');
-  }
-  try {
-    return libraryManifestSchema.parse(JSON.parse(await readBlobText(data)));
-  } catch {
-    throw new Error('Manifest soukromé knihovny je poškozený nebo neplatný.');
-  }
-}
-
-async function sha256Hex(blob: Blob): Promise<string> {
-  const source = await readBlobBytes(blob);
-  const bytes = new Uint8Array(source.byteLength);
-  bytes.set(source);
-  const digest = await crypto.subtle.digest('SHA-256', bytes.buffer);
-  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('');
+  return (await loadContentPackageRow(profile))?.manifest ?? null;
 }
 
 export async function downloadApprovedLibrary(
   profile: SecureProfile,
   options: { force?: boolean; localSongCount?: number } = {},
 ): Promise<ApprovedLibraryDownloadResult> {
-  const paths = libraryPaths(profile);
-  const [manifest, localMetadata] = await Promise.all([loadApprovedLibraryManifest(profile), loadDownloadedLibraryMetadata()]);
-  if (!options.force && manifest && localMetadata?.version === manifest.version && options.localSongCount === manifest.songCount) {
-    return { count: manifest.songCount, changed: false, manifest };
+  const packageRow = await loadContentPackageRow(profile);
+  if (!packageRow) throw new Error(profile.role === 'admin' ? 'Soukromá správcovská knihovna zatím není v Neonu připravená.' : 'Soukromá členská knihovna zatím není v Neonu připravená.');
+  const localMetadata = await loadDownloadedLibraryMetadata();
+  if (!options.force && localMetadata?.version === packageRow.manifest.version && options.localSongCount === packageRow.manifest.songCount) {
+    return { count: packageRow.manifest.songCount, changed: false, manifest: packageRow.manifest };
   }
-  const { data, error } = await requireClient().storage.from('song-library').download(paths.bundle);
-  if (error) throw readableError(error, profile.role === 'admin' ? 'Soukromá správcovská knihovna zatím není připravená.' : 'Soukromá členská knihovna zatím není připravená.');
-  if (manifest?.packageBytes && data.size !== manifest.packageBytes) throw new Error('Stažený balíček nemá očekávanou velikost. Původní knihovna zůstala zachovaná.');
-  if (manifest?.sha256 && await sha256Hex(data) !== manifest.sha256) throw new Error('Kontrolní součet knihovny nesouhlasí. Původní knihovna zůstala zachovaná.');
-  const imported = await importFullBackup(data, {
+  const scope = libraryScope(profile);
+  const rawChunks = await neonSelect<unknown>('content_package_chunks', await requireSecureAccessToken(), {
+    select: 'chunk_index,byte_size,sha256,data_base64',
+    scope: `eq.${scope}`,
+    version: `eq.${packageRow.version}`,
+    order: 'chunk_index.asc',
+  });
+  const chunks = z.array(contentPackageChunkSchema).parse(rawChunks);
+  if (chunks.length !== packageRow.chunk_count) throw new Error('Balíček v Neonu není úplný. Původní knihovna zůstala zachovaná.');
+  const verifiedChunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  for (let index = 0; index < chunks.length; index += 1) {
+    const chunk = chunks[index];
+    if (chunk.chunk_index !== index) throw new Error('Pořadí částí knihovny je poškozené.');
+    const bytes = decodeBase64(chunk.data_base64);
+    if (bytes.length !== chunk.byte_size || await sha256Bytes(bytes) !== chunk.sha256) throw new Error('Kontrolní součet části knihovny nesouhlasí.');
+    verifiedChunks.push(bytes);
+    totalBytes += bytes.length;
+  }
+  if (totalBytes !== packageRow.package_bytes) throw new Error('Stažený balíček nemá očekávanou velikost. Původní knihovna zůstala zachovaná.');
+  const combined = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of verifiedChunks) { combined.set(chunk, offset); offset += chunk.length; }
+  if (await sha256Bytes(combined) !== packageRow.sha256) throw new Error('Kontrolní součet celé knihovny nesouhlasí. Původní knihovna zůstala zachovaná.');
+  const imported = await importFullBackup(new Blob([combined], { type: 'application/json' }), {
     replaceDownloadedLibrary: true,
-    expectedLibraryScope: paths.scope,
+    expectedLibraryScope: scope,
     ownerUserId: profile.id,
-    verifiedManifest: manifest ?? undefined,
+    verifiedManifest: packageRow.manifest,
   });
-  return { count: imported.personalSongCount, changed: true, manifest };
-}
-
-export async function requestOfflineGrantToken(deviceId: string): Promise<string> {
-  if (dataBackendProvider === 'neon') {
-    const response = await fetch(neonOfflineGrantUrl, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${await requireSecureAccessToken()}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ deviceId }),
-    });
-    let data: unknown = null;
-    try { data = await response.json(); } catch { /* Neplatné odpovědi se zpracují níže. */ }
-    if (!response.ok) {
-      const responseCode = data && typeof data === 'object' && (data as { code?: unknown }).code === 'account_revoked'
-        ? 'account_revoked'
-        : 'offline_grant_failed';
-      const fallback = response.status === 401 || response.status === 403
-        ? 'Server odmítl vydat offline oprávnění. Obnovte přihlášení nebo schválení účtu.'
-        : 'Server nevydal offline oprávnění.';
-      throw new SecureAccessError(fallback, response.status, responseCode);
-    }
-    if (!data || typeof data !== 'object' || typeof (data as { token?: unknown }).token !== 'string') {
-      throw new SecureAccessError('Server vrátil neplatný formát offline oprávnění.');
-    }
-    return (data as { token: string }).token;
-  }
-  const { data, error } = await requireClient().functions.invoke('offline-grant', {
-    body: { deviceId },
-  });
-  if (error) throw readableError(error, 'Server nevydal offline oprávnění.');
-  if (!data || typeof data !== 'object' || typeof (data as { token?: unknown }).token !== 'string') {
-    throw new SecureAccessError('Server vrátil neplatný formát offline oprávnění.');
-  }
-  return (data as { token: string }).token;
+  return { count: imported.personalSongCount, changed: true, manifest: packageRow.manifest };
 }
 
 export async function loadCloudUserState(): Promise<UserState | null> {
-  if (dataBackendProvider === 'neon') {
-    const rows = await neonSelect<{ state: unknown }>('user_app_state', await requireSecureAccessToken(), { select: 'state', limit: '1' });
-    if (!rows[0]) return null;
-    const parsed = migrateUserState(rows[0].state);
-    if (!parsed) throw new Error('Synchronizovaná uživatelská data mají neplatný formát.');
-    return parsed;
-  }
-  const { data, error } = await requireClient()
-    .from('user_app_state')
-    .select('state')
-    .maybeSingle();
-  if (error) throw readableError(error, 'Synchronizovaná nastavení se nepodařilo načíst.');
-  if (!data) return null;
-  const parsed = migrateUserState(data.state);
+  const rows = await neonSelect<{ state: unknown }>('user_app_state', await requireSecureAccessToken(), { select: 'state', limit: '1' });
+  if (!rows[0]) return null;
+  const parsed = migrateUserState(rows[0].state);
   if (!parsed) throw new Error('Synchronizovaná uživatelská data mají neplatný formát.');
   return parsed;
 }
 
 export async function saveCloudUserState(state: UserState): Promise<void> {
-  const { data: userData, error: userError } = await requireClient().auth.getUser();
-  if (userError || !userData.user) throw readableError(userError, 'Pro synchronizaci je nutné přihlášení.');
-  if (dataBackendProvider === 'neon') {
-    await neonUpsert('user_app_state', await requireSecureAccessToken(), {
-      user_id: userData.user.id,
-      state,
-      updated_at: new Date().toISOString(),
-    }, 'user_id');
-    return;
-  }
-  const { error } = await requireClient().from('user_app_state').upsert({
-    user_id: userData.user.id,
+  const profile = await loadSecureProfile();
+  if (!profile) throw new Error('Pro synchronizaci je nutné přihlášení přes Neon Auth.');
+  await neonUpsert('user_app_state', await requireSecureAccessToken(), {
+    user_id: profile.id,
     state,
     updated_at: new Date().toISOString(),
-  }, { onConflict: 'user_id' });
-  if (error) throw readableError(error, 'Změny se nepodařilo synchronizovat mezi zařízeními.');
+  }, 'user_id');
 }

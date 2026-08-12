@@ -90,6 +90,7 @@ create or replace function public.current_app_user_id()
 returns uuid
 language sql
 stable
+security definer
 set search_path = ''
 as $$ select nullif(auth.user_id()::text, '')::uuid; $$;
 
@@ -97,6 +98,7 @@ create or replace function public.current_app_email()
 returns text
 language sql
 stable
+security definer
 set search_path = ''
 as $$ select lower(left(trim(coalesce(auth.session() ->> 'email', '')), 254)); $$;
 

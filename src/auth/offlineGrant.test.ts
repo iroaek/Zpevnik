@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OfflineGrantValidationError, verifyOfflineGrant, type OfflineGrantPayload } from './offlineGrant';
+import { OfflineGrantValidationError, verifyNeonOfflineGrant, verifyOfflineGrant, type OfflineGrantPayload } from './offlineGrant';
 
 function encodeBase64Url(value: Uint8Array): string {
   let binary = '';
@@ -75,5 +75,86 @@ describe('podepsané offline oprávnění', () => {
   it('odmítne vypršené oprávnění', async () => {
     const value = await fixture({ offlineValidUntil: '2026-08-10T12:00:00.000Z' });
     await expect(verifyOfflineGrant(value.token, value.options)).rejects.toSatisfy((error: unknown) => error instanceof OfflineGrantValidationError && error.reason === 'expired');
+  });
+});
+
+describe('Neon Auth offline oprávnění', () => {
+  it('ověří Ed25519 podpis, podepsanou roli a odvodí třicetidenní offline platnost', async () => {
+    const pair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
+    const publicJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+    const now = Date.parse('2026-08-12T12:00:00.000Z');
+    const issuedAt = Math.floor(now / 1000);
+    const issuer = 'https://auth.example.neon.tech';
+    const header = { alg: 'EdDSA', typ: 'JWT', kid: 'neon-test-key' };
+    const claims = {
+      iss: issuer,
+      aud: issuer,
+      sub: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      email: 'clen@example.test',
+      emailVerified: true,
+      role: 'member',
+      banned: false,
+      iat: issuedAt,
+      exp: issuedAt + 900,
+    };
+    const signingInput = `${encodeJson(header)}.${encodeJson(claims)}`;
+    const signature = new Uint8Array(await crypto.subtle.sign('Ed25519', pair.privateKey, new TextEncoder().encode(signingInput)));
+    const token = `${signingInput}.${encodeBase64Url(signature)}`;
+    const verified = await verifyNeonOfflineGrant(token, {
+      issuer,
+      audience: issuer,
+      keySet: { keys: [{ kty: 'OKP', crv: 'Ed25519', x: publicJwk.x!, kid: 'neon-test-key', alg: 'EdDSA' }] },
+      profile: {
+        id: '11111111-1111-4111-8111-111111111111',
+        auth_user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        email: 'clen@example.test',
+        display_name: 'Testovací člen',
+        status: 'approved',
+        role: 'member',
+      },
+      contentVersion: 'content-v1',
+      deviceId: 'device-test-1234',
+      now,
+    });
+
+    expect(verified.payload.subject).toBe('11111111-1111-4111-8111-111111111111');
+    expect(verified.payload.contentPackages).toEqual(['members']);
+    expect(Date.parse(verified.payload.offlineValidUntil) - Date.parse(verified.payload.issuedAt)).toBe(30 * 24 * 60 * 60 * 1000);
+  });
+
+  it('odmítne podepsanou roli, která nesouhlasí se schváleným profilem', async () => {
+    const pair = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
+    const publicJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+    const now = Date.now();
+    const header = { alg: 'EdDSA', typ: 'JWT', kid: 'neon-role-test' };
+    const claims = {
+      iss: 'https://auth.example.neon.tech',
+      aud: 'https://auth.example.neon.tech',
+      sub: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      email: 'admin@example.test',
+      emailVerified: true,
+      role: 'member',
+      banned: false,
+      iat: Math.floor(now / 1000),
+      exp: Math.floor(now / 1000) + 900,
+    };
+    const signingInput = `${encodeJson(header)}.${encodeJson(claims)}`;
+    const signature = new Uint8Array(await crypto.subtle.sign('Ed25519', pair.privateKey, new TextEncoder().encode(signingInput)));
+    await expect(verifyNeonOfflineGrant(`${signingInput}.${encodeBase64Url(signature)}`, {
+      issuer: claims.iss,
+      audience: claims.aud,
+      keySet: { keys: [{ kty: 'OKP', crv: 'Ed25519', x: publicJwk.x!, kid: 'neon-role-test', alg: 'EdDSA' }] },
+      profile: {
+        id: '11111111-1111-4111-8111-111111111111',
+        auth_user_id: claims.sub,
+        email: claims.email,
+        display_name: 'Správce',
+        status: 'approved',
+        role: 'admin',
+      },
+      contentVersion: 'content-v1',
+      now,
+    })).rejects.toMatchObject({ reason: 'wrong-package' });
   });
 });

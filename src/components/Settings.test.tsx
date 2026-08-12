@@ -24,6 +24,7 @@ const localProfile: UserProfile = {
 
 const secureAdmin: SecureProfile = {
   id: localProfile.id,
+  auth_user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   email: 'spravce@example.test',
   display_name: localProfile.displayName,
   status: 'approved',

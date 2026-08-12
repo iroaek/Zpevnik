@@ -39,6 +39,37 @@ export const offlineGrantKeySetSchema = z.object({
 export type OfflineGrantPayload = z.infer<typeof offlineGrantPayloadSchema>;
 export type OfflineGrantKeySet = z.infer<typeof offlineGrantKeySetSchema>;
 
+const neonProtectedHeaderSchema = z.object({
+  alg: z.literal('EdDSA'),
+  typ: z.literal('JWT').optional(),
+  kid: z.string().min(1).max(200),
+});
+
+const neonSessionClaimsSchema = z.object({
+  iss: z.string().url(),
+  aud: z.union([z.string(), z.array(z.string())]),
+  sub: z.string().uuid(),
+  id: z.string().uuid().optional(),
+  email: z.string().email(),
+  emailVerified: z.boolean(),
+  role: z.string().min(1).max(60),
+  banned: z.boolean().default(false),
+  iat: z.number().int().nonnegative(),
+  exp: z.number().int().positive(),
+});
+
+export const neonOfflineKeySetSchema = z.object({
+  keys: z.array(z.object({
+    kty: z.literal('OKP'),
+    crv: z.literal('Ed25519'),
+    x: z.string().regex(base64UrlPattern),
+    kid: z.string().min(1),
+    alg: z.literal('EdDSA').optional(),
+  }).passthrough()).min(1),
+});
+
+export type NeonOfflineKeySet = z.infer<typeof neonOfflineKeySetSchema>;
+
 export interface VerifiedOfflineGrant {
   token: string;
   payload: OfflineGrantPayload;
@@ -92,6 +123,25 @@ export interface VerifyOfflineGrantOptions {
   clockToleranceMs?: number;
 }
 
+export interface VerifyNeonOfflineGrantOptions {
+  issuer: string;
+  audience: string;
+  keySet: NeonOfflineKeySet;
+  profile: {
+    id: string;
+    auth_user_id: string | null;
+    email: string;
+    display_name: string;
+    status: 'pending' | 'approved' | 'rejected' | 'suspended';
+    role: 'member' | 'admin';
+  };
+  contentVersion: string;
+  deviceId?: string;
+  offlineDays?: number;
+  now?: number;
+  clockToleranceMs?: number;
+}
+
 export async function verifyOfflineGrant(token: string, options: VerifyOfflineGrantOptions): Promise<VerifiedOfflineGrant> {
   const segments = token.split('.');
   if (segments.length !== 3 || segments.some((segment) => !segment)) {
@@ -138,10 +188,80 @@ export async function verifyOfflineGrant(token: string, options: VerifyOfflineGr
   return { token, payload, verifiedAt: new Date(now).toISOString() };
 }
 
+export async function verifyNeonOfflineGrant(token: string, options: VerifyNeonOfflineGrantOptions): Promise<VerifiedOfflineGrant> {
+  const segments = token.split('.');
+  if (segments.length !== 3 || segments.some((segment) => !segment)) {
+    throw new OfflineGrantValidationError('malformed', 'Neon offline oprávnění má neplatný formát.');
+  }
+  const headerResult = neonProtectedHeaderSchema.safeParse(decodeJson(segments[0]));
+  if (!headerResult.success) throw new OfflineGrantValidationError('unsupported-algorithm', 'Neon offline oprávnění nepoužívá podporovaný podpis Ed25519.');
+  const claimsResult = neonSessionClaimsSchema.safeParse(decodeJson(segments[1]));
+  if (!claimsResult.success) throw new OfflineGrantValidationError('malformed', 'Neon offline oprávnění nemá platné autorizační údaje.');
+  const header = headerResult.data;
+  const claims = claimsResult.data;
+  const keySet = neonOfflineKeySetSchema.parse(options.keySet);
+  const key = keySet.keys.find((candidate) => candidate.kid === header.kid);
+  if (!key) throw new OfflineGrantValidationError('unknown-key', 'Podpisový klíč Neon offline oprávnění není známý.');
+  const cryptoKey = await crypto.subtle.importKey('jwk', key as JsonWebKey, 'Ed25519', false, ['verify']);
+  const validSignature = await crypto.subtle.verify(
+    'Ed25519',
+    cryptoKey,
+    decodeBase64Url(segments[2]),
+    new TextEncoder().encode(`${segments[0]}.${segments[1]}`),
+  );
+  if (!validSignature) throw new OfflineGrantValidationError('invalid-signature', 'Podpis Neon offline oprávnění není platný.');
+  if (claims.iss !== options.issuer) throw new OfflineGrantValidationError('wrong-issuer', 'Offline oprávnění vydal jiný Neon Auth server.');
+  const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+  if (!audiences.includes(options.audience)) throw new OfflineGrantValidationError('wrong-audience', 'Offline oprávnění není určené pro tuto aplikaci.');
+  if (!options.profile.auth_user_id || claims.sub !== options.profile.auth_user_id) {
+    throw new OfflineGrantValidationError('malformed', 'Neon účet a místní profil si neodpovídají.');
+  }
+  if (claims.email.toLocaleLowerCase('cs') !== options.profile.email.toLocaleLowerCase('cs')) {
+    throw new OfflineGrantValidationError('malformed', 'Neon účet používá jiný e-mail než místní profil.');
+  }
+  if (options.profile.status !== 'approved' || claims.banned || claims.role !== options.profile.role) {
+    throw new OfflineGrantValidationError('wrong-package', 'Neon účet nemá schválený přístup k tomuto obsahovému balíčku.');
+  }
+  const requiredPackage = options.profile.role === 'admin' ? 'admin' : 'members';
+  const issuedAtMs = claims.iat * 1000;
+  const now = options.now ?? Date.now();
+  const tolerance = options.clockToleranceMs ?? 5 * 60_000;
+  if (issuedAtMs > now + tolerance) throw new OfflineGrantValidationError('not-active', 'Neon offline oprávnění ještě není platné.');
+  const offlineDays = Math.min(30, Math.max(1, options.offlineDays ?? 30));
+  const offlineValidUntilMs = issuedAtMs + offlineDays * 24 * 60 * 60 * 1000;
+  if (offlineValidUntilMs <= now - tolerance) {
+    throw new OfflineGrantValidationError('expired', 'Offline oprávnění vypršelo. Připojte se k internetu a obnovte je.');
+  }
+  const payload = offlineGrantPayloadSchema.parse({
+    version: 1,
+    issuer: claims.iss,
+    audience: options.audience,
+    subject: options.profile.id,
+    displayName: options.profile.display_name,
+    scopes: ['songs:read', 'user-state:sync'],
+    contentPackages: [requiredPackage],
+    contentVersion: options.contentVersion || 'not-downloaded',
+    issuedAt: new Date(issuedAtMs).toISOString(),
+    notBefore: new Date(issuedAtMs).toISOString(),
+    offlineValidUntil: new Date(offlineValidUntilMs).toISOString(),
+    keyId: header.kid,
+    deviceId: options.deviceId,
+  });
+  return { token, payload, verifiedAt: new Date(now).toISOString() };
+}
+
 export function parseOfflineGrantKeySet(value: string | undefined): OfflineGrantKeySet | null {
   if (!value?.trim()) return null;
   try {
     return offlineGrantKeySetSchema.parse(JSON.parse(value));
+  } catch {
+    return null;
+  }
+}
+
+export function parseNeonOfflineKeySet(value: unknown): NeonOfflineKeySet | null {
+  try {
+    return neonOfflineKeySetSchema.parse(value);
   } catch {
     return null;
   }

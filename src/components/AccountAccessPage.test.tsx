@@ -6,13 +6,17 @@ import { AccountAccessPage } from './AccountAccessPage';
 const auth = vi.hoisted(() => ({
   register: vi.fn(),
   reset: vi.fn(),
+  sendVerification: vi.fn(),
   signIn: vi.fn(),
+  verify: vi.fn(),
 }));
 
 vi.mock('../auth/secureAccess', () => ({
   registerSecureAccount: auth.register,
+  sendEmailVerificationCode: auth.sendVerification,
   sendPasswordReset: auth.reset,
   signInSecureAccount: auth.signIn,
+  verifyEmailVerificationCode: auth.verify,
 }));
 
 describe('schvalovaný účet', () => {
@@ -21,10 +25,12 @@ describe('schvalovaný účet', () => {
   beforeEach(() => {
     auth.register.mockReset().mockResolvedValue({ needsEmailConfirmation: true });
     auth.reset.mockReset().mockResolvedValue(undefined);
+    auth.sendVerification.mockReset().mockResolvedValue(undefined);
     auth.signIn.mockReset().mockResolvedValue(undefined);
+    auth.verify.mockReset().mockResolvedValue(undefined);
   });
 
-  it('odešle úplnou registraci a vysvětlí potvrzení e-mailu i schválení', async () => {
+  it('odešle úplnou registraci, pošle Neon OTP a vysvětlí schválení', async () => {
     const user = userEvent.setup();
     render(<AccountAccessPage canInstall={false} installed={false} onInstall={vi.fn()} />);
 
@@ -37,8 +43,10 @@ describe('schvalovaný účet', () => {
     await user.click(screen.getByRole('button', { name: 'Odeslat registraci' }));
 
     expect(auth.register).toHaveBeenCalledWith({ displayName: 'Testovací člen', email: 'clen@example.cz', password: 'VelmiDobreHeslo42' });
-    expect(await screen.findByText(/potvrďte odkaz v e-mailu/i)).toBeInTheDocument();
-    expect(screen.getByText(/počká na schválení administrátorem/i)).toBeInTheDocument();
+    expect(auth.sendVerification).toHaveBeenCalledWith('clen@example.cz');
+    expect(await screen.findByRole('heading', { name: 'Ověření e-mailu' })).toBeInTheDocument();
+    expect(screen.getByText(/ověřovací kód/i)).toBeInTheDocument();
+    expect(screen.getByText(/účet počká na schválení administrátorem/i)).toBeInTheDocument();
   });
 
   it('neodešle registraci s rozdílnými hesly', async () => {

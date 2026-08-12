@@ -11,7 +11,7 @@ import {
   type SecureProfile,
   type SecureSession,
 } from '../auth/secureAccess';
-import { supabaseAuthRepository } from '../repositories/supabaseAuthRepository';
+import { neonAuthRepository } from '../repositories/neonAuthRepository';
 import { getOrCreateDeviceId, recordDiagnostic, type StoredOfflineGrantRecord } from '../storage/database';
 
 const ONLINE_CHECK_TIMEOUT_MS = 8_000;
@@ -33,7 +33,7 @@ export interface SecureAccountState {
 async function readOfflineGrant(): Promise<{ grant: StoredOfflineGrantRecord | null; expiredAt?: string }> {
   if (!offlineGrantClientConfigured) return { grant: null };
   try {
-    return { grant: await supabaseAuthRepository.getOfflineGrant() };
+    return { grant: await neonAuthRepository.getOfflineGrant() };
   } catch (error) {
     if (error instanceof OfflineGrantValidationError && error.reason === 'expired') {
       return { grant: null, expiredAt: error.message };
@@ -61,7 +61,7 @@ export function useSecureAccount(): SecureAccountState {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), ONLINE_CHECK_TIMEOUT_MS);
     try {
-      const result = await supabaseAuthRepository.getOnlineSession(controller.signal);
+      const result = await neonAuthRepository.getOnlineSession(controller.signal);
       if (sequence !== refreshSequence.current) return;
       if (result.status === 'unauthenticated') {
         if (!navigator.onLine && local.grant) {
@@ -93,15 +93,17 @@ export function useSecureAccount(): SecureAccountState {
       if (result.profile.status === 'approved' && offlineGrantClientConfigured) {
         try {
           const deviceId = await getOrCreateDeviceId();
-          const verified = await supabaseAuthRepository.issueOfflineGrant(result.profile, deviceId);
+          const verified = await neonAuthRepository.issueOfflineGrant(result.profile, deviceId);
           const stored: StoredOfflineGrantRecord = {
             schemaVersion: 1,
+            provider: verified.provider,
             token: verified.token,
             payload: verified.payload,
             profile: result.profile,
             verifiedAt: verified.verifiedAt,
+            keySet: verified.keySet,
           };
-          await supabaseAuthRepository.saveOfflineGrant(stored);
+          await neonAuthRepository.saveOfflineGrant(stored);
           if (sequence === refreshSequence.current) setOfflineGrant(verified.payload);
           await recordDiagnostic({ category: 'auth', event: 'offline_grant_valid', level: 'info' }).catch(() => undefined);
         } catch (grantError) {

@@ -75,6 +75,8 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   const initialFireSize = await page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
   await page.getByRole('button', { name: 'Zvětšit text v režimu U ohně' }).click();
   await expect.poll(() => page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThan(initialFireSize);
+  const fireDockBottomGap = await page.locator('.fire-dock').evaluate((element) => Math.abs(window.innerHeight - element.getBoundingClientRect().bottom));
+  expect(fireDockBottomGap).toBeLessThanOrEqual(1);
   await expectNoPageOverflow(page);
   await page.getByRole('button', { name: 'Ukončit U ohně' }).click();
 });

@@ -1,81 +1,45 @@
-# Plán migrace Supabase → Neon
+# Produkční přechod na Neon
 
-**Produkční fáze 1 byla provedena 12. 8. 2026.** Aplikační tabulky, profily a synchronizační stavy jsou v Neonu; Supabase Auth, privátní Storage a Edge Function `offline-grant` zůstávají v Supabase. Okamžitý rollback zachovává `VITE_DATA_BACKEND=supabase`.
+Stav k 12. 8. 2026: aplikační schéma, 12 profilů a 6 synchronizačních stavů jsou v produkční větvi Neon. Čistý Neon Auth/Data API klient, verzované obsahové balíčky a blokovaný upload PDF jsou připravené a ověřené v izolované staging větvi. Produkční auth cutover a přenos obsahových balíčků zatím nesmí proběhnout bez samostatného ověření a souhlasu.
 
-Produkční kontrola potvrdila 12 profilů a 6 synchronizačních stavů se shodnými kontrolními otisky zdroje a cíle. Všechny čtyři aplikační tabulky mají RLS a Neon Data API ověřuje stávající Supabase JWT přes veřejné JWKS.
+## Cílová architektura
 
-## 0. Co je už připraveno
+- Neon Auth: registrace, přihlášení, obnova hesla a podepsaná online identita;
+- Neon Data API: všechny klientské dotazy pod JWT a PostgreSQL RLS;
+- PostgreSQL: profily/role/schválení, synchronizovaný stav, návrhy a chunkované privátní balíčky;
+- IndexedDB: stažené písně, metadata, outbox a ověřené časově omezené offline oprávnění;
+- GitHub Pages: pouze statická instalační PWA a veřejný syntetický obsah.
 
-- PostgREST-kompatibilní klient Neon Data API s bearer tokenem stávající Supabase relace;
-- schéma profilů, návrhů, uživatelského stavu a auditu v `neon/migrations/202608110001_application_schema.sql`;
-- RLS podle `auth.user_id()` a e-mail pouze z ověřeného JWT claimu přes `auth.session()`;
-- dual-provider offline issuer: autentizace a manifest ze Supabase, autoritativní profil a audit z Neonu;
-- bezpečný outbox replay po návratu sítě, při focusu a s exponenciálním opakováním;
-- build-time feature flag, který zůstává v CI výchozí na Supabase.
+Klient neobsahuje přepínač na jiný backend ani connection string. Historické backendové funkce a migrace nejsou součástí runtime stromu.
 
-## 1. Read-only inventář
+## Již ověřeno
 
-Exportovat verze PostgreSQL a rozšíření, schémata, tabulky, sekvence, indexy, constraints, triggery, functions/procedures, views/materialized views, RLS policies, GRANTy, RPC, publications/Realtime, cron, webhooky, Vault/secrets reference, Edge Functions, Auth providery, SMTP, Storage buckety/policies/objekty a velikosti. Samostatně inventarizovat `auth.*` a `storage.*`; do reportu nevkládat secrets.
+- schéma a RLS migrace v Neon staging větvi;
+- Neon Auth email/password a Data API token;
+- administrátor vidí profily, anonymní požadavek chráněná data nezíská;
+- ověření Ed25519 JWT/JWKS a zamítnutí nesprávné role;
+- lint, TypeScript, jednotkové testy, integrační testy a produkční build;
+- atomická aktivace obsahové revize až po ověření počtu a kontrolních součtů bloků.
 
-## 2. Staging dump/restore
+## Zbývající stagingové kroky
 
-1. Vytvořit read-only zdrojové credentials a nový Neon staging projekt v odpovídajícím regionu/verzi.
-2. `pg_dump --format=custom --no-owner --no-acl` přes **unpooled** připojení.
-3. Uložit dump šifrovaně mimo Git; zaznamenat SHA‑256.
-4. `pg_restore --list`, kompatibilita extensions a ruční mapování Supabase-specific objektů.
-5. Obnovit do prázdné staging branch; nikdy ne do produkční branch.
-6. Aplikovat cílové runtime/migration role a RLS, ne zdrojové service role.
+1. Nahrát přesně určený členský a administrátorský balíček do staging větve po výslovném souhlasu vlastníka obsahu.
+2. Ověřit počty písní, SHA-256, rozsah `members` versus `admin` a stažení do prázdné IndexedDB.
+3. Ověřit registraci nového účtu, e-mailové OTP, pending stav, schválení z mobilu, nové přihlášení a reset hesla.
+4. Ověřit upload PDF po blocích, přerušení, opakování a administrátorské zobrazení návrhu.
+5. Spustit mobilní E2E pro iPhone-like rozměry, offline reload a režim U ohně.
 
-Neon dokumentuje dump/restore a další varianty migrace zde: [Neon migration docs](https://neon.com/docs/import/migrate-intro).
+## Produkční cutover
 
-## 3. Validace
+1. Zapnout produkční Neon Auth a propojit produkční Data API s jeho JWKS.
+2. Nastavit trusted origins a bezpečné e-mailové doručování.
+3. Aktivovat první administrátorský Neon účet. Hesla a aktivní relace se nepřenášejí; uživatelé si vytvoří nové Neon heslo nebo použijí reset.
+4. Aplikovat novou migraci a zkontrolovat RLS matici.
+5. Přenést obsahové balíčky jako neaktivní revize, ověřit bloky/SHA a teprve poté je atomicky aktivovat.
+6. Nastavit pouze veřejné GitHub variables a nasadit PWA.
+7. Ověřit produkční login, schválení, synchronizaci, stažení, offline otevření a upload PDF.
+8. Až po retenční době a záloze lze samostatně zrušit starou vzdálenou službu. Tento krok je destruktivní a není součástí automatického nasazení.
 
-- počty řádků pro každou aplikační tabulku;
-- schéma/indexy/constraints/triggery/functions přes katalogy;
-- SHA‑256 kanonických exportů reprezentativních řádků;
-- test všech RPC a `timestamptz` formátů;
-- A/B/admin/pending/suspended RLS matice;
-- runtime role bez `BYPASSRLS`, migration owner oddělený;
-- pooled connection test: request B nikdy nezdědí `user_id` A;
-- výkon kritických dotazů a connection cold start.
+## Rollback
 
-## 4. Auth jako samostatná migrace
-
-Databázovou a auth migraci neslučovat. Možnosti v pořadí rizika:
-
-1. ponechat Supabase Auth a mapovat stabilní Supabase UUID v BFF;
-2. progresivní migrace identity při dalším přihlášení;
-3. vynucený reset hesla;
-4. přenos OAuth identity se znovusouhlasem podle providera.
-
-Nepředpokládat přenos refresh tokenů, aktivních session, MFA nebo OAuth provider tokenů. Supabase umí přenést `auth` schéma mezi Supabase projekty, ale cílová kompatibilita jiné auth služby musí být doložena jejím oficiálním importem.
-
-## 5. Storage a Functions
-
-Neon PostgreSQL není náhradou privátního object storage. Ve fázi 1 zůstává Supabase Storage. Edge Function `offline-grant` zůstane hostována v Supabase, ale při `DATA_BACKEND=neon` ověřuje autoritativní profil a zapisuje audit přes serverový `NEON_DATABASE_URL`. Tento connection string je výhradně secret funkce, nikdy proměnná `VITE_*`.
-
-## 6. Stagingový cutover
-
-1. Vytvořit Neon staging branch a zapnout Data API s JWKS stávajícího Supabase Auth.
-2. Přes migration-owner spojení aplikovat `neon/migrations/202608110001_application_schema.sql`; runtime role nesmí mít `BYPASSRLS`.
-3. Přenést pouze aplikační řádky `profiles`, `song_submissions`, `user_app_state` a případný audit. Nepřenášet `auth.*`, `storage.*`, service role ani secrets.
-4. Nasadit Edge Function s `DATA_BACKEND=neon` a serverovými secrets `NEON_DATABASE_URL`, `OFFLINE_GRANT_*`; URL funkce nastavit do `VITE_NEON_OFFLINE_GRANT_URL`.
-5. Ve staging buildu nastavit `VITE_DATA_BACKEND=neon` a `VITE_NEON_DATA_API_URL`.
-6. Ověřit A/B/admin/pending/rejected/suspended RLS matici, tvorbu profilů, návrhy, outbox replay, vydání grantu a cold start bez sítě.
-7. Spustit Neon Data API Advisors a odstranit nálezy před produkčním rozhodnutím.
-
-## 7. Přechod a rollback
-
-- nejprve dual-read ve stagingu a stínové porovnání bez vracení Neon dat uživateli;
-- krátké read-only okno pro finální delta sync, nebo logical replication po samostatném testu;
-- jeden build zapisuje vždy do jediného autoritativního systému; během ověřování se nemíchá zápis Supabase/Neon;
-- rollback nastaví `VITE_DATA_BACKEND=supabase`, znovu sestaví PWA a vrátí Edge Function na `DATA_BACKEND=supabase`;
-- Supabase nesmazat minimálně po celou ověřovací/retention dobu;
-- definovat RPO/RTO, vlastníka rozhodnutí a stop podmínky před cutoverem.
-
-## Aktuální provozní omezení
-
-- Supabase se nemaže a zůstává zdrojem autentizace a privátních souborů.
-- Aplikace nesmí zapisovat současně do obou aplikačních databází; aktivní backend určuje pouze `VITE_DATA_BACKEND`.
-- Produkční Neon connection string a soukromý podpisový klíč jsou pouze v Edge Function Secrets, nikdy v proměnných `VITE_*` ani v Git.
-- Návrat na Supabase vyžaduje přepnout GitHub proměnnou `VITE_DATA_BACKEND=supabase`, Edge Function secret `DATA_BACKEND=supabase` a znovu nasadit PWA.
+Frontend lze vrátit na předchozí ověřený commit. Neon obsah je verzovaný: neúplná revize se neaktivuje a předchozí aktivní revize zůstane dostupná. Databázové řádky, účty ani obsah se během prvotní diagnostiky nemažou.

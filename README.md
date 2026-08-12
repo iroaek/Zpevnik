@@ -140,7 +140,7 @@ Podrobnosti: [IMPORT_GUIDE.md](IMPORT_GUIDE.md), [DATA_FORMAT.md](DATA_FORMAT.md
 
 ## Offline-first autentizace
 
-Síťová chyba, timeout ani HTTP 5xx nejsou důvodem k automatickému odhlášení nebo odstranění stažených písní. Po předchozím online ověření používá soukromý režim samostatný serverem podepsaný ES256 offline grant a uživatelsky oddělený obsahový balíček v IndexedDB. Privátní podpisový klíč patří pouze do serverové funkce; veřejná PWA obsahuje jen JWKS.
+Síťová chyba, timeout ani HTTP 5xx nejsou důvodem k automatickému odhlášení nebo odstranění stažených písní. Online identitu poskytuje Neon Auth. Po úspěšném ověření aplikace ověří Ed25519 podpis tokenu proti veřejnému Neon JWKS a uloží časově omezené oprávnění společně s uživatelsky odděleným obsahovým balíčkem v IndexedDB. Do PWA se nevkládá databázový connection string ani jiný tajný serverový klíč.
 
 Architektura a provozní kroky:
 
@@ -155,9 +155,9 @@ Architektura a provozní kroky:
 - [CAPACITOR_FEASIBILITY.md](CAPACITOR_FEASIBILITY.md)
 - [OFFLINE_TESTING.md](OFFLINE_TESTING.md)
 
-### Postupný přechod databáze na Neon
+### Backend Neon
 
-Kód podporuje `VITE_DATA_BACKEND=supabase|neon`. Neon režim používá Data API a RLS pro aplikační tabulky, ale v první fázi zachovává Supabase Auth a privátní Storage. Přepnutí patří nejprve do izolovaného stagingu; PWA nesmí obsahovat `DATABASE_URL`, Neon API key, `service_role` ani privátní podpisový klíč. Přesný cutover a rollback jsou v [NEON_MIGRATION_PLAN.md](NEON_MIGRATION_PLAN.md).
+Klient používá výhradně Neon Auth a Neon Data API. Profily, schválení, synchronizované oblíbené/setlisty/nastavení, návrhy písní i verzované privátní obsahové balíčky jsou v PostgreSQL pod RLS. PDF se odesílají po omezených blocích a publikace knihovny se aktivuje atomicky až po ověření všech bloků a SHA-256. PWA smí obsahovat pouze veřejné adresy `VITE_NEON_AUTH_URL` a `VITE_NEON_DATA_API_URL`; nikdy `DATABASE_URL` ani migrační heslo. Stav přechodu a bezpečný produkční postup jsou v [NEON_MIGRATION_PLAN.md](NEON_MIGRATION_PLAN.md).
 
 Plynulé směrové přechody a mikrointerakce jsou popsány v [MOTION_DESIGN.md](MOTION_DESIGN.md). Respektují systémové omezení pohybu a neovlivňují offline funkce.
 

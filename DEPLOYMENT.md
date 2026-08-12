@@ -1,76 +1,67 @@
-# Nasazení PWA
+# Nasazení PWA s Neonem
 
-## Povinná veřejná adresa
+## Veřejná adresa
 
-Před produkčním buildem nastavte úplnou kanonickou HTTPS adresu s koncovým lomítkem:
+Před produkčním buildem nastavte úplnou HTTPS adresu s koncovým lomítkem:
 
 ```powershell
-$env:VITE_PUBLIC_BASE_URL='https://zpevnik.example.cz/'
+$env:VITE_PUBLIC_BASE_URL='https://iroaek.github.io/Zpevnik/'
 npm run build
 ```
 
-Pro podadresář použijte například `https://example.cz/tabor/zpevnik/`. Z této hodnoty se odvodí Vite `base`, manifest `id`, `start_url` a `scope`, canonical odkazy, sitemap, SPA fallback a všechny QR kódy. Výchozí doména `.invalid` slouží pouze k lokálnímu sestavení a před veřejným nasazením se musí nahradit.
+Z adresy se odvodí Vite `base`, PWA manifest, canonical odkazy, SPA fallback a QR kódy. GitHub Pages hostuje pouze statickou PWA; účty a chráněná data zajišťuje Neon, takže po nasazení může být osobní počítač vypnutý.
+
+## Neon Auth a Data API
+
+1. Na cílové Neon větvi zapněte Neon Auth a Data API se stejným auth providerem.
+2. Mezi Trusted origins přidejte přesný původ produkce a lokální vývojové adresy, například `https://iroaek.github.io`, `http://localhost:5173` a `http://127.0.0.1:5173`.
+3. Přes migrační spojení aplikujte v pořadí:
+   - `neon/migrations/202608110001_application_schema.sql`;
+   - `neon/migrations/202608120001_neon_auth_content.sql`.
+4. Ověřte RLS pro anonymního, čekajícího, schváleného a administrátorského uživatele. Runtime role nesmí mít `BYPASSRLS`.
+5. První správce musí vytvořit nebo obnovit heslo v Neon Auth. Původní hash hesla z jiného auth systému nelze bezpečně převzít.
+
+## Proměnné GitHub Actions
+
+V **Settings → Secrets and variables → Actions → Variables** nastavte pouze veřejné hodnoty:
+
+- `VITE_PUBLIC_BASE_URL=https://iroaek.github.io/Zpevnik/`
+- `VITE_NEON_AUTH_URL=<veřejná adresa Neon Auth>`
+- `VITE_NEON_DATA_API_URL=<veřejná adresa Neon Data API>`
+- `VITE_NEON_OFFLINE_DAYS=30`
+- `VITE_REQUIRE_SECURE_ACCESS=true`
+
+Do `VITE_*`, Git repozitáře ani statického buildu nikdy nevkládejte PostgreSQL connection string, heslo správce nebo migrační přihlašovací údaje.
+
+## Privátní knihovna
+
+Balíčky se ukládají do verzovaných řádků a bloků PostgreSQL. Aktivní verze se přepne jedinou RPC operací až po ověření úplnosti bloků.
+
+```powershell
+$env:NEON_AUTH_URL='<auth-url>'
+$env:NEON_DATA_API_URL='<data-api-url>'
+$env:NEON_APP_ORIGIN='https://iroaek.github.io'
+$env:NEON_MIGRATION_EMAIL='<admin-email>'
+$env:NEON_MIGRATION_PASSWORD='<jednorázově zadané heslo>'
+npm run upload:neon-content
+```
+
+Skript ověřuje manifest, velikost a SHA-256. Přihlašovací údaje se nesmějí uložit do `.env`, historie terminálu, logu CI ani repozitáře. Nahrání nejprve proveďte ve staging větvi a až po funkčních a RLS testech zopakujte v produkci.
 
 ## GitHub Pages
 
-1. Nahrajte projekt do GitHub repozitáře s výchozí větví `main`.
-2. V **Settings → Pages → Source** vyberte **GitHub Actions**.
-3. Nastavte proměnnou `VITE_PUBLIC_BASE_URL=https://<vlastník>.github.io/<repozitář>/`.
-4. Workflow `.github/workflows/deploy-pages.yml` při každém pushi do `main` spustí testy, vytvoří produkční `dist` a teprve po úspěchu jej publikuje na GitHub Pages.
-5. `404.html` je kopií app shellu, takže obnovení `/songs/<id>` neskončí chybou aplikace.
-6. Vlastní doménu nastavte v **Settings → Pages → Custom domain**, upravte DNS a zároveň nastavte repository variable na finální HTTPS adresu.
+1. V **Settings → Pages → Source** vyberte **GitHub Actions**.
+2. Push do `main` spustí testy, build a publikaci workflow `.github/workflows/deploy-pages.yml`.
+3. `404.html` je kopie app shellu, takže fungují i obnovené klientské odkazy.
+4. Po nasazení na iPhonu otevřete HTTPS odkaz v Safari a použijte **Sdílet → Přidat na plochu**.
 
-## Cloudflare Pages
+## Offline oprávnění
 
-V **Workers & Pages → Create → Pages → Import repository** nastavte:
+Po online přihlášení aplikace ověří Ed25519 podpis Neon Auth tokenu proti veřejnému JWKS, zkontroluje schválený profil a uloží omezené offline oprávnění. Stažený balíček je oddělen podle uživatele. Odhlášení nebo vypršení oprávnění nezpůsobí tiché přihlášení pod jiným účtem; obnova vyžaduje krátké online ověření.
 
-- Framework preset: `Vite`
-- Build command: `npm run build`
-- Build output directory: `dist`
-- Root directory: `/`
-- Environment variable: `VITE_PUBLIC_BASE_URL=https://vaše-doména/`
+## Kontrola a rollback
 
-Příklad je v `deploy/cloudflare-pages.example.json`. Build vytváří `_redirects` pro SPA fallback a `_headers` s CSP, zákazem sniffingu, omezením oprávnění a cache pravidly. Vlastní doménu připojte v **Custom domains**, ověřte aktivní certifikát a teprve poté vytiskněte QR list z `/qr/index.html`.
-
-## Kořen a podadresář
-
-- Kořen: `VITE_PUBLIC_BASE_URL=https://zpevnik.example.cz/`
-- Podadresář: `VITE_PUBLIC_BASE_URL=https://example.cz/zpevnik/`
-
-Vždy nasaďte celý obsah `dist/` beze změny adresářové struktury. Hosting musí vracet `index.html` nebo vygenerovaný `404.html` pro klientské deep linky.
-
-## Soukromé účty a schvalování
-
-GitHub Pages je statický hosting a sám neumí bezpečně zpracovat hesla, schvalovat účty ani přijímat soubory. Pro soukromý režim nastavte v GitHub Actions také `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` a po dokončení serverové konfigurace `VITE_REQUIRE_SECURE_ACCESS=true`. Kompletní databázová migrace, privátní buckety, první administrátor a pořadí aktivace jsou popsány v [SECURE_ACCESS_SETUP.md](SECURE_ACCESS_SETUP.md).
-
-Pro izolovaný Neon staging nastavte navíc `VITE_DATA_BACKEND=neon`, veřejné `VITE_NEON_DATA_API_URL` a `VITE_NEON_OFFLINE_GRANT_URL`. Výchozí hodnota workflow je záměrně `supabase`. `NEON_DATABASE_URL` je pouze serverový secret Edge Function a nesmí být GitHub repository variable s prefixem `VITE_`.
-
-Do klientského buildu ani GitHub variables nikdy nevkládejte `service_role` nebo jiný tajný serverový klíč. Veřejná PWA smí obsahovat pouze instalační obálku a výslovně veřejný obsah; členské soubory se stahují z privátního bucketu až s platnou relací schváleného účtu.
-
-## Bezpečnostní kontrola
-
-- web musí být dostupný výhradně přes HTTPS;
-- `sw.js`, manifest a katalog mají být revalidovány, ne dlouhodobě immutable;
-- hashované soubory v `/assets/` mohou mít roční immutable cache;
-- ověřte výsledné HTTP hlavičky v nástrojích prohlížeče;
-- soukromé setlisty se nikdy nepřenášejí při nasazení.
-
-## Aktivace podepsaného offline oprávnění
-
-Tento krok nejprve proveďte ve staging Supabase projektu. GitHub Pages neumí držet privátní podpisový klíč.
-
-1. Aplikujte `supabase/migrations/202608110001_offline_grant_audit.sql` a ověřte RLS podle `RLS_AUDIT.md`.
-2. Vygenerujte standardní EC P‑256 key pair auditovaným nástrojem. Privátní JWK nikdy necommitujte.
-3. Do Supabase Function secrets vložte `OFFLINE_GRANT_PRIVATE_JWK`, `OFFLINE_GRANT_ISSUER`, `OFFLINE_GRANT_AUDIENCE`, `OFFLINE_GRANT_ALLOWED_ORIGINS` a volitelně `OFFLINE_GRANT_VALIDITY_DAYS`. Pro Neon staging přidejte `DATA_BACKEND=neon` a serverový `NEON_DATABASE_URL`.
-4. Nasaďte `supabase/functions/offline-grant` pouze ve stagingu a proveďte test schváleného/pending/suspended účtu.
-5. Do GitHub repository **variables** vložte pouze veřejné hodnoty `VITE_OFFLINE_GRANT_ISSUER`, `VITE_OFFLINE_GRANT_AUDIENCE`, `VITE_OFFLINE_GRANT_PUBLIC_JWKS` a pro Neon staging `VITE_NEON_DATA_API_URL`, `VITE_NEON_OFFLINE_GRANT_URL`.
-6. Sestavte PWA, ověřte, že build neobsahuje `d` privátního JWK ani service-role key, a spusťte scénáře z `OFFLINE_TESTING.md`.
-7. Teprve po schválení zopakujte migraci/function secrets v produkci. Privátní klíč rotujte přidáním nového `kid` do veřejného JWKS; starý veřejný klíč ponechte do expirace všech starých grantů.
-
-Výchozí návrh platnosti je 30 dní, funkce omezuje rozsah na 1–90 dní. Pro konkrétní tábor nastavte konec akce plus bezpečnostní rezervu.
-
-## Rollback offline grantu
-
-Při problému odstraňte veřejné `VITE_OFFLINE_GRANT_*` proměnné a znovu sestavte frontend. Online přihlášení zůstane funkční; nové offline granty se nebudou používat. Nesmažte databázi ani uživatele. Staré granty přestanou být klientem přijímány, ale již stažené soubory fyzicky odstraní uživatel nebo bezpečný logout.
-
-Při problému s Neonem nastavte `VITE_DATA_BACKEND=supabase`, Edge Function vraťte na `DATA_BACKEND=supabase` a znovu nasaďte. Neon ani Supabase data během rollbacku nemažte.
+- před produkcí spusťte `npm run lint`, `npm run typecheck`, `npm run test:unit`, `npm run test:integration`, `npm run build` a `npm run test:e2e`;
+- ověřte login, registraci, schválení, členskou/admin knihovnu, upload PDF, synchronizaci a offline reload;
+- při chybě vraťte předchozí GitHub Pages artifact/commit; aktivní Neon obsahové revize nemažte, dokud není příčina potvrzená;
+- databázové destruktivní kroky a zrušení starého poskytovatele provádějte až po ověřené produkční retenci a záloze.

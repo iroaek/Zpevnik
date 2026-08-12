@@ -1,16 +1,17 @@
 import {
   getSecureSession,
+  loadNeonPublicJwks,
   loadSecureProfile,
   offlineGrantAudience,
   offlineGrantIssuer,
-  offlineGrantPublicJwks,
-  requestOfflineGrantToken,
+  requestNeonSessionJwt,
   secureProfileSchema,
   signOutSecureAccount,
 } from '../auth/secureAccess';
-import { parseOfflineGrantKeySet, verifyOfflineGrant } from '../auth/offlineGrant';
+import { parseNeonOfflineKeySet, verifyNeonOfflineGrant } from '../auth/offlineGrant';
 import {
   clearOfflineGrantRecord,
+  loadDownloadedLibraryMetadata,
   loadOfflineGrantRecord,
   saveOfflineGrantRecord,
 } from '../storage/database';
@@ -26,15 +27,12 @@ function abortable<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
   });
 }
 
-function verifierConfiguration() {
-  const keySet = parseOfflineGrantKeySet(offlineGrantPublicJwks);
-  if (!offlineGrantIssuer || !keySet) {
-    throw new Error('Podepsané offline oprávnění ještě není nakonfigurované. Přístup online zůstává funkční.');
-  }
-  return { issuer: offlineGrantIssuer, audience: offlineGrantAudience, keySet };
+function offlineDays(): number {
+  const configured = Number(import.meta.env.VITE_NEON_OFFLINE_DAYS ?? '30');
+  return Number.isFinite(configured) ? Math.min(30, Math.max(1, Math.round(configured))) : 30;
 }
 
-export const supabaseAuthRepository: AuthRepository = {
+export const neonAuthRepository: AuthRepository = {
   async getOnlineSession(signal): Promise<OnlineSessionResult> {
     const session = await abortable(getSecureSession(), signal);
     if (!session) return { status: 'unauthenticated' };
@@ -43,28 +41,38 @@ export const supabaseAuthRepository: AuthRepository = {
   },
 
   async issueOfflineGrant(profile, deviceId) {
-    const token = await requestOfflineGrantToken(deviceId);
-    const requiredPackage = profile.role === 'admin' ? 'admin' : 'members';
-    const verified = await verifyOfflineGrant(token, {
-      ...verifierConfiguration(),
+    const [token, rawKeySet, metadata] = await Promise.all([
+      requestNeonSessionJwt(),
+      loadNeonPublicJwks(),
+      loadDownloadedLibraryMetadata(),
+    ]);
+    const keySet = parseNeonOfflineKeySet(rawKeySet);
+    if (!keySet) throw new Error('Neon Auth vrátil neplatnou sadu veřejných podpisových klíčů.');
+    const verified = await verifyNeonOfflineGrant(token, {
+      issuer: offlineGrantIssuer,
+      audience: offlineGrantAudience,
+      keySet,
+      profile,
+      contentVersion: metadata?.version ?? 'not-downloaded',
       deviceId,
-      requiredPackage,
+      offlineDays: offlineDays(),
     });
-    if (verified.payload.subject !== profile.id) throw new Error('Offline oprávnění patří jinému účtu.');
-    return verified;
+    return { ...verified, provider: 'neon-auth' as const, keySet };
   },
 
   async getOfflineGrant() {
     const stored = await loadOfflineGrantRecord();
-    if (!stored) return null;
+    if (!stored || stored.provider !== 'neon-auth' || !stored.keySet) return null;
     const profile = secureProfileSchema.parse(stored.profile);
-    const requiredPackage = profile.role === 'admin' ? 'admin' : 'members';
-    const verified = await verifyOfflineGrant(stored.token, {
-      ...verifierConfiguration(),
+    const verified = await verifyNeonOfflineGrant(stored.token, {
+      issuer: offlineGrantIssuer,
+      audience: offlineGrantAudience,
+      keySet: stored.keySet,
+      profile,
+      contentVersion: stored.payload.contentVersion,
       deviceId: stored.payload.deviceId,
-      requiredPackage,
+      offlineDays: offlineDays(),
     });
-    if (verified.payload.subject !== profile.id) throw new Error('Lokální profil a offline oprávnění patří rozdílným účtům.');
     return { ...stored, payload: verified.payload, verifiedAt: verified.verifiedAt, profile };
   },
 

@@ -1,4 +1,4 @@
-import type { VerifiedOfflineGrant } from '../auth/offlineGrant';
+import type { NeonOfflineKeySet, VerifiedOfflineGrant } from '../auth/offlineGrant';
 import type { SecureProfile, SecureSession } from '../auth/secureAccess';
 import type { Song } from '../domain/song';
 import type { PendingMutation, StoredOfflineGrantRecord, UserState } from '../storage/database';
@@ -9,7 +9,7 @@ export type OnlineSessionResult =
 
 export interface AuthRepository {
   getOnlineSession(signal?: AbortSignal): Promise<OnlineSessionResult>;
-  issueOfflineGrant(profile: SecureProfile, deviceId: string): Promise<VerifiedOfflineGrant>;
+  issueOfflineGrant(profile: SecureProfile, deviceId: string): Promise<VerifiedOfflineGrant & { provider: 'neon-auth'; keySet: NeonOfflineKeySet }>;
   getOfflineGrant(): Promise<StoredOfflineGrantRecord | null>;
   saveOfflineGrant(grant: StoredOfflineGrantRecord): Promise<void>;
   removeOfflineGrant(): Promise<void>;

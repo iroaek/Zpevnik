@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { registerSecureAccount, sendPasswordReset, signInSecureAccount } from '../auth/secureAccess';
+import {
+  registerSecureAccount,
+  sendEmailVerificationCode,
+  sendPasswordReset,
+  signInSecureAccount,
+  verifyEmailVerificationCode,
+} from '../auth/secureAccess';
 
 interface AccountAccessPageProps {
   canInstall: boolean;
@@ -8,11 +14,12 @@ interface AccountAccessPageProps {
 }
 
 export function AccountAccessPage({ canInstall, installed, onInstall }: AccountAccessPageProps) {
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'verify'>('login');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordAgain, setPasswordAgain] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -23,16 +30,24 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
     setMessage('');
     setError('');
     try {
-      if (mode === 'register') {
+      if (mode === 'verify') {
+        await verifyEmailVerificationCode(email, verificationCode);
+        setVerificationCode('');
+        setMessage('E-mail je ověřený. Původní profil, schválení i setlisty se nyní bezpečně propojí s Neon účtem.');
+      } else if (mode === 'register') {
         if (password.length < 10) throw new Error('Heslo musí mít alespoň 10 znaků.');
         if (password !== passwordAgain) throw new Error('Zadaná hesla se neshodují.');
         if (!privacyAccepted) throw new Error('Pro vytvoření účtu potvrďte zpracování registračních údajů.');
         const result = await registerSecureAccount({ displayName, email, password });
         setPassword('');
         setPasswordAgain('');
-        setMessage(result.needsEmailConfirmation
-          ? 'Registrace byla přijata. Potvrďte odkaz v e-mailu; potom účet počká na schválení administrátorem.'
-          : 'Registrace byla přijata a nyní čeká na schválení administrátorem.');
+        if (result.needsEmailConfirmation) {
+          await sendEmailVerificationCode(email);
+          setMode('verify');
+          setMessage('Registrace byla přijata. Na e-mail jsme poslali ověřovací kód; po jeho zadání účet počká na schválení administrátorem.');
+        } else {
+          setMessage('Registrace byla přijata a nyní čeká na schválení administrátorem.');
+        }
       } else {
         await signInSecureAccount(email, password);
         setPassword('');
@@ -65,13 +80,17 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
     <section className="registration-page" aria-labelledby="account-access-heading">
       <div className="registration-card account-access-card">
         <p className="eyebrow">Soukromý členský zpěvník</p>
-        <h1 id="account-access-heading">{mode === 'login' ? 'Přihlášení' : 'Žádost o registraci'}</h1>
-        <p className="lead">Písně nejsou veřejné. Nový účet musí potvrdit e-mail a následně jej musí schválit administrátor.</p>
-        <div className="account-mode-switch" role="tablist" aria-label="Přihlášení nebo registrace">
+        <h1 id="account-access-heading">{mode === 'login' ? 'Přihlášení' : mode === 'register' ? 'Žádost o registraci' : 'Ověření e-mailu'}</h1>
+        <p className="lead">Písně nejsou veřejné. Každý nový účet musí před prvním použitím schválit administrátor.</p>
+        {mode !== 'verify' && <div className="account-mode-switch" role="tablist" aria-label="Přihlášení nebo registrace">
           <button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'active' : ''} onClick={() => { setMode('login'); setError(''); setMessage(''); }}>Přihlásit se</button>
           <button type="button" role="tab" aria-selected={mode === 'register'} className={mode === 'register' ? 'active' : ''} onClick={() => { setMode('register'); setError(''); setMessage(''); }}>Registrovat se</button>
-        </div>
+        </div>}
         <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+          {mode === 'verify' ? <>
+            <p className="migration-note">Při přechodu na Neon se ověřením e-mailu bezpečně zachová váš dřívější profil, role, schválení, oblíbené i setlisty.</p>
+            <label htmlFor="account-verification-code">Šestimístný kód<input id="account-verification-code" inputMode="numeric" autoComplete="one-time-code" required minLength={6} maxLength={8} value={verificationCode} onChange={(event) => setVerificationCode(event.target.value.replace(/\s/g, ''))} /></label>
+          </> : <>
           {mode === 'register' && <label htmlFor="account-name">Jméno nebo přezdívka<input id="account-name" autoComplete="nickname" required minLength={2} maxLength={60} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label>}
           <label htmlFor="account-email">E-mail<input id="account-email" type="email" inputMode="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>
           <label htmlFor="account-password">Heslo<input id="account-password" type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} required minLength={mode === 'register' ? 10 : undefined} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
@@ -79,8 +98,10 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
             <label htmlFor="account-password-again">Heslo znovu<input id="account-password-again" type="password" autoComplete="new-password" required minLength={10} value={passwordAgain} onChange={(event) => setPasswordAgain(event.target.value)} /></label>
             <label className="switch-row registration-consent"><input type="checkbox" required checked={privacyAccepted} onChange={(event) => setPrivacyAccepted(event.target.checked)} /> Souhlasím s uložením jména, e-mailu a stavu schválení pro provoz soukromého zpěvníku.</label>
           </>}
-          <button type="submit" className="primary-button" disabled={busy}>{busy ? 'Ověřuji…' : mode === 'login' ? 'Přihlásit se' : 'Odeslat registraci'}</button>
+          </>}
+          <button type="submit" className="primary-button" disabled={busy}>{busy ? 'Ověřuji…' : mode === 'login' ? 'Přihlásit se' : mode === 'register' ? 'Odeslat registraci' : 'Ověřit kód'}</button>
           {mode === 'login' && <button type="button" className="text-button" disabled={busy} onClick={() => void resetPassword()}>Zapomenuté heslo</button>}
+          {mode === 'verify' && <button type="button" className="text-button" disabled={busy} onClick={() => { setMode('login'); setVerificationCode(''); }}>Zpět na přihlášení</button>}
         </form>
         {message && <p className="success-message" role="status">{message}</p>}
         {error && <p className="error-message" role="alert">{error}</p>}

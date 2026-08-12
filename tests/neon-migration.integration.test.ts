@@ -13,6 +13,8 @@ describe('Neon schéma a RLS', () => {
   it('odvozuje identitu z Neon Data API JWT a vynucuje RLS', () => {
     expect(migration).toContain('auth.user_id()');
     expect(migration).toContain("nullif(auth.user_id()::text, '')::uuid");
+    expect(migration).toMatch(/current_app_user_id\(\)[\s\S]*security definer/);
+    expect(migration).toMatch(/current_app_email\(\)[\s\S]*security definer/);
     for (const table of ['profiles', 'song_submissions', 'user_app_state', 'offline_grant_audit']) {
       expect(migration).toContain(`alter table public.${table} enable row level security`);
     }

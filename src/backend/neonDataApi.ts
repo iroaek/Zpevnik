@@ -1,7 +1,5 @@
-export type DataBackendProvider = 'supabase' | 'neon';
+import { neonDataApiUrl } from './neonClient';
 
-export const dataBackendProvider: DataBackendProvider = import.meta.env.VITE_DATA_BACKEND === 'neon' ? 'neon' : 'supabase';
-export const neonDataApiUrl = import.meta.env.VITE_NEON_DATA_API_URL?.trim().replace(/\/+$/, '') ?? '';
 export const neonDataApiConfigured = Boolean(neonDataApiUrl);
 
 export class NeonDataApiError extends Error {
