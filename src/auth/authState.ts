@@ -112,3 +112,7 @@ export function resolveAuthFailure(failure: AuthFailure, grant: OfflineGrantSumm
   }
   return { status: 'unauthenticated', reason: failure.message };
 }
+
+export function resolveMissingOnlineSession(grant: OfflineGrantSummary | null, now = Date.now()): AuthState {
+  return grant ? offlineAuthState(grant, now) : { status: 'unauthenticated' };
+}

@@ -20,6 +20,13 @@ describe('sazba textu a akordů', () => {
     expect(view.container.querySelector('.chord')).toBeNull();
   });
 
+  it('nikdy nevykreslí doslovné escape sekvence místo prázdné pozice akordu', () => {
+    const view = render(<ChordSheet source={'Syntetický [Am7]text [C]pokračuje\n\\\\u00a0[Dm]další řádek'} />);
+    expect(view.container).not.toHaveTextContent('\\u00a0');
+    expect(view.container.querySelector('.chord--empty')?.textContent).toBe('\u00a0');
+    expect(screen.getByRole('button', { name: /Akord Dm/ })).toBeVisible();
+  });
+
   it('otevře lokální kytarový a klavírní diagram po klepnutí na akord', async () => {
     render(<ChordSheet source={'[G]Syntetický text'} />);
     await userEvent.click(screen.getByRole('button', { name: /Akord G; zobrazit hmat/ }));

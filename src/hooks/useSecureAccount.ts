@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { classifyAuthError, offlineAuthState, resolveAuthFailure, type AuthState } from '../auth/authState';
+import { classifyAuthError, offlineAuthState, resolveAuthFailure, resolveMissingOnlineSession, type AuthState } from '../auth/authState';
 import { OfflineGrantValidationError, type OfflineGrantPayload } from '../auth/offlineGrant';
 import {
   offlineGrantClientConfigured,
@@ -58,17 +58,32 @@ export function useSecureAccount(): SecureAccountState {
     if (!enabled) return;
     const sequence = ++refreshSequence.current;
     const local = await readOfflineGrant();
+    // Platný podepsaný grant je první zdroj pro cold start. Uživatel se tak
+    // dostane ke stažené knihovně okamžitě i při pomalém nebo blokovaném
+    // third-party cookie spojení s Neon Auth. Serverové ověření pokračuje níže.
+    if (local.grant && sequence === refreshSequence.current) {
+      setSession(null);
+      setProfile(local.grant.profile);
+      setOfflineGrant(local.grant.payload);
+      setAuthState(offlineAuthState({
+        userId: local.grant.payload.subject,
+        offlineValidUntil: local.grant.payload.offlineValidUntil,
+        contentVersion: local.grant.payload.contentVersion,
+      }));
+      setError(null);
+      setHydrated(true);
+    }
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), ONLINE_CHECK_TIMEOUT_MS);
     try {
       const result = await neonAuthRepository.getOnlineSession(controller.signal);
       if (sequence !== refreshSequence.current) return;
       if (result.status === 'unauthenticated') {
-        if (!navigator.onLine && local.grant) {
+        if (local.grant) {
           setSession(null);
           setProfile(local.grant.profile);
           setOfflineGrant(local.grant.payload);
-          setAuthState(offlineAuthState({
+          setAuthState(resolveMissingOnlineSession({
             userId: local.grant.payload.subject,
             offlineValidUntil: local.grant.payload.offlineValidUntil,
             contentVersion: local.grant.payload.contentVersion,
@@ -153,6 +168,7 @@ export function useSecureAccount(): SecureAccountState {
     const timer = window.setTimeout(() => void refresh(), 0);
     const unsubscribe = subscribeToSecureSession((event) => {
       if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true);
+      if (event === 'INITIAL_SESSION') return;
       // SIGNED_OUT může být důsledkem neúspěšného refreshu bez sítě. O stavu
       // proto vždy rozhodne koordinované online ověření + lokální grant.
       window.setTimeout(() => void refresh(), 0);

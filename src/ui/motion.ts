@@ -60,6 +60,6 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
     window.setTimeout(() => {
       snapshot.remove();
       cleanup();
-    }, 560);
+    }, 500);
   }));
 }

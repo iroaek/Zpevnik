@@ -1,17 +1,19 @@
 import { useState } from 'react';
 import type { CloudSyncState } from '../hooks/useCloudUserState';
 import { AdminAccessPanel } from './AdminAccessPanel';
+import { AdminOverview } from './AdminOverview';
 import { AdminUsersPanel } from './AdminUsersPanel';
 import { QrCodeGenerator } from './QrCodeGenerator';
 
-type AdminTab = 'users' | 'requests' | 'songs' | 'system';
+type AdminTab = 'overview' | 'users' | 'requests' | 'songs' | 'system';
 
 export function AdminPage({ cloudSync, online, onNavigate }: { cloudSync: CloudSyncState; online: boolean; onNavigate: (path: string) => void }) {
-  const [tab, setTab] = useState<AdminTab>('users');
+  const [tab, setTab] = useState<AdminTab>('overview');
   const pendingLabel = cloudSync.pendingCount
     ? `${cloudSync.pendingCount} ${cloudSync.pendingCount === 1 ? 'změna čeká na odeslání' : cloudSync.pendingCount < 5 ? 'změny čekají na odeslání' : 'změn čeká na odeslání'}`
     : null;
   const labels: Array<[AdminTab, string, string]> = [
+    ['overview', 'Přehled', 'Metriky, fronty a stav provozu'],
     ['users', 'Uživatelé', 'Databáze členů a jejich dostupnost'],
     ['requests', 'Žádosti', 'Schválení nových registrací'],
     ['songs', 'Písně', 'Návrhy a nahrané soubory'],
@@ -19,8 +21,9 @@ export function AdminPage({ cloudSync, online, onNavigate }: { cloudSync: CloudS
   ];
 
   return <section className="admin-page" aria-labelledby="admin-page-heading">
-    <header className="admin-page-hero"><p className="eyebrow">Pouze administrátor</p><h1 id="admin-page-heading">Správa zpěvníku</h1><p>Uživatelé, žádosti, nové písně a provoz aplikace jsou oddělené do přehledných sekcí.</p></header>
+    <header className="admin-page-hero"><span><p className="eyebrow">Neon control center</p><h1 id="admin-page-heading">Správa zpěvníku</h1><p>Profesionální přehled členů, schvalování obsahu a provozu soukromé aplikace.</p></span><div className="admin-hero-status"><span className={`admin-live-pill ${online ? 'online' : 'offline'}`}><i />{online ? 'Neon online' : 'Offline režim'}</span><span className={`admin-live-pill admin-live-pill--sync ${cloudSync.status}`}><i />{pendingLabel ?? (cloudSync.status === 'synced' ? 'Data aktuální' : 'Synchronizace')}</span></div></header>
     <nav className="admin-tabs scroll-strip" aria-label="Sekce administrace">{labels.map(([value, label, description]) => <button type="button" key={value} className={tab === value ? 'active' : ''} aria-pressed={tab === value} onClick={() => setTab(value)}><strong>{label}</strong><small>{description}</small></button>)}</nav>
+    {tab === 'overview' && <AdminOverview cloudSync={cloudSync} online={online} onOpen={setTab} />}
     {tab === 'users' && <AdminUsersPanel />}
     {tab === 'requests' && <AdminAccessPanel mode="accounts" />}
     {tab === 'songs' && <AdminAccessPanel mode="songs" />}

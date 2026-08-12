@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyAuthError, offlineAuthState, resolveAuthFailure, type OfflineGrantSummary } from './authState';
+import { classifyAuthError, offlineAuthState, resolveAuthFailure, resolveMissingOnlineSession, type OfflineGrantSummary } from './authState';
 
 const now = Date.parse('2026-08-11T12:00:00.000Z');
 const validGrant: OfflineGrantSummary = {
@@ -43,6 +43,13 @@ describe('auth stavový automat', () => {
 
   it('platný grant povolí offline cold start', () => {
     expect(offlineAuthState(validGrant, now)).toMatchObject({ status: 'authenticated-offline' });
+  });
+
+  it('chybějící online cookie neodhlásí zařízení s platným podepsaným grantem', () => {
+    expect(resolveMissingOnlineSession(validGrant, now)).toMatchObject({
+      status: 'authenticated-offline',
+      userId: validGrant.userId,
+    });
   });
 
   it('vypršený grant přístup odmítne', () => {

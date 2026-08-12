@@ -90,7 +90,13 @@ export default function App() {
   const [userState, setUserState, hydrated, storageError] = useUserState();
   const [userProfile, setUserProfile, profileHydrated, profileError] = useUserProfile();
   const secureAccount = useSecureAccount();
-  const cloudSync = useCloudUserState(secureAccount.enabled, secureAccount.profile, hydrated, userState, setUserState);
+  const cloudSync = useCloudUserState(
+    secureAccount.enabled && secureAccount.authState.status === 'authenticated-online',
+    secureAccount.profile,
+    hydrated,
+    userState,
+    setUserState,
+  );
   const [updateAvailable, setUpdateAvailable] = useState(hasWaitingUpdate);
   const [systemMessage, setSystemMessage] = useState('');
   const [readerSequence, setReaderSequence] = useState<string[]>([]);

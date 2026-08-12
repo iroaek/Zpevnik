@@ -156,13 +156,14 @@ function normalizeSession(data: Awaited<ReturnType<ReturnType<typeof requireNeon
 
 export function subscribeToSecureSession(callback: (event: SecureAuthChangeEvent, session: SecureSession | null) => void): () => void {
   sessionListeners.add(callback);
-  let active = true;
-  window.setTimeout(() => {
-    void getSecureSession().then((session) => { if (active) callback('INITIAL_SESSION', session); }).catch(() => undefined);
+  // Úvodní relaci načítá jediný koordinovaný refresh v useSecureAccount.
+  // Tady sledujeme pouze skutečné změny a případný recovery odkaz, abychom
+  // při každém otevření neposílali druhý souběžný požadavek na Neon Auth.
+  const recoveryTimer = window.setTimeout(() => {
     if (new URL(window.location.href).searchParams.has('token')) callback('PASSWORD_RECOVERY', null);
   }, 0);
   return () => {
-    active = false;
+    window.clearTimeout(recoveryTimer);
     sessionListeners.delete(callback);
   };
 }

@@ -20,8 +20,11 @@ export function sanitizeImportedText(value: string): string {
   return value
     .replace(/^\uFEFF/, '')
     .replace(/\r\n?/g, '\n')
-    .replace(/\\u(?:00a0|2007|202f)/gi, ' ')
-    .replace(/\\x(?:a0)/gi, ' ')
+    // Starší JSON/PDF importy mohou obsahovat jednu i více doslovných
+    // zpětných lomítek před escape sekvencí. Odstranění celé skupiny je
+    // důležité, jinak po jednom průchodu zůstane viditelné `\u00a0`.
+    .replace(/\\+u(?:00a0|2007|202f)/gi, ' ')
+    .replace(/\\+x(?:a0)/gi, ' ')
     .replace(/[\u00A0\u2007\u202F]/g, ' ')
     .split('')
     .filter((character) => {
@@ -37,6 +40,9 @@ export function stripChords(line: string): string {
 }
 
 export function parseChordLine(line: string): ChordToken[] {
+  // Odsazení vzniklé převodem rozvržení PDF nemá v responzivním ChordPro
+  // význam a na úzkém displeji vytváří falešné prázdné sloupce.
+  line = line.trimStart();
   const tokens: ChordToken[] = [];
   const matcher = /\[([^\]\n]{1,64})\]/g;
   let cursor = 0;

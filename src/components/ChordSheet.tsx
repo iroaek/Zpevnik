@@ -110,7 +110,7 @@ export function ChordSheet({
                           top: rect.bottom + estimatedHeight > window.innerHeight ? Math.max(12, rect.top - estimatedHeight) : rect.bottom + 8,
                         });
                       }}><span className="chord-value" key={`${token.chord}-${semitones}-${notation}`}>{displayedChord(token.chord, semitones, sourceNotation, notation)}</span></button>
-                      : <span className="chord chord--empty">\u00a0</span>)}
+                      : <span className="chord chord--empty" aria-hidden="true">{'\u00a0'}</span>)}
                     <span className="lyric">{token.lyric || '\u00a0'}</span>
                   </span>
                 ))}
