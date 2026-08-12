@@ -11,11 +11,17 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="canonical" href="%PUBLIC_BASE_URL%" />
     <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_BASE_PATH%icons/apple-touch-icon.png" />
+    <style>
+      html, body { margin: 0; min-height: 100%; background: #f3ecdf; }
+      .boot-shell { display: grid; place-content: center; justify-items: center; min-height: 100vh; gap: 14px; color: #34251f; font: 600 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .boot-shell span { display: grid; place-items: center; width: 52px; height: 52px; color: #fff; font-size: 25px; border-radius: 16px; background: #7a321f; box-shadow: 0 14px 36px rgba(72,40,25,.18); }
+      @media (prefers-color-scheme: dark) { html, body { background: #171310; } .boot-shell { color: #fff4df; } .boot-shell span { background: #ef9a71; } }
+    </style>
     <title>Český digitální zpěvník</title>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Přeskočit na obsah</a>
-    <div id="root"></div>
+    <div id="root"><main class="boot-shell" aria-label="Načítání aplikace"><span aria-hidden="true">♫</span><p>Otevírám zpěvník…</p></main></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

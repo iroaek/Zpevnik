@@ -39,7 +39,7 @@ function syntheticPdf(): Buffer {
 test.beforeEach(async ({ page }) => {
   await page.goto('./');
   const registration = page.getByRole('heading', { name: 'Jak vám máme říkat?' });
-  const library = page.getByRole('heading', { name: 'Co si dnes zazpíváme?' });
+  const library = page.getByRole('heading', { name: 'Český zpěvník', exact: true });
   await expect(registration.or(library)).toBeVisible({ timeout: 15_000 });
   if (await registration.isVisible()) {
     await page.getByLabel('Jméno nebo přezdívka').fill('Mobilní test');
@@ -50,7 +50,7 @@ test.beforeEach(async ({ page }) => {
 
 test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun', async ({ page }) => {
   await page.goto('./');
-  await expect(page.getByRole('heading', { name: 'Co si dnes zazpíváme?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Český zpěvník', exact: true })).toBeVisible();
   await expectNoPageOverflow(page);
   await page.getByRole('button', { name: /Syntetická jiskra/ }).click();
   await expect(page.getByText('Jiskra kreslí')).toBeVisible();
@@ -59,15 +59,17 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await page.getByRole('button', { name: 'Zvýšit o půltón' }).click();
   await expect(page.getByLabel('Posun v půltónech')).toHaveText('+1');
   const initialSize = await page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
-  await page.getByRole('button', { name: 'Zvětšit písmo' }).click();
+  await page.getByRole('button', { name: 'Otevřít nastavení zobrazení' }).click();
+  await page.getByLabel('Nastavit velikost textu').fill(String(initialSize + 2));
+  await page.getByRole('button', { name: 'Hotovo' }).click();
   await expect.poll(() => page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThan(initialSize);
 
-  await page.getByRole('button', { name: 'Automatický posun' }).click();
-  await expect(page.getByRole('button', { name: 'Zastavit posun' })).toBeVisible();
+  await page.getByRole('button', { name: 'Spustit odpočet a automatický posun' }).click();
+  await expect(page.getByRole('button', { name: 'Pozastavit automatický posun' })).toBeVisible({ timeout: 4_000 });
   await page.locator('.fire-tap-zone').click();
-  await expect(page.getByRole('button', { name: 'Zastavit posun' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Pozastavit automatický posun' })).toBeVisible();
   await expect(page.getByText('žádná známá píseň')).toBeVisible();
-  await page.getByRole('button', { name: 'Zastavit posun' }).click();
+  await page.getByRole('button', { name: 'Pozastavit automatický posun' }).click();
 
   await page.getByRole('button', { name: 'Režim U ohně' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-fire-mode', 'true');
@@ -86,14 +88,14 @@ test('vyhledávání zůstává uvnitř úvodního panelu na mobilu i desktopu',
   for (const viewport of [{ width: 390, height: 844 }, { width: 1300, height: 1000 }]) {
     await page.setViewportSize(viewport);
     await page.goto('./');
-    const hero = await page.locator('.hero-card').boundingBox();
+    const panel = await page.locator('.library-sticky-panel').boundingBox();
     const search = await page.locator('.library-sticky-search').boundingBox();
-    expect(hero).not.toBeNull();
+    expect(panel).not.toBeNull();
     expect(search).not.toBeNull();
-    expect(search!.x).toBeGreaterThanOrEqual(hero!.x);
-    expect(search!.y).toBeGreaterThanOrEqual(hero!.y);
-    expect(search!.x + search!.width).toBeLessThanOrEqual(hero!.x + hero!.width + 1);
-    expect(search!.y + search!.height).toBeLessThanOrEqual(hero!.y + hero!.height + 1);
+    expect(search!.x).toBeGreaterThanOrEqual(panel!.x);
+    expect(search!.y).toBeGreaterThanOrEqual(panel!.y);
+    expect(search!.x + search!.width).toBeLessThanOrEqual(panel!.x + panel!.width + 1);
+    expect(search!.y + search!.height).toBeLessThanOrEqual(panel!.y + panel!.height + 1);
     await expectNoPageOverflow(page);
   }
 });
@@ -105,12 +107,12 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
   await page.evaluate(() => {
     Object.defineProperty(document, 'startViewTransition', { configurable: true, value: undefined });
   });
-  const transitionFinished = page.evaluate(() => new Promise<{ duration: number; frames: number; blankFrames: number; minOpacity: number; phases: string[] }>((resolve) => {
+  const transitionFinished = page.evaluate(() => new Promise<{ duration: number; frames: number; blankFrames: number; overlapFrames: number; phases: string[] }>((resolve) => {
     let start = 0;
     let started = false;
     let frames = 0;
     let blankFrames = 0;
-    let minOpacity = 1;
+    let overlapFrames = 0;
     const phases = new Set<string>();
     const sample = () => {
       const active = document.documentElement.dataset.viewTransition === 'active';
@@ -125,11 +127,11 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
       frames += 1;
       const stage = document.querySelector('.route-stage');
       if (!stage || stage.getBoundingClientRect().height < 1) blankFrames += 1;
-      if (stage) minOpacity = Math.min(minOpacity, Number.parseFloat(getComputedStyle(stage).opacity));
+      if (document.querySelector('.route-transition-snapshot') && stage) overlapFrames += 1;
       const phase = document.documentElement.dataset.transitionPhase;
       if (phase) phases.add(phase);
       if (active) requestAnimationFrame(sample);
-      else resolve({ duration: performance.now() - start, frames, blankFrames, minOpacity, phases: [...phases] });
+      else resolve({ duration: performance.now() - start, frames, blankFrames, overlapFrames, phases: [...phases] });
     };
     requestAnimationFrame(sample);
   }));
@@ -140,13 +142,13 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
   expect(transitionMetrics.duration).toBeGreaterThanOrEqual(400);
   expect(transitionMetrics.frames).toBeGreaterThanOrEqual(8);
   expect(transitionMetrics.blankFrames).toBe(0);
-  expect(transitionMetrics.minOpacity).toBeGreaterThanOrEqual(0.6);
-  expect(transitionMetrics.phases).toEqual(expect.arrayContaining(['leaving', 'entering']));
+  expect(transitionMetrics.overlapFrames).toBeGreaterThanOrEqual(8);
+  expect(transitionMetrics.phases).toEqual(expect.arrayContaining(['preparing', 'entering']));
   await expectNoPageOverflow(page);
 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.getByRole('button', { name: 'Písně', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Co si dnes zazpíváme?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Český zpěvník', exact: true })).toBeVisible();
   const reducedDuration = await page.locator('.route-stage').evaluate((element) => Number.parseFloat(getComputedStyle(element).animationDuration));
   expect(reducedDuration).toBeLessThanOrEqual(0.001);
 });

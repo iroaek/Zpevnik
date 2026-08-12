@@ -27,7 +27,7 @@ import { useUserState } from './hooks/useUserState';
 import { loadLatestCatalog } from './pwa/contentCache';
 import { canonicalUrl, relativeRoute, routePath } from './pwa/paths';
 import { activateWaitingUpdate, hasWaitingUpdate } from './pwa/updateManager';
-import { addRecent, createUserProfile, isDownloadedLibrarySong, loadPersonalSongs, toggleFavorite, updateSetlistSongs } from './storage/database';
+import { addRecent, createSetlist, createUserProfile, isDownloadedLibrarySong, loadPersonalSongs, removePersonalSong, removeProtectedSong, toggleFavorite, updateSetlistSongs } from './storage/database';
 import type { PersonalLibrarySummary } from './personalLibrary';
 import { routeMotionDirection, runRouteTransition } from './ui/motion';
 
@@ -237,6 +237,23 @@ export default function App() {
     setUserState((current) => addRecent(current, song.id));
   };
 
+  const addToTonightSetlist = (songId: string) => {
+    setUserState((current) => {
+      const existing = current.setlists.find((setlist) => setlist.name.toLocaleLowerCase('cs') === 'dnešní setlist');
+      const withSetlist = existing ? current : createSetlist(current, 'Dnešní setlist');
+      const tonight = existing ?? withSetlist.setlists.find((setlist) => setlist.name === 'Dnešní setlist');
+      return !tonight || tonight.songIds.includes(songId) ? withSetlist : updateSetlistSongs(withSetlist, tonight.id, [...tonight.songIds, songId]);
+    });
+  };
+
+  const deleteDeviceSong = async (songId: string) => {
+    const song = deviceSongs.find((candidate) => candidate.id === songId);
+    if (!song) throw new Error('Píseň není uložená v tomto zařízení.');
+    if (protectedContentOwnerId && isDownloadedLibrarySong(song)) await removeProtectedSong(protectedContentOwnerId, songId);
+    else await removePersonalSong(songId);
+    await refreshDeviceSongs();
+  };
+
   const navScreen = route.name === 'library' || route.name === 'setlists' || route.name === 'import' || route.name === 'settings' || route.name === 'offline' ? route.name : null;
 
   if (!hydrated || !profileHydrated || (secureAccount.enabled && !secureAccount.hydrated)) return <main className="loading-screen"><span className="brand-mark" aria-hidden="true">♫</span><p>Otevírám zpěvník…</p></main>;
@@ -267,7 +284,7 @@ export default function App() {
       {systemMessage && <div className="system-message toast-message" role="status"><span>{systemMessage}</span><button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemMessage('')}>×</button></div>}
       <main id="main-content" className="app-main">
         <div className="route-stage" key={routeRelativePath(route) || 'library'}>
-        {route.name === 'library' && <Library songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} setlistCount={userState.setlists.length} setlists={userState.setlists} onOpenSong={(id) => openSong(id)} onNavigate={navigate} onToggleFavorite={(id) => setUserState((current) => toggleFavorite(current, id))} onAddToSetlist={(songId, setlistId) => setUserState((current) => { const setlist = current.setlists.find((candidate) => candidate.id === setlistId); return !setlist || setlist.songIds.includes(songId) ? current : updateSetlistSongs(current, setlistId, [...setlist.songIds, songId]); })} onNotify={setSystemMessage} />}
+        {route.name === 'library' && <Library songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} setlistCount={userState.setlists.length} setlists={userState.setlists} onOpenSong={(id) => openSong(id)} onNavigate={navigate} onToggleFavorite={(id) => setUserState((current) => toggleFavorite(current, id))} onAddToSetlist={(songId, setlistId) => setUserState((current) => { const setlist = current.setlists.find((candidate) => candidate.id === setlistId); return !setlist || setlist.songIds.includes(songId) ? current : updateSetlistSongs(current, setlistId, [...setlist.songIds, songId]); })} onAddToTonight={addToTonightSetlist} onDeleteSong={deleteDeviceSong} onNotify={setSystemMessage} />}
         {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id) => navigate(`setlists/${id}`)} />}
         {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} />}
         {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} cloudSync={cloudSync} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} onRefreshSecureProfile={secureAccount.refresh} />}

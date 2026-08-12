@@ -55,7 +55,7 @@ describe('směr navigačního pohybu', () => {
     expect(document.documentElement.dataset.viewTransition).toBeUndefined();
   });
 
-  it('bez nativního View Transition použije plynulý CSS fallback', async () => {
+  it('překryje starou a novou stránku bez prázdného snímku', async () => {
     vi.useFakeTimers();
     reducedMotion(false);
     document.body.innerHTML = '<main><div class="route-stage">Původní</div></main>';
@@ -63,14 +63,16 @@ describe('směr navigačního pohybu', () => {
 
     runRouteTransition(update, 'forward');
     expect(document.documentElement.dataset.viewTransition).toBe('active');
-    expect(document.documentElement.dataset.transitionPhase).toBe('leaving');
-    await vi.advanceTimersByTimeAsync(170);
     expect(document.documentElement.dataset.transitionPhase).toBe('preparing');
+    expect(document.querySelector('.route-transition-snapshot')).not.toBeNull();
+    await vi.advanceTimersToNextTimerAsync();
     await vi.advanceTimersToNextTimerAsync();
     expect(document.documentElement.dataset.transitionPhase).toBe('entering');
-    await vi.advanceTimersByTimeAsync(310);
+    expect(document.querySelector('.route-transition-snapshot')?.getAttribute('data-transition-phase')).toBe('leaving');
+    await vi.advanceTimersByTimeAsync(440);
 
     expect(update).toHaveBeenCalledOnce();
     expect(document.documentElement.dataset.viewTransition).toBeUndefined();
+    expect(document.querySelector('.route-transition-snapshot')).toBeNull();
   });
 });

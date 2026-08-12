@@ -14,9 +14,6 @@ export function routeMotionDirection(current: string, target: string): MotionDir
 export function runRouteTransition(update: () => void, direction: MotionDirection): void {
   const reduced = typeof window.matchMedia === 'function'
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const startViewTransition = (document as unknown as {
-    startViewTransition?: (update: () => void) => { finished: Promise<void> };
-  }).startViewTransition;
   if (reduced) {
     update();
     return;
@@ -29,43 +26,40 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
     delete root.dataset.navigationDirection;
     delete root.dataset.transitionPhase;
   };
-  if (!startViewTransition) {
-    const currentStage = document.querySelector<HTMLElement>('.route-stage');
-    if (!currentStage) {
-      update();
-      cleanup();
-      return;
-    }
-    root.dataset.transitionPhase = 'leaving';
-    window.setTimeout(() => {
-      // Keep the incoming route in its first animated pose before the next
-      // paint. Removing the phase here would expose one fully rendered frame
-      // between the outgoing and incoming animations (visible as a flash).
-      root.dataset.transitionPhase = 'preparing';
-      try {
-        update();
-      } catch (error) {
-        cleanup();
-        throw error;
-      }
-      requestAnimationFrame(() => {
-        root.dataset.transitionPhase = 'entering';
-        window.setTimeout(cleanup, 310);
-      });
-    }, 170);
+  const currentStage = document.querySelector<HTMLElement>('.route-stage');
+  if (!currentStage) {
+    update();
+    cleanup();
     return;
   }
-  let updated = false;
-  const commitUpdate = () => {
-    updated = true;
-    update();
-  };
+
+  const bounds = currentStage.getBoundingClientRect();
+  const snapshot = currentStage.cloneNode(true) as HTMLElement;
+  snapshot.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
+  snapshot.classList.add('route-transition-snapshot');
+  snapshot.setAttribute('aria-hidden', 'true');
+  snapshot.setAttribute('inert', '');
+  snapshot.style.setProperty('--route-snapshot-top', `${bounds.top}px`);
+  snapshot.style.setProperty('--route-snapshot-left', `${bounds.left}px`);
+  snapshot.style.setProperty('--route-snapshot-width', `${bounds.width}px`);
+  snapshot.style.setProperty('--route-snapshot-height', `${bounds.height}px`);
+  document.body.append(snapshot);
+
+  root.dataset.transitionPhase = 'preparing';
   try {
-    const transition = startViewTransition.call(document, commitUpdate);
-    void transition.finished.then(cleanup, cleanup);
-  } catch {
-    delete root.dataset.viewTransition;
-    delete root.dataset.navigationDirection;
-    if (!updated) update();
+    update();
+  } catch (error) {
+    snapshot.remove();
+    cleanup();
+    throw error;
   }
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    root.dataset.transitionPhase = 'entering';
+    snapshot.dataset.transitionPhase = 'leaving';
+    window.setTimeout(() => {
+      snapshot.remove();
+      cleanup();
+    }, 440);
+  }));
 }
