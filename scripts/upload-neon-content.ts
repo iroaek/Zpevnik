@@ -64,8 +64,57 @@ async function api(token: string, path: string, init: RequestInit = {}): Promise
   return data;
 }
 
+async function assertStagingAdmin(token: string): Promise<void> {
+  const allowed = await api(token, 'rpc/is_app_admin', {
+    method: 'POST',
+    body: '{}',
+  });
+  if (allowed !== true) {
+    throw new Error('Přihlášený Neon účet nemá podle databázové RLS administrátorské oprávnění. Upload nebyl zahájen.');
+  }
+}
+
 function sha256(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
+}
+
+interface StoredPackage {
+  version: string;
+  package_bytes: number;
+  chunk_count: number;
+  sha256: string;
+  is_active: boolean;
+}
+
+interface StoredChunk {
+  chunk_index: number;
+  byte_size: number;
+  sha256: string;
+  data_base64: string;
+}
+
+async function verifyPackage(token: string, scope: 'admin' | 'members', manifest: Manifest): Promise<void> {
+  const packages = await api(token, `content_packages?select=version,package_bytes,chunk_count,sha256,is_active&scope=eq.${scope}&version=eq.${manifest.version}&limit=1`) as StoredPackage[];
+  const stored = packages[0];
+  if (!stored?.is_active || stored.sha256 !== manifest.sha256 || stored.package_bytes !== manifest.packageBytes) {
+    throw new Error(`${scope}: aktivní metadata balíčku v Neon neodpovídají manifestu.`);
+  }
+  const chunks = await api(token, `content_package_chunks?select=chunk_index,byte_size,sha256,data_base64&scope=eq.${scope}&version=eq.${manifest.version}&order=chunk_index.asc`) as StoredChunk[];
+  if (chunks.length !== stored.chunk_count) {
+    throw new Error(`${scope}: očekáváno ${stored.chunk_count} částí, Data API vrátilo ${chunks.length}.`);
+  }
+  const bytes = chunks.map((chunk, index) => {
+    const data = Buffer.from(chunk.data_base64, 'base64');
+    if (chunk.chunk_index !== index || chunk.byte_size !== data.byteLength || chunk.sha256 !== sha256(data)) {
+      throw new Error(`${scope}: část ${index} neprošla kontrolou integrity.`);
+    }
+    return data;
+  });
+  const reconstructed = Buffer.concat(bytes);
+  if (reconstructed.byteLength !== manifest.packageBytes || sha256(reconstructed) !== manifest.sha256) {
+    throw new Error(`${scope}: znovu sestavený balíček neodpovídá lokálnímu manifestu.`);
+  }
+  console.log(`${scope}: ověřeno stažení ${chunks.length} částí a SHA-256 přes oprávněné Neon Data API.`);
 }
 
 async function uploadPackage(token: string, scope: 'admin' | 'members'): Promise<void> {
@@ -82,24 +131,31 @@ async function uploadPackage(token: string, scope: 'admin' | 'members'): Promise
   const active = await api(token, `content_packages?select=version,sha256&scope=eq.${scope}&is_active=eq.true&limit=1`) as Array<{ version?: string; sha256?: string }>;
   if (active[0]?.version === manifest.version && active[0]?.sha256 === manifest.sha256) {
     console.log(`${scope}: verze ${manifest.version} už je aktivní; upload není potřeba.`);
+    await verifyPackage(token, scope, manifest);
     return;
   }
 
   const chunkSize = 256 * 1024;
   const chunkCount = Math.ceil(packageBuffer.byteLength / chunkSize);
-  await api(token, 'content_packages?on_conflict=scope,version', {
-    method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-    body: JSON.stringify({
-      scope,
-      version: manifest.version,
-      manifest,
-      package_bytes: packageBuffer.byteLength,
-      chunk_count: chunkCount,
-      sha256: manifest.sha256,
-      is_active: false,
-    }),
-  });
+  const revision = await api(token, `content_packages?select=version,sha256,is_active&scope=eq.${scope}&version=eq.${manifest.version}&limit=1`) as Array<{ version?: string; sha256?: string; is_active?: boolean }>;
+  if (revision[0] && revision[0].sha256 !== manifest.sha256) {
+    throw new Error(`${scope}: existující revize ${manifest.version} má jiný SHA-256; upload byl zastaven.`);
+  }
+  if (!revision[0]) {
+    await api(token, 'content_packages', {
+      method: 'POST',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        scope,
+        version: manifest.version,
+        manifest,
+        package_bytes: packageBuffer.byteLength,
+        chunk_count: chunkCount,
+        sha256: manifest.sha256,
+        is_active: false,
+      }),
+    });
+  }
   await api(token, `content_package_chunks?scope=eq.${scope}&version=eq.${manifest.version}`, { method: 'DELETE' });
   for (let chunkIndex = 0; chunkIndex < chunkCount; chunkIndex += 1) {
     const chunk = packageBuffer.subarray(chunkIndex * chunkSize, Math.min((chunkIndex + 1) * chunkSize, packageBuffer.byteLength));
@@ -121,8 +177,10 @@ async function uploadPackage(token: string, scope: 'admin' | 'members'): Promise
     body: JSON.stringify({ target_scope: scope, target_version: manifest.version }),
   });
   console.log(`${scope}: aktivována verze ${manifest.version}, ${manifest.songCount} písní, ${packageBuffer.byteLength} B.`);
+  await verifyPackage(token, scope, manifest);
 }
 
 const token = await signIn();
+await assertStagingAdmin(token);
 await uploadPackage(token, 'members');
 await uploadPackage(token, 'admin');

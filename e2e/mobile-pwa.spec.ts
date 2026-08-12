@@ -102,9 +102,46 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
   test.skip(testInfo.project.name !== 'mobile-390x844', 'Pohybový systém stačí ověřit v reprezentativním mobilním viewportu.');
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('./');
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'startViewTransition', { configurable: true, value: undefined });
+  });
+  const transitionFinished = page.evaluate(() => new Promise<{ duration: number; frames: number; blankFrames: number; minOpacity: number; phases: string[] }>((resolve) => {
+    let start = 0;
+    let started = false;
+    let frames = 0;
+    let blankFrames = 0;
+    let minOpacity = 1;
+    const phases = new Set<string>();
+    const sample = () => {
+      const active = document.documentElement.dataset.viewTransition === 'active';
+      if (!started && !active) {
+        requestAnimationFrame(sample);
+        return;
+      }
+      if (!started) {
+        started = true;
+        start = performance.now();
+      }
+      frames += 1;
+      const stage = document.querySelector('.route-stage');
+      if (!stage || stage.getBoundingClientRect().height < 1) blankFrames += 1;
+      if (stage) minOpacity = Math.min(minOpacity, Number.parseFloat(getComputedStyle(stage).opacity));
+      const phase = document.documentElement.dataset.transitionPhase;
+      if (phase) phases.add(phase);
+      if (active) requestAnimationFrame(sample);
+      else resolve({ duration: performance.now() - start, frames, blankFrames, minOpacity, phases: [...phases] });
+    };
+    requestAnimationFrame(sample);
+  }));
   await page.getByRole('button', { name: 'Setlisty', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Setlisty', exact: true })).toBeVisible();
   await expect.poll(() => page.locator('html').getAttribute('data-view-transition')).toBeNull();
+  const transitionMetrics = await transitionFinished;
+  expect(transitionMetrics.duration).toBeGreaterThanOrEqual(400);
+  expect(transitionMetrics.frames).toBeGreaterThanOrEqual(8);
+  expect(transitionMetrics.blankFrames).toBe(0);
+  expect(transitionMetrics.minOpacity).toBeGreaterThanOrEqual(0.6);
+  expect(transitionMetrics.phases).toEqual(expect.arrayContaining(['leaving', 'entering']));
   await expectNoPageOverflow(page);
 
   await page.emulateMedia({ reducedMotion: 'reduce' });

@@ -18,7 +18,7 @@
   --shadow: 0 14px 36px rgba(72, 40, 25, 0.1);
   --radius: 20px;
   --motion-fast: 140ms;
-  --motion-page: 280ms;
+  --motion-page: 420ms;
   --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -108,18 +108,31 @@ h2 { font-size: 1.3rem; }
 .connection-badge.online span, .offline-status--ready .status-dot { background: #32865b; box-shadow: 0 0 0 3px color-mix(in srgb, #32865b 18%, transparent); }
 .connection-badge.offline span, .offline-status--offline .status-dot { background: #b23a32; box-shadow: 0 0 0 3px color-mix(in srgb, #b23a32 18%, transparent); }
 .app-main { width: min(100%, 72rem); margin: 0 auto; padding: 1.1rem; }
-.route-stage { width: 100%; view-transition-name: app-content; animation: route-stage-enter var(--motion-page) var(--motion-ease) backwards; }
-:root[data-view-transition="active"] .route-stage { animation: none; }
-::view-transition-old(app-content), ::view-transition-new(app-content) { mix-blend-mode: normal; }
-::view-transition-old(app-content) { animation: route-view-old 180ms ease both; }
+.route-stage { width: 100%; view-transition-name: app-content; }
+::view-transition-old(root) { animation: none; opacity: 0; }
+::view-transition-new(root) { animation: none; opacity: 1; mix-blend-mode: normal; }
+::view-transition-group(app-content) { animation-duration: var(--motion-page); animation-timing-function: var(--motion-ease); }
+::view-transition-image-pair(app-content) { isolation: isolate; }
+::view-transition-old(app-content), ::view-transition-new(app-content) { width: 100%; height: 100%; mix-blend-mode: normal; backface-visibility: hidden; transform-origin: 50% 22%; }
+::view-transition-old(app-content) { animation: route-view-old var(--motion-page) var(--motion-ease) both; }
 ::view-transition-new(app-content) { animation: route-view-new var(--motion-page) var(--motion-ease) both; }
-@keyframes route-stage-enter { from { opacity: 0; transform: translateY(8px) scale(0.992); } to { opacity: 1; transform: none; } }
-@keyframes route-view-old { to { opacity: 0; transform: translateX(-10px) scale(0.992); } }
-@keyframes route-view-new { from { opacity: 0; transform: translateX(18px) scale(0.992); } to { opacity: 1; transform: none; } }
+@keyframes route-view-old { from { opacity: 1; transform: none; } to { opacity: 0.12; transform: translate3d(-2.6rem, 0, 0) scale(0.985); } }
+@keyframes route-view-new { from { opacity: 0; transform: translate3d(2.6rem, 0, 0) scale(0.985); } 28% { opacity: 0.32; } to { opacity: 1; transform: none; } }
 :root[data-navigation-direction="back"]::view-transition-old(app-content) { animation-name: route-view-old-back; }
 :root[data-navigation-direction="back"]::view-transition-new(app-content) { animation-name: route-view-new-back; }
-@keyframes route-view-old-back { to { opacity: 0; transform: translateX(10px) scale(0.992); } }
-@keyframes route-view-new-back { from { opacity: 0; transform: translateX(-18px) scale(0.992); } to { opacity: 1; transform: none; } }
+@keyframes route-view-old-back { from { opacity: 1; transform: none; } to { opacity: 0.12; transform: translate3d(2.6rem, 0, 0) scale(0.985); } }
+@keyframes route-view-new-back { from { opacity: 0; transform: translate3d(-2.6rem, 0, 0) scale(0.985); } 28% { opacity: 0.32; } to { opacity: 1; transform: none; } }
+:root[data-view-transition="active"][data-transition-phase="leaving"] .route-stage { pointer-events: none; animation: route-fallback-leave 170ms cubic-bezier(0.4, 0, 1, 1) both; }
+:root[data-view-transition="active"][data-transition-phase="preparing"] .route-stage { pointer-events: none; opacity: 0.64; transform: translate3d(2.1rem, 0, 0) scale(0.988); }
+:root[data-view-transition="active"][data-transition-phase="entering"] .route-stage { pointer-events: none; animation: route-fallback-enter 310ms var(--motion-ease) both; }
+:root[data-view-transition="active"] .bottom-nav { pointer-events: none; }
+:root[data-navigation-direction="back"][data-transition-phase="leaving"] .route-stage { animation-name: route-fallback-leave-back; }
+:root[data-navigation-direction="back"][data-transition-phase="preparing"] .route-stage { transform: translate3d(-2.1rem, 0, 0) scale(0.988); }
+:root[data-navigation-direction="back"][data-transition-phase="entering"] .route-stage { animation-name: route-fallback-enter-back; }
+@keyframes route-fallback-leave { from { opacity: 1; transform: none; } to { opacity: 0.64; transform: translate3d(-2.1rem, 0, 0) scale(0.988); } }
+@keyframes route-fallback-enter { from { opacity: 0.64; transform: translate3d(2.1rem, 0, 0) scale(0.988); } to { opacity: 1; transform: none; } }
+@keyframes route-fallback-leave-back { from { opacity: 1; transform: none; } to { opacity: 0.64; transform: translate3d(2.1rem, 0, 0) scale(0.988); } }
+@keyframes route-fallback-enter-back { from { opacity: 0.64; transform: translate3d(-2.1rem, 0, 0) scale(0.988); } to { opacity: 1; transform: none; } }
 .global-warning, .error-message { padding: 0.9rem 1rem; color: #7c1d18; background: #ffe5df; border-left: 5px solid #b52e25; }
 .success-message { padding: 0.9rem 1rem; color: #144d34; background: #dff4e8; border-left: 5px solid #32865b; }
 .info-message { padding: 0.9rem 1rem; color: var(--text); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border-left: 5px solid var(--accent); }
