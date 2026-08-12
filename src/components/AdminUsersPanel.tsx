@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { loadAllProfiles, type SecureProfile } from '../auth/secureAccess';
+import { loadAllProfiles, loadAllSecureDevices, revokeSecureDevice, setSecureProfileStatus, type SecureDevice, type SecureProfile } from '../auth/secureAccess';
 import { isProfileOnline } from './adminUserPresence';
 import { friendlyError } from '../ui/friendlyError';
 
@@ -18,15 +18,25 @@ function lastActivity(profile: SecureProfile, online: boolean): string {
 
 export function AdminUsersPanel() {
   const [profiles, setProfiles] = useState<SecureProfile[]>([]);
+  const [devices, setDevices] = useState<SecureDevice[]>([]);
   const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | SecureProfile['status']>('all');
+  const [selected, setSelected] = useState<string[]>([]);
+  const [expandedId, setExpandedId] = useState('');
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [observedAt, setObservedAt] = useState(0);
 
   const refresh = useCallback(async () => {
     try {
-      const nextProfiles = await loadAllProfiles();
+      // Profily zůstávají spravovatelné i během postupného nasazení nové
+      // tabulky zařízení. Neúspěch doplňkové telemetrie nesmí skrýt uživatele.
+      const [nextProfiles, nextDevices] = await Promise.all([
+        loadAllProfiles(),
+        loadAllSecureDevices().catch(() => [] as SecureDevice[]),
+      ]);
       setProfiles(nextProfiles);
+      setDevices(nextDevices);
       setObservedAt(Date.now());
       setMessage('');
     } catch (caught) {
@@ -50,12 +60,38 @@ export function AdminUsersPanel() {
   const visibleProfiles = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase('cs');
     return profiles
-      .filter((profile) => !normalized || `${profile.display_name} ${profile.email}`.toLocaleLowerCase('cs').includes(normalized))
+      .filter((profile) => (statusFilter === 'all' || profile.status === statusFilter) && (!normalized || `${profile.display_name} ${profile.email}`.toLocaleLowerCase('cs').includes(normalized)))
       .sort((left, right) => {
         const onlineDifference = Number(isProfileOnline(right, observedAt)) - Number(isProfileOnline(left, observedAt));
         return onlineDifference || left.display_name.localeCompare(right.display_name, 'cs');
       });
-  }, [observedAt, profiles, query]);
+  }, [observedAt, profiles, query, statusFilter]);
+
+  const changeStatus = async (ids: string[], status: 'approved' | 'rejected' | 'suspended') => {
+    if (ids.length === 0) return;
+    setLoading(true);
+    try {
+      await Promise.all(ids.map((id) => setSecureProfileStatus(id, status)));
+      setSelected([]);
+      await refresh();
+      setMessage(`${ids.length} účtů bylo aktualizováno.`);
+    } catch (caught) {
+      setMessage(friendlyError(caught, 'Hromadnou změnu se nepodařilo uložit.'));
+      setLoading(false);
+    }
+  };
+
+  const revokeDevice = async (device: SecureDevice) => {
+    setLoading(true);
+    try {
+      await revokeSecureDevice(device.user_id, device.device_id);
+      await refresh();
+      setMessage(`Zařízení „${device.label}“ bylo odvoláno.`);
+    } catch (caught) {
+      setMessage(friendlyError(caught, 'Zařízení se nepodařilo odvolat.'));
+      setLoading(false);
+    }
+  };
 
   return (
     <section className="backup-card admin-users-panel" aria-labelledby="admin-users-heading">
@@ -65,16 +101,20 @@ export function AdminUsersPanel() {
         <span><small>Online</small><strong>{onlineCount}</strong></span>
         <span><small>Autorizovaných</small><strong>{approvedCount}</strong></span>
       </div>
-      <label className="admin-user-search"><span>Hledat podle jména nebo e-mailu</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Jméno nebo e-mail…" /></label>
+      <div className="admin-user-toolbar"><label className="admin-user-search"><span>Hledat podle jména nebo e-mailu</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Jméno nebo e-mail…" /></label><label>Stav<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}><option value="all">Všechny stavy</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
+      {visibleProfiles.length > 0 && <div className="admin-bulk-actions"><label><input type="checkbox" checked={selected.length === visibleProfiles.length} onChange={(event) => setSelected(event.target.checked ? visibleProfiles.map((profile) => profile.id) : [])} />Vybrat zobrazené ({selected.length})</label><div className="button-row"><button type="button" className="secondary-button" disabled={loading || selected.length === 0} onClick={() => void changeStatus(selected, 'approved')}>Schválit</button><button type="button" className="secondary-button" disabled={loading || selected.length === 0} onClick={() => void changeStatus(selected, 'suspended')}>Pozastavit</button><button type="button" className="danger-button" disabled={loading || selected.length === 0} onClick={() => void changeStatus(selected, 'rejected')}>Zamítnout</button></div></div>}
       {message && <p className="error-message" role="alert">{message}</p>}
       {!message && !loading && profiles.length === 0 && <p className="empty-state">Zatím není zaregistrovaný žádný uživatel.</p>}
       <div className="admin-user-list">
         {visibleProfiles.map((profile) => {
           const online = isProfileOnline(profile, observedAt);
-          return <article key={profile.id}>
+          const profileDevices = devices.filter((device) => device.user_id === profile.id);
+          return <article key={profile.id} className="admin-user-row">
+            <input type="checkbox" aria-label={`Vybrat uživatele ${profile.display_name}`} checked={selected.includes(profile.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...new Set([...current, profile.id])] : current.filter((id) => id !== profile.id))} />
             <span className={`admin-user-presence ${online ? 'online' : 'offline'}`} aria-label={online ? 'Online' : 'Offline'} aria-hidden="true" />
             <span className="admin-user-identity"><strong>{profile.display_name}</strong><small>{profile.email}</small><small>{lastActivity(profile, online)}</small></span>
-            <span className="admin-user-badges"><span className={`status-badge status-badge--${profile.status}`}>{statusLabels[profile.status]}</span>{profile.role === 'admin' && <span className="status-badge">Administrátor</span>}</span>
+            <span className="admin-user-badges"><span className={`status-badge status-badge--${profile.status}`}>{statusLabels[profile.status]}</span>{profile.role === 'admin' && <span className="status-badge">Administrátor</span>}<button type="button" className="text-button" onClick={() => setExpandedId(expandedId === profile.id ? '' : profile.id)}>{profileDevices.length} zařízení</button></span>
+            {expandedId === profile.id && <div className="admin-device-list">{profileDevices.length === 0 ? <p>Žádné zařízení zatím nebylo registrováno.</p> : profileDevices.map((device) => <div key={device.device_id}><span><strong>{device.label}</strong><small>Naposledy {new Date(device.last_seen_at).toLocaleString('cs-CZ')}</small><small>{device.revoked_at ? `Odvoláno ${new Date(device.revoked_at).toLocaleString('cs-CZ')}` : 'Aktivní offline přístup'}</small></span>{!device.revoked_at && <button type="button" className="danger-button" disabled={loading} onClick={() => void revokeDevice(device)}>Odvolat</button>}</div>)}</div>}
           </article>;
         })}
       </div>

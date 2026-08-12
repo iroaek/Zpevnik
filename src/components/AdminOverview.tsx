@@ -65,6 +65,20 @@ export function AdminOverview({
   const newestProfiles = [...profiles]
     .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))
     .slice(0, 4);
+  const weeklyActivity = useMemo(() => {
+    if (!observedAt) return [];
+    const formatter = new Intl.DateTimeFormat('cs-CZ', { weekday: 'short' });
+    return Array.from({ length: 7 }, (_, index) => {
+      const day = new Date(observedAt - (6 - index) * 86_400_000);
+      const key = day.toISOString().slice(0, 10);
+      return {
+        key,
+        label: formatter.format(day).replace('.', ''),
+        count: profiles.filter((profile) => profile.last_seen_at?.slice(0, 10) === key).length,
+      };
+    });
+  }, [observedAt, profiles]);
+  const peakActivity = Math.max(1, ...weeklyActivity.map((day) => day.count));
 
   return <section className="admin-overview" aria-labelledby="admin-overview-heading">
     <div className="admin-command-bar">
@@ -112,6 +126,14 @@ export function AdminOverview({
           <div><dt>Offline přístup</dt><dd>Podepsané oprávnění</dd></div>
         </dl>
         <button type="button" className="secondary-button" onClick={() => onOpen('system')}>Otevřít provozní nástroje</button>
+      </article>
+
+      <article className="admin-chart-card admin-activity-card">
+        <header><span><small>Posledních 7 dní</small><h3>Aktivita členů</h3></span><strong>{weeklyActivity.reduce((sum, day) => sum + day.count, 0)}</strong></header>
+        <div className="admin-activity-chart" role="img" aria-label="Počet uživatelů podle dne jejich poslední aktivity">
+          {weeklyActivity.map((day) => <span key={day.key}><i style={{ '--admin-activity-level': `${Math.max(8, day.count / peakActivity * 100)}%` } as CSSProperties} /><strong>{day.count}</strong><small>{day.label}</small></span>)}
+        </div>
+        <p>Graf pracuje pouze s posledním bezpečně evidovaným přístupem účtu; nejde o sledování jednotlivých návštěv.</p>
       </article>
     </div>
 

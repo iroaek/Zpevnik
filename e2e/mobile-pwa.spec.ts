@@ -72,16 +72,16 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await expect(page.getByText('žádná známá píseň')).toBeVisible();
   await page.getByRole('button', { name: 'Pozastavit automatický posun' }).click();
 
-  await page.getByRole('button', { name: 'Režim U ohně' }).click();
+  await page.getByRole('button', { name: 'Pódiový režim' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-fire-mode', 'true');
   await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(false);
   const initialFireSize = await page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
-  await page.getByRole('button', { name: 'Zvětšit text v režimu U ohně' }).click();
+  await page.getByRole('button', { name: 'Zvětšit pódiový text' }).click();
   await expect.poll(() => page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThan(initialFireSize);
   const fireDockBottomGap = await page.locator('.fire-dock').evaluate((element) => Math.abs(window.innerHeight - element.getBoundingClientRect().bottom));
   expect(fireDockBottomGap).toBeLessThanOrEqual(1);
   await expectNoPageOverflow(page);
-  await page.getByRole('button', { name: 'Ukončit U ohně' }).click();
+  await page.getByRole('button', { name: 'Ukončit pódiový režim' }).click();
 });
 
 test('úvod obsahuje pouze šest hlavních voleb a knihovna drží hledání uvnitř panelu', async ({ page }, testInfo) => {

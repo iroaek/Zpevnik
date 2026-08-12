@@ -5,6 +5,7 @@ import {
   offlineGrantAudience,
   offlineGrantIssuer,
   requestNeonSessionJwt,
+  registerSecureDevice,
   secureProfileSchema,
   signOutSecureAccount,
 } from '../auth/secureAccess';
@@ -41,8 +42,9 @@ export const neonAuthRepository: AuthRepository = {
   },
 
   async issueOfflineGrant(profile, deviceId, accessToken) {
-    const [token, rawKeySet, metadata] = await Promise.all([
-      accessToken || requestNeonSessionJwt(),
+    const token = await Promise.resolve(accessToken || requestNeonSessionJwt());
+    await registerSecureDevice(deviceId, token);
+    const [rawKeySet, metadata] = await Promise.all([
       loadNeonPublicJwks(),
       loadDownloadedLibraryMetadata(),
     ]);

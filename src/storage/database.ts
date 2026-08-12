@@ -24,15 +24,29 @@ export interface UserSettings {
   collapseRepeatedChoruses: boolean;
   printSize: 'A4' | 'A5';
   autoScrollSpeed: number;
+  catalogDensity: CatalogDensity;
+  reader: ReaderPreferences;
+}
+
+export type CatalogDensity = 'stage' | 'standard' | 'compact';
+
+export interface ReaderPreferences {
+  chordScale: number;
+  lineHeight: number;
+  columnWidth: number;
+  focusSections: boolean;
+  wrapLayoutText: boolean;
+  stageFontSize: number;
 }
 
 export interface UserState {
-  schemaVersion: 3;
+  schemaVersion: 4;
   updatedAt: string;
   favorites: string[];
   recentSongIds: string[];
   setlists: Setlist[];
   settings: UserSettings;
+  songReaderPreferences: Record<string, ReaderPreferences>;
 }
 
 export interface LibraryManifest {
@@ -66,8 +80,23 @@ export interface ContentPackageRecord {
   ownerUserId: string;
   manifest: LibraryManifest;
   songIds: string[];
+  /** UTF-8 délky po normalizaci; starší balíčky je doplní při příští obnově. */
+  contentLengths?: Record<string, number>;
   activatedAt: string;
   integrity: 'verified';
+}
+
+export interface ContentPackageIntegrity {
+  expectedSongs: number;
+  indexedSongs: number;
+  completeSongs: number;
+  missingSongs: number;
+  invalidSongs: number;
+  missingContent: number;
+  alteredContent: number;
+  availableBytes: number;
+  expectedBytes: number;
+  healthy: boolean;
 }
 
 export interface PendingMutation {
@@ -150,7 +179,7 @@ const userProfileSchema = z.object({
   updatedAt: z.string().datetime(),
 });
 
-const settingsSchema = z.object({
+const legacySettingsSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']),
   fontSize: z.number().min(14).max(34),
   notation: z.enum(['czech', 'international']),
@@ -160,7 +189,21 @@ const settingsSchema = z.object({
   autoScrollSpeed: z.number().min(0).max(100),
 });
 
-const userStateFields = {
+const readerPreferencesSchema = z.object({
+  chordScale: z.number().min(0.75).max(1.4),
+  lineHeight: z.number().min(1.15).max(1.8),
+  columnWidth: z.number().int().min(320).max(980),
+  focusSections: z.boolean(),
+  wrapLayoutText: z.boolean(),
+  stageFontSize: z.number().int().min(14).max(40),
+});
+
+const settingsSchema = legacySettingsSchema.extend({
+  catalogDensity: z.enum(['stage', 'standard', 'compact']),
+  reader: readerPreferencesSchema,
+});
+
+const legacyUserStateFields = {
   favorites: z.array(z.string()),
   recentSongIds: z.array(z.string()).max(30),
   setlists: z.array(z.object({
@@ -170,12 +213,21 @@ const userStateFields = {
     createdAt: z.string().datetime(),
     updatedAt: z.string().datetime(),
   })),
-  settings: settingsSchema,
+  settings: legacySettingsSchema,
 };
 
-const legacyUserStateSchema = z.object({ schemaVersion: z.literal(1), ...userStateFields });
-const userStateV2Schema = z.object({ schemaVersion: z.literal(2), ...userStateFields });
-export const userStateSchema = z.object({ schemaVersion: z.literal(3), updatedAt: z.string().datetime(), ...userStateFields });
+const legacyUserStateSchema = z.object({ schemaVersion: z.literal(1), ...legacyUserStateFields });
+const userStateV2Schema = z.object({ schemaVersion: z.literal(2), ...legacyUserStateFields });
+const userStateV3Schema = z.object({ schemaVersion: z.literal(3), updatedAt: z.string().datetime(), ...legacyUserStateFields });
+export const userStateSchema = z.object({
+  schemaVersion: z.literal(4),
+  updatedAt: z.string().datetime(),
+  favorites: legacyUserStateFields.favorites,
+  recentSongIds: legacyUserStateFields.recentSongIds,
+  setlists: legacyUserStateFields.setlists,
+  settings: settingsSchema,
+  songReaderPreferences: z.record(z.string().min(1).max(200), readerPreferencesSchema).refine((value) => Object.keys(value).length <= 250, 'Příliš mnoho nastavení jednotlivých písní.'),
+});
 
 export const libraryManifestSchema = z.object({
   schemaVersion: z.literal(1),
@@ -215,7 +267,7 @@ const diagnosticEventSchema: z.ZodType<DiagnosticEvent> = z.object({
 const INITIAL_STATE_UPDATED_AT = '1970-01-01T00:00:00.000Z';
 
 export const defaultUserState: UserState = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   updatedAt: INITIAL_STATE_UPDATED_AT,
   favorites: [],
   recentSongIds: [],
@@ -228,7 +280,17 @@ export const defaultUserState: UserState = {
     collapseRepeatedChoruses: true,
     printSize: 'A4',
     autoScrollSpeed: 25,
+    catalogDensity: 'standard',
+    reader: {
+      chordScale: 1,
+      lineHeight: 1.3,
+      columnWidth: 760,
+      focusSections: false,
+      wrapLayoutText: true,
+      stageFontSize: 24,
+    },
   },
+  songReaderPreferences: {},
 };
 
 export interface PersonalSongEntry {
@@ -255,7 +317,7 @@ const personalSongEntrySchema = z.object({
 
 const personalSongBackupSchema = z.array(personalSongEntrySchema).max(5_000);
 
-export const DATABASE_VERSION = 5;
+export const DATABASE_VERSION = 6;
 
 const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
   upgrade(database, oldVersion) {
@@ -276,6 +338,9 @@ const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
       database.createObjectStore('pendingMutations');
       database.createObjectStore('diagnostics');
     }
+    // Verze 6 rozšiřuje synchronizovaný stav o nastavení čtečky. Samotná data
+    // se převádějí přes migrateUserState při prvním načtení a poté se uloží
+    // jako schéma 4; žádný nový objektový store není potřeba.
   },
 });
 
@@ -352,10 +417,41 @@ export async function loadSongSubmissions(): Promise<SongSubmission[]> {
 export function migrateUserState(stored: unknown): UserState | null {
   const current = userStateSchema.safeParse(stored);
   if (current.success) return current.data;
+  const versionThree = userStateV3Schema.safeParse(stored);
+  if (versionThree.success) return {
+    ...versionThree.data,
+    schemaVersion: 4,
+    settings: {
+      ...versionThree.data.settings,
+      catalogDensity: defaultUserState.settings.catalogDensity,
+      reader: { ...defaultUserState.settings.reader, stageFontSize: versionThree.data.settings.fontSize },
+    },
+    songReaderPreferences: {},
+  };
   const versionTwo = userStateV2Schema.safeParse(stored);
-  if (versionTwo.success) return { ...versionTwo.data, schemaVersion: 3, updatedAt: versionTwo.data.setlists.reduce((latest, setlist) => setlist.updatedAt > latest ? setlist.updatedAt : latest, INITIAL_STATE_UPDATED_AT) };
+  if (versionTwo.success) return {
+    ...versionTwo.data,
+    schemaVersion: 4,
+    updatedAt: versionTwo.data.setlists.reduce((latest, setlist) => setlist.updatedAt > latest ? setlist.updatedAt : latest, INITIAL_STATE_UPDATED_AT),
+    settings: {
+      ...versionTwo.data.settings,
+      catalogDensity: defaultUserState.settings.catalogDensity,
+      reader: { ...defaultUserState.settings.reader, stageFontSize: versionTwo.data.settings.fontSize },
+    },
+    songReaderPreferences: {},
+  };
   const legacy = legacyUserStateSchema.safeParse(stored);
-  return legacy.success ? { ...legacy.data, schemaVersion: 3, updatedAt: legacy.data.setlists.reduce((latest, setlist) => setlist.updatedAt > latest ? setlist.updatedAt : latest, INITIAL_STATE_UPDATED_AT) } : null;
+  return legacy.success ? {
+    ...legacy.data,
+    schemaVersion: 4,
+    updatedAt: legacy.data.setlists.reduce((latest, setlist) => setlist.updatedAt > latest ? setlist.updatedAt : latest, INITIAL_STATE_UPDATED_AT),
+    settings: {
+      ...legacy.data.settings,
+      catalogDensity: defaultUserState.settings.catalogDensity,
+      reader: { ...defaultUserState.settings.reader, stageFontSize: legacy.data.settings.fontSize },
+    },
+    songReaderPreferences: {},
+  } : null;
 }
 
 export async function loadUserState(): Promise<UserState> {
@@ -366,7 +462,8 @@ export async function loadUserState(): Promise<UserState> {
     favorites: [],
     recentSongIds: [],
     setlists: [],
-    settings: { ...defaultUserState.settings },
+    settings: { ...defaultUserState.settings, reader: { ...defaultUserState.settings.reader } },
+    songReaderPreferences: {},
   };
 }
 
@@ -694,6 +791,7 @@ export async function importFullBackup(file: Blob, options: BackupImportOptions 
           ownerUserId: options.ownerUserId,
           manifest,
           songIds: entries.map(({ song }) => song.id),
+          contentLengths: Object.fromEntries(entries.map(({ song, content }) => [song.id, new TextEncoder().encode(content).byteLength])),
           activatedAt: metadata.downloadedAt,
           integrity: 'verified',
         };
@@ -746,6 +844,55 @@ export async function getPersonalSongContent(songId: string): Promise<string | n
   const database = await databasePromise;
   const content = await database.get('personalSongContent', songId) as unknown;
   return typeof content === 'string' ? content : null;
+}
+
+export async function inspectContentPackageIntegrity(userId: string): Promise<ContentPackageIntegrity | null> {
+  const contentPackage = await loadContentPackage(userId);
+  if (!contentPackage) return null;
+  const database = await databasePromise;
+  const transaction = database.transaction(['personalSongs', 'personalSongContent'], 'readonly');
+  let completeSongs = 0;
+  let invalidSongs = 0;
+  let missingContent = 0;
+  let alteredContent = 0;
+  let availableBytes = 0;
+  for (const songId of contentPackage.songIds) {
+    const parsedSong = songSchema.safeParse(await transaction.objectStore('personalSongs').get(songId));
+    if (!parsedSong.success || !isDownloadedLibrarySong(parsedSong.data)) {
+      invalidSongs += 1;
+      continue;
+    }
+    const content = await transaction.objectStore('personalSongContent').get(songId) as unknown;
+    if (typeof content !== 'string' || content.length === 0) {
+      missingContent += 1;
+      continue;
+    }
+    const bytes = new TextEncoder().encode(content).byteLength;
+    availableBytes += bytes;
+    const expectedLength = contentPackage.contentLengths?.[songId] ?? parsedSong.data.contentBytes;
+    if (expectedLength > 0 && bytes !== expectedLength) alteredContent += 1;
+    else completeSongs += 1;
+  }
+  await transaction.done;
+  const missingSongs = Math.max(0, contentPackage.manifest.songCount - contentPackage.songIds.length);
+  const healthy = missingSongs === 0
+    && invalidSongs === 0
+    && missingContent === 0
+    && alteredContent === 0
+    && completeSongs === contentPackage.manifest.songCount
+    && availableBytes === contentPackage.manifest.contentBytes;
+  return {
+    expectedSongs: contentPackage.manifest.songCount,
+    indexedSongs: contentPackage.songIds.length,
+    completeSongs,
+    missingSongs,
+    invalidSongs,
+    missingContent,
+    alteredContent,
+    availableBytes,
+    expectedBytes: contentPackage.manifest.contentBytes,
+    healthy,
+  };
 }
 
 const LOCAL_SONG_OVERRIDE_PREFIX = 'local-override:';

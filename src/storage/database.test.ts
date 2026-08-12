@@ -31,16 +31,16 @@ describe('migrace IndexedDB', () => {
     legacy.close();
   });
 
-  it('povýší databázi na verzi 5, převede stav na schéma 3 a zachová uživatelská data', async () => {
+  it('povýší databázi na verzi 6, převede stav na schéma 4 a zachová uživatelská data', async () => {
     const databaseModule = await import('./database');
     const loaded = await databaseModule.loadUserState();
-    expect(databaseModule.DATABASE_VERSION).toBe(5);
-    expect(loaded.schemaVersion).toBe(3);
+    expect(databaseModule.DATABASE_VERSION).toBe(6);
+    expect(loaded.schemaVersion).toBe(4);
     expect(loaded.updatedAt).toBe('2026-08-05T00:00:00.000Z');
     expect(loaded.favorites).toEqual(legacyState.favorites);
     expect(loaded.setlists).toEqual(legacyState.setlists);
     expect(loaded.settings.autoScrollSpeed).toBe(31);
-    const upgraded = await openDB('cesky-zpevnik', 5);
+    const upgraded = await openDB('cesky-zpevnik', 6);
     expect([...upgraded.objectStoreNames]).toContain('metadata');
     expect([...upgraded.objectStoreNames]).toContain('personalSongs');
     expect([...upgraded.objectStoreNames]).toContain('personalSongContent');
@@ -140,7 +140,7 @@ describe('migrace IndexedDB', () => {
     })], 'zpevnik-zaloha.json', { type: 'application/json' });
 
     const imported = await databaseModule.importFullBackup(file);
-    expect(imported.state.schemaVersion).toBe(3);
+    expect(imported.state.schemaVersion).toBe(4);
     expect(imported.personalSongCount).toBe(1);
     expect(await databaseModule.loadPersonalSongs()).toContainEqual(expect.objectContaining({
       id: song.id,
@@ -208,7 +208,7 @@ describe('migrace IndexedDB', () => {
     const databaseModule = await import('./database');
     const file = new File([JSON.stringify({ application: 'cesky-digitalni-zpevnik', data: legacyState })], 'stara-zaloha.json', { type: 'application/json' });
     const imported = await databaseModule.importFullBackup(file);
-    expect(imported.state.schemaVersion).toBe(3);
+    expect(imported.state.schemaVersion).toBe(4);
     expect(imported.personalSongCount).toBe(0);
   });
 
@@ -232,9 +232,23 @@ describe('migrace IndexedDB', () => {
     const databaseModule = await import('./database');
     const versionTwo = { ...legacyState, schemaVersion: 2 as const };
     expect(databaseModule.migrateUserState(versionTwo)).toMatchObject({
-      schemaVersion: 3,
+      schemaVersion: 4,
       updatedAt: '2026-08-05T00:00:00.000Z',
       favorites: legacyState.favorites,
+    });
+  });
+
+  it('explicitně migruje stav schématu 3 a doplní trvalé preference čtečky', async () => {
+    const databaseModule = await import('./database');
+    const versionThree = { ...legacyState, schemaVersion: 3 as const, updatedAt: '2026-08-11T13:00:00.000Z' };
+    expect(databaseModule.migrateUserState(versionThree)).toMatchObject({
+      schemaVersion: 4,
+      updatedAt: versionThree.updatedAt,
+      settings: {
+        catalogDensity: 'standard',
+        reader: { chordScale: 1, lineHeight: 1.3, columnWidth: 760, stageFontSize: legacyState.settings.fontSize },
+      },
+      songReaderPreferences: {},
     });
   });
 
@@ -243,19 +257,20 @@ describe('migrace IndexedDB', () => {
     const ownerId = '11111111-1111-4111-8111-111111111111';
     const otherId = '22222222-2222-4222-8222-222222222222';
     const song = { ...personalSongFixture('personal-oddeleny-balik', 'Oddělený balíček'), sourceIdentifier: 'songs_data/oddeleny.pdf#page=1' };
+    const memberContent = '[C]Oddělená syntetická věta';
     const manifest = {
       schemaVersion: 1 as const,
       scope: 'members' as const,
       version: 'abcdef123456',
       generatedAt: '2026-08-11T00:00:00.000Z',
       songCount: 1,
-      contentBytes: 20,
+      contentBytes: new TextEncoder().encode(memberContent).byteLength,
     };
     const file = new File([JSON.stringify({
       application: 'cesky-digitalni-zpevnik',
       libraryScope: 'members',
       data: legacyState,
-      personalSongs: [{ song, content: '[C]Oddělená syntetická věta' }],
+      personalSongs: [{ song, content: memberContent }],
       libraryManifest: manifest,
     })], 'oddeleny-balik.json', { type: 'application/json' });
 
@@ -263,6 +278,14 @@ describe('migrace IndexedDB', () => {
     expect(await databaseModule.loadPersonalSongs(ownerId)).toContainEqual(expect.objectContaining({ id: song.id }));
     expect(await databaseModule.loadPersonalSongs(otherId)).not.toContainEqual(expect.objectContaining({ id: song.id }));
     expect(await databaseModule.loadContentPackage(ownerId)).toMatchObject({ ownerUserId: ownerId, integrity: 'verified', songIds: [song.id] });
+    expect(await databaseModule.inspectContentPackageIntegrity(ownerId)).toMatchObject({
+      expectedSongs: 1,
+      completeSongs: 1,
+      missingSongs: 0,
+      missingContent: 0,
+      alteredContent: 0,
+      healthy: true,
+    });
   });
 
   it('při poškozeném novém balíčku zachová poslední aktivní obsah', async () => {

@@ -67,6 +67,40 @@ const sharedSetlistSchema = z.object({
   updated_at: databaseTimestampSchema,
 });
 
+const songCorrectionSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  song_id: z.string().min(1).max(200),
+  song_title: z.string().min(1).max(160),
+  original_value: z.string().max(160),
+  proposed_value: z.string().max(160),
+  note: z.string().min(1).max(2000),
+  status: z.enum(['pending', 'accepted', 'rejected', 'rolled_back']),
+  admin_note: z.string().max(2000),
+  history: z.array(z.object({
+    at: databaseTimestampSchema,
+    by: z.string().uuid(),
+    from: z.string(),
+    to: z.string(),
+    note: z.string().default(''),
+  }).passthrough()),
+  created_at: databaseTimestampSchema,
+  updated_at: databaseTimestampSchema,
+  reviewed_at: databaseTimestampSchema.nullable(),
+  reviewed_by: z.string().uuid().nullable(),
+});
+
+const secureDeviceSchema = z.object({
+  user_id: z.string().uuid(),
+  device_id: z.string().uuid(),
+  label: z.string().min(1).max(80),
+  platform: z.string().max(120),
+  created_at: databaseTimestampSchema,
+  last_seen_at: databaseTimestampSchema,
+  revoked_at: databaseTimestampSchema.nullable(),
+  revoked_by: z.string().uuid().nullable(),
+});
+
 const contentPackageRowSchema = z.object({
   scope: z.enum(['admin', 'members']),
   version: z.string().min(1),
@@ -86,6 +120,8 @@ const contentPackageChunkSchema = z.object({
 export type SecureProfile = z.infer<typeof secureProfileSchema>;
 export type RemoteSongSubmission = z.infer<typeof remoteSubmissionSchema>;
 export type SharedSetlist = z.infer<typeof sharedSetlistSchema>;
+export type SongCorrection = z.infer<typeof songCorrectionSchema>;
+export type SecureDevice = z.infer<typeof secureDeviceSchema>;
 
 export interface SecureSession {
   access_token: string;
@@ -376,6 +412,42 @@ export async function reviewSecureProfile(userId: string, decision: 'approved' |
   await neonRpc('review_account', await requireSecureAccessToken(), { target_user_id: userId, decision });
 }
 
+export async function setSecureProfileStatus(userId: string, status: 'approved' | 'rejected' | 'suspended'): Promise<void> {
+  await neonRpc('set_account_status', await requireSecureAccessToken(), { target_user_id: userId, desired_status: status });
+}
+
+function currentDeviceLabel(): { label: string; platform: string } {
+  const platform = navigator.userAgent.slice(0, 120);
+  const mobile = /iphone|ipad|android|mobile/i.test(platform);
+  const family = /iphone|ipad/i.test(platform) ? 'Apple iOS' : /android/i.test(platform) ? 'Android' : /windows/i.test(platform) ? 'Windows' : /macintosh/i.test(platform) ? 'macOS' : 'Webový prohlížeč';
+  return { label: `${family} · ${mobile ? 'telefon/tablet' : 'počítač'}`, platform };
+}
+
+export async function registerSecureDevice(deviceId: string, accessToken?: string): Promise<void> {
+  const { label, platform } = currentDeviceLabel();
+  await neonRpc('register_my_device', accessToken ?? await requireSecureAccessToken(), {
+    target_device_id: deviceId,
+    target_label: label,
+    target_platform: platform,
+  });
+}
+
+export async function loadMySecureDevices(profileId: string): Promise<SecureDevice[]> {
+  const rows = await neonSelect<unknown>('user_devices', await requireSecureAccessToken(), {
+    select: '*', user_id: `eq.${profileId}`, order: 'last_seen_at.desc',
+  });
+  return z.array(secureDeviceSchema).parse(rows);
+}
+
+export async function loadAllSecureDevices(): Promise<SecureDevice[]> {
+  const rows = await neonSelect<unknown>('user_devices', await requireSecureAccessToken(), { select: '*', order: 'last_seen_at.desc' });
+  return z.array(secureDeviceSchema).parse(rows);
+}
+
+export async function revokeSecureDevice(userId: string, deviceId: string): Promise<void> {
+  await neonRpc('revoke_device', await requireSecureAccessToken(), { target_user_id: userId, target_device_id: deviceId });
+}
+
 function safeFileName(value: string): string {
   const cleaned = value.normalize('NFKC').replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
   return cleaned.slice(0, 120) || 'podklad';
@@ -472,6 +544,44 @@ export async function reviewRemoteSongSubmission(submissionId: string, decision:
     target_submission_id: submissionId,
     decision,
     note: adminNote.trim(),
+  });
+}
+
+export async function submitSongCorrection(input: {
+  songId: string;
+  songTitle: string;
+  originalValue?: string;
+  proposedValue?: string;
+  note: string;
+}): Promise<string> {
+  const id = createUuid();
+  await neonRpc('submit_my_song_correction', await requireSecureAccessToken(), {
+    target_id: id,
+    target_song_id: input.songId,
+    target_song_title: input.songTitle,
+    target_original_value: input.originalValue?.trim() ?? '',
+    target_proposed_value: input.proposedValue?.trim() ?? '',
+    target_note: input.note.trim(),
+  });
+  return id;
+}
+
+export async function loadSongCorrections(): Promise<SongCorrection[]> {
+  const rows = await neonSelect<unknown>('song_corrections', await requireSecureAccessToken(), { select: '*', order: 'created_at.desc' });
+  return z.array(songCorrectionSchema).parse(rows);
+}
+
+export async function reviewSongCorrection(input: {
+  id: string;
+  decision: 'accepted' | 'rejected' | 'pending';
+  note?: string;
+  proposedValue?: string;
+}): Promise<void> {
+  await neonRpc('review_song_correction', await requireSecureAccessToken(), {
+    target_correction_id: input.id,
+    decision: input.decision,
+    note: input.note?.trim() ?? '',
+    edited_proposed_value: input.proposedValue?.trim() || null,
   });
 }
 

@@ -3,6 +3,7 @@ import type { SecureProfile } from '../auth/secureAccess';
 
 const mocks = vi.hoisted(() => ({
   requestJwt: vi.fn(async () => 'second-cookie-jwt'),
+  registerDevice: vi.fn(async () => undefined),
   loadJwks: vi.fn(async () => ({ keys: [{ kty: 'OKP', crv: 'Ed25519', x: 'test', kid: 'key', alg: 'EdDSA' }] })),
   verify: vi.fn(async (token: string) => ({
     token,
@@ -32,6 +33,7 @@ vi.mock('../auth/secureAccess', () => ({
   offlineGrantAudience: 'https://auth.example.test',
   offlineGrantIssuer: 'https://auth.example.test',
   requestNeonSessionJwt: mocks.requestJwt,
+  registerSecureDevice: mocks.registerDevice,
   secureProfileSchema: { parse: (value: unknown) => value },
   signOutSecureAccount: vi.fn(),
 }));
@@ -66,12 +68,14 @@ describe('Neon Auth repository', () => {
   beforeEach(() => {
     mocks.requestJwt.mockClear();
     mocks.verify.mockClear();
+    mocks.registerDevice.mockClear();
   });
 
   it('uloží offline grant z JWT právě ověřené relace bez druhého cookie requestu', async () => {
     const result = await neonAuthRepository.issueOfflineGrant(profile, 'device-test', 'verified-session-jwt');
 
     expect(mocks.requestJwt).not.toHaveBeenCalled();
+    expect(mocks.registerDevice).toHaveBeenCalledWith('device-test', 'verified-session-jwt');
     expect(mocks.verify).toHaveBeenCalledWith('verified-session-jwt', expect.objectContaining({ profile, deviceId: 'device-test' }));
     expect(result.token).toBe('verified-session-jwt');
   });

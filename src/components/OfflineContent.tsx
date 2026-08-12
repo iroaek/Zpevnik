@@ -16,17 +16,19 @@ import {
 import { activateWaitingUpdate, checkForUpdate, hasWaitingUpdate } from '../pwa/updateManager';
 import {
   loadDownloadedLibraryMetadata,
+  inspectContentPackageIntegrity,
   removeDownloadedLibrarySongs,
   removePersonalSong,
   removeProtectedSong,
   type DownloadedLibraryMetadata,
+  type ContentPackageIntegrity,
   type LibraryManifest,
 } from '../storage/database';
 import { friendlyError } from '../ui/friendlyError';
 
 const LIBRARY_PAGE_SIZE = 40;
 
-type Operation = 'member-library' | 'songs' | 'scores' | 'remove' | 'remove-songs' | 'remove-scores' | 'remove-library' | 'remove-song' | 'update';
+type Operation = 'member-library' | 'repair' | 'songs' | 'scores' | 'remove' | 'remove-songs' | 'remove-scores' | 'remove-library' | 'remove-song' | 'update';
 type Notice = { text: string; tone: 'success' | 'error' | 'info' };
 
 function formatBytes(bytes: number): string {
@@ -67,6 +69,7 @@ export function OfflineContent({
   const [updateReady, setUpdateReady] = useState(hasWaitingUpdate);
   const [localManifest, setLocalManifest] = useState<DownloadedLibraryMetadata | null>(null);
   const [remoteManifest, setRemoteManifest] = useState<LibraryManifest | null>(null);
+  const [memberIntegrity, setMemberIntegrity] = useState<ContentPackageIntegrity | null>(null);
   const [storagePersistent, setStoragePersistent] = useState<boolean | null>(null);
   const [storageUsage, setStorageUsage] = useState<{ usage: number; quota: number } | null>(null);
   const scoreEstimate = useMemo(() => catalog.songs.flatMap((song) => song.scoreAssets).reduce((sum, asset) => sum + asset.byteSize, 0), [catalog]);
@@ -81,6 +84,7 @@ export function OfflineContent({
   const refresh = useCallback(async () => setStats(await inspectOfflineContent(catalog)), [catalog]);
   const refreshLibraryVersion = useCallback(async () => {
     setLocalManifest(await loadDownloadedLibraryMetadata());
+    setMemberIntegrity(secureProfile ? await inspectContentPackageIntegrity(secureProfile.id) : null);
     if (secureMode && secureProfile?.status === 'approved' && navigator.onLine) {
       setRemoteManifest(await loadApprovedLibraryManifest(secureProfile));
     }
@@ -204,6 +208,40 @@ export function OfflineContent({
     }
   };
 
+  const repairOfflineContent = async () => {
+    setOperation('repair');
+    setNotice({ tone: 'info', text: 'Kontroluji kontrolní součty a doplňuji chybějící části…' });
+    setProgress(null);
+    try {
+      const before = await inspectOfflineContent(catalog);
+      let repaired = 0;
+      if (secureProfile && downloadedLibrarySongs.length > 0) {
+        const libraryResult = await downloadApprovedLibrary(secureProfile, {
+          force: !localManifest || localManifest.songCount !== downloadedLibrarySongs.length || memberIntegrity?.healthy === false,
+          localSongCount: downloadedLibrarySongs.length,
+        });
+        if (libraryResult.changed) repaired += libraryResult.count;
+      }
+      if (before.downloadedSongs > 0 && !before.allSongsVerified) {
+        await downloadAllSongs(catalog, setProgress);
+        repaired += before.totalSongs - before.downloadedSongs;
+      }
+      if (before.downloadedScores > 0 && !before.allScoresVerified) {
+        await downloadAllScores(catalog, setProgress);
+        repaired += before.totalScores - before.downloadedScores;
+      }
+      await onPersonalLibraryChanged?.();
+      await Promise.all([refresh(), refreshLibraryVersion()]);
+      setNotice({ tone: 'success', text: repaired > 0
+        ? `Kontrola dokončena. Opraveno nebo doplněno bylo ${repaired} položek.`
+        : 'Kontrola dokončena. Stažená data jsou úplná a jejich integrita souhlasí.' });
+    } catch (error) {
+      setNotice({ tone: 'error', text: friendlyError(error, 'Opravu se nepodařilo dokončit. Již ověřená data zůstala zachovaná a příště lze pokračovat.') });
+    } finally {
+      setOperation(null);
+    }
+  };
+
   const removeMemberLibrary = async () => {
     setOperation('remove-library');
     setNotice(null);
@@ -240,6 +278,15 @@ export function OfflineContent({
   const publicCatalogReady = Boolean(stats?.allSongsVerified);
   const memberLibraryReady = downloadedLibrarySongs.length > 0;
   const memberUpdateAvailable = Boolean(remoteManifest && (!localManifest || remoteManifest.version !== localManifest.version));
+  const missingMemberSongs = memberIntegrity
+    ? memberIntegrity.missingSongs + memberIntegrity.invalidSongs + memberIntegrity.missingContent + memberIntegrity.alteredContent
+    : Math.max(0, (localManifest?.songCount ?? downloadedLibrarySongs.length) - downloadedLibrarySongs.length);
+  const missingPublicSongs = Math.max(0, (stats?.totalSongs ?? 0) - (stats?.downloadedSongs ?? 0));
+  const missingScores = Math.max(0, (stats?.totalScores ?? 0) - (stats?.downloadedScores ?? 0));
+  const hasRepairableContent = downloadedLibrarySongs.length > 0 || (stats?.downloadedSongs ?? 0) > 0 || (stats?.downloadedScores ?? 0) > 0;
+  const integrityHealthy = (memberIntegrity?.healthy ?? missingMemberSongs === 0)
+    && ((stats?.downloadedSongs ?? 0) === 0 || missingPublicSongs === 0)
+    && ((stats?.downloadedScores ?? 0) === 0 || missingScores === 0);
   const ready = publicCatalogReady || memberLibraryReady;
   const statusTitle = memberLibraryReady
     ? 'Soukromá knihovna je připravená offline'
@@ -275,6 +322,11 @@ export function OfflineContent({
       </div>
       <p className="last-update">Poslední změna offline obsahu: {stats?.lastUpdated ? new Date(stats.lastUpdated).toLocaleString('cs-CZ') : 'zatím žádná'}</p>
       {storageUsage && <p className="last-update">Úložiště aplikace: přibližně {formatBytes(storageUsage.usage)} z dostupných {formatBytes(storageUsage.quota)}.</p>}
+
+      <article className={`offline-integrity-card ${integrityHealthy ? 'offline-integrity-card--healthy' : 'offline-integrity-card--attention'}`}>
+        <div><p className="eyebrow">Kontrola dat</p><h2>{integrityHealthy ? 'Stažený obsah je v pořádku' : 'Některé položky je třeba doplnit'}</h2><p>{integrityHealthy ? 'Počty, přítomnost obsahu a uložené délky všech částí souhlasí.' : `K opravě: členské písně ${missingMemberSongs}, ukázky ${missingPublicSongs}, party ${missingScores}. Oprava pokračuje od již ověřených částí.`}</p>{memberIntegrity && <small>Ověřeno {memberIntegrity.completeSongs}/{memberIntegrity.expectedSongs} písní · {formatBytes(memberIntegrity.availableBytes)} z {formatBytes(memberIntegrity.expectedBytes)}</small>}</div>
+        <button type="button" className="secondary-button" disabled={busy || !online || !hasRepairableContent} onClick={() => void repairOfflineContent()}>{operation === 'repair' ? 'Opravuji…' : 'Zkontrolovat a opravit'}</button>
+      </article>
 
       {progress && <div className="download-progress" aria-live="polite"><div className="results-heading"><strong>{progress.currentLabel}</strong><span>{progress.completed}/{progress.total}</span></div><progress max={progress.total} value={progress.completed} /><small>{formatBytes(progress.downloadedBytes)} z odhadovaných {formatBytes(progress.estimatedBytes)}</small></div>}
       {notice && <p className={`${notice.tone === 'error' ? 'error-message' : notice.tone === 'success' ? 'success-message' : 'info-message'} offline-notice`} role="status">{notice.text}</p>}

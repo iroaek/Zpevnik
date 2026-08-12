@@ -1,11 +1,11 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadAllProfiles, type SecureProfile } from '../auth/secureAccess';
+import { loadAllProfiles, loadAllSecureDevices, type SecureProfile } from '../auth/secureAccess';
 import { AdminUsersPanel } from './AdminUsersPanel';
 import { isProfileOnline } from './adminUserPresence';
 
-vi.mock('../auth/secureAccess', () => ({ loadAllProfiles: vi.fn() }));
+vi.mock('../auth/secureAccess', () => ({ loadAllProfiles: vi.fn(), loadAllSecureDevices: vi.fn(), revokeSecureDevice: vi.fn(), setSecureProfileStatus: vi.fn() }));
 
 function profile(overrides: Partial<SecureProfile> & Pick<SecureProfile, 'id' | 'display_name' | 'email'>): SecureProfile {
   const { id, display_name, email, ...rest } = overrides;
@@ -27,6 +27,7 @@ describe('administrátorský přehled uživatelů', () => {
   afterEach(cleanup);
 
   beforeEach(() => {
+    vi.mocked(loadAllSecureDevices).mockReset().mockResolvedValue([]);
     vi.mocked(loadAllProfiles).mockReset().mockResolvedValue([
       profile({ id: '11111111-1111-4111-8111-111111111111', display_name: 'Online člen', email: 'online@example.test', status: 'approved', last_seen_at: new Date().toISOString() }),
       profile({ id: '22222222-2222-4222-8222-222222222222', display_name: 'Čekající člen', email: 'ceka@example.test' }),

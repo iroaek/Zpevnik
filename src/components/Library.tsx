@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import type { Song } from '../domain/song';
 import type { PersonalLibrarySummary } from '../personalLibrary';
-import type { Setlist } from '../storage/database';
+import type { CatalogDensity, Setlist } from '../storage/database';
 
 type CollectionMode = 'all' | 'favorites' | 'recent';
 export type LibraryEntry = 'all' | 'favorites' | 'artists';
@@ -20,6 +20,8 @@ interface LibraryProps {
   personalSummary?: PersonalLibrarySummary | null;
   deviceSongCount?: number;
   entry?: LibraryEntry;
+  density?: CatalogDensity;
+  onDensityChange?: (density: CatalogDensity) => void;
 }
 
 interface LibraryViewState {
@@ -33,12 +35,11 @@ interface LibraryViewState {
   instrument: string;
   letter: string;
   sort: 'title' | 'author' | 'recent';
-  layout: 'cards' | 'compact';
 }
 
 const PAGE_SIZE = 60;
 const VIEW_STORAGE_KEY = 'zpevnik-library-view-v1';
-const initialView: LibraryViewState = { query: '', mode: 'all', key: '', difficulty: '', language: '', category: '', scoreAvailability: '', instrument: '', letter: '', sort: 'title', layout: 'cards' };
+const initialView: LibraryViewState = { query: '', mode: 'all', key: '', difficulty: '', language: '', category: '', scoreAvailability: '', instrument: '', letter: '', sort: 'title' };
 
 function loadView(): LibraryViewState {
   try {
@@ -48,7 +49,6 @@ function loadView(): LibraryViewState {
       ...parsed,
       mode: ['all', 'favorites', 'recent'].includes(parsed.mode ?? '') ? parsed.mode as CollectionMode : 'all',
       sort: ['title', 'author', 'recent'].includes(parsed.sort ?? '') ? parsed.sort as LibraryViewState['sort'] : 'title',
-      layout: parsed.layout === 'compact' ? 'compact' : 'cards',
     };
   } catch {
     return initialView;
@@ -68,7 +68,9 @@ function reviewCount(song: Song): number {
   return new Set([...(song.reviewFlags ?? []), ...song.tags.filter((tag) => tag.startsWith('review:'))]).size;
 }
 
-export function Library({ songs, favorites, recent, setlists = [], onOpenSong, onToggleFavorite, onAddToSetlist, onAddToTonight, onDeleteSong, onNotify, personalSummary, deviceSongCount = 0, entry = 'all' }: LibraryProps) {
+export function Library({ songs, favorites, recent, setlists = [], onOpenSong, onToggleFavorite, onAddToSetlist, onAddToTonight, onDeleteSong, onNotify, personalSummary, deviceSongCount = 0, entry = 'all', density = 'standard', onDensityChange }: LibraryProps) {
+  const [localDensity, setLocalDensity] = useState<CatalogDensity>(density);
+  const effectiveDensity = onDensityChange ? density : localDensity;
   const [view, setView] = useState<LibraryViewState>(() => {
     const saved = loadView();
     if (entry === 'favorites') return { ...saved, mode: 'favorites' };
@@ -254,9 +256,9 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
         </div>
       </details>
 
-      <div className="catalog-heading"><div className="results-heading"><h2>Písně</h2><span>{filtered.length} výsledků · zobrazeno {visibleSongs.length}</span></div><div className="library-view-controls"><label><span className="visually-hidden">Řazení písní</span><select value={view.sort} onChange={(event) => updateView('sort', event.target.value as LibraryViewState['sort'])}><option value="title">Podle názvu</option><option value="author">Podle autora</option><option value="recent">Naposledy otevřené</option></select></label><div role="group" aria-label="Zobrazení katalogu"><button type="button" className={view.layout === 'cards' ? 'active' : ''} aria-pressed={view.layout === 'cards'} aria-label="Karty" onClick={() => updateView('layout', 'cards')}>▦</button><button type="button" className={view.layout === 'compact' ? 'active' : ''} aria-pressed={view.layout === 'compact'} aria-label="Kompaktní seznam" onClick={() => updateView('layout', 'compact')}>☷</button></div></div></div>
+      <div className="catalog-heading"><div className="results-heading"><h2>Písně</h2><span>{filtered.length} výsledků · zobrazeno {visibleSongs.length}</span></div><div className="library-view-controls"><label><span className="visually-hidden">Řazení písní</span><select value={view.sort} onChange={(event) => updateView('sort', event.target.value as LibraryViewState['sort'])}><option value="title">Podle názvu</option><option value="author">Podle autora</option><option value="recent">Naposledy otevřené</option></select></label><div role="group" aria-label="Hustota zobrazení katalogu">{([['stage', '▦', 'Karty'], ['standard', '▤', 'Běžné zobrazení'], ['compact', '☷', 'Kompaktní seznam']] as const).map(([value, symbol, label]) => <button type="button" key={value} className={effectiveDensity === value ? 'active' : ''} aria-pressed={effectiveDensity === value} aria-label={label} title={label} onClick={() => { setLocalDensity(value); onDensityChange?.(value); }}>{symbol}</button>)}</div></div></div>
       {deferredQuery !== view.query && <div className="catalog-skeleton" role="status" aria-label="Hledám v katalogu"><span /><span /><span /></div>}
-      <div className={`song-list song-list--${view.layout}`} aria-busy={deferredQuery !== view.query}>
+      <div className={`song-list song-list--${effectiveDensity}${effectiveDensity === 'stage' ? ' song-list--cards' : ''}`} aria-busy={deferredQuery !== view.query}>
         {visibleSongs.map((song) => <article className={`song-card-shell ${swipe?.id === song.id ? 'song-card-shell--swiping' : ''}`} key={song.id} onPointerDown={(event) => { if (event.pointerType === 'touch') startSwipe(song.id, event.clientX, event.clientY); else startLongPress(song.id); }} onPointerUp={() => finishSwipe(song.id)} onPointerCancel={() => { cancelLongPress(); swipeStart.current = null; setSwipe(null); }} onPointerMove={(event) => { if (event.pointerType === 'touch') moveSwipe(song.id, event.clientX, event.clientY); else cancelLongPress(); }} onContextMenu={(event) => { event.preventDefault(); setQuickSongId(song.id); }}><span className="swipe-action swipe-action--right" aria-hidden="true">＋ Dnešní setlist</span><span className="swipe-action swipe-action--left" aria-hidden="true">••• Akce</span><div className="song-card-motion" style={{ transform: swipe?.id === song.id ? `translate3d(${swipe.x}px, 0, 0)` : undefined }}><button type="button" className="song-card song-card__open" onClick={() => openFromCard(song.id)}><span className="song-card__main"><strong>{song.title}</strong><span>{song.authors.join(', ') || 'Autor neuveden'}</span>{song.personalOnly && reviewCount(song) > 0 && <span className="song-card__labels"><span>Ke kontrole · {reviewCount(song)}</span></span>}</span><span className="song-card__meta"><span>{song.originalKey ?? '—'}</span>{song.chordProPath.startsWith('indexeddb:') && <span className="offline-song-badge" aria-label="Uloženo offline">⇩</span>}{song.scoreAssets.length > 0 && <span aria-label="Obsahuje noty">♫</span>}{favoriteIds.has(song.id) && <span aria-label="Oblíbená">★</span>}<span aria-hidden="true">›</span></span></button><button type="button" className="song-quick-button" aria-label="Rychlé akce" title={`Rychlé akce pro ${song.title}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => setQuickSongId(song.id)}>•••</button></div></article>)}
         {filtered.length === 0 && <p className="empty-state">Tomuto hledání neodpovídá žádná píseň. <button type="button" className="text-button" onClick={() => setView(initialView)}>Zrušit hledání a filtry</button></p>}
       </div>
