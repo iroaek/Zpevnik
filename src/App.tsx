@@ -391,7 +391,7 @@ export default function App() {
       {route.name !== 'home' && secureAccount.authState.status === 'authenticated-offline' && <aside className="offline-auth-banner" role="status"><strong>Offline režim</strong><span>Oprávnění platí do {new Date(secureAccount.authState.offlineValidUntil).toLocaleDateString('cs-CZ')} · obsah {secureAccount.authState.contentVersion.slice(0, 12)}</span></aside>}
       {route.name !== 'home' && updateAvailable && <UpdateBanner onUpdate={() => void activateWaitingUpdate()} onLater={() => setUpdateAvailable(false)} />}
       {route.name !== 'home' && (storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}
-      {route.name !== 'home' && systemMessage && <div className="system-message toast-message" role="status"><span>{systemMessage}</span><button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemMessage('')}>×</button></div>}
+      {route.name !== 'home' && systemMessage && <div className="system-message toast-message" role="status"><Icon name="check" size={20} /><span>{systemMessage}</span><button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemMessage('')}><Icon name="close" size={19} /></button><i className="toast-life" aria-hidden="true" /></div>}
       <main id="main-content" className={`app-main ${route.name === 'home' ? 'app-main--home' : ''}`}>
         <div className="route-stage" key={routeRelativePath(route) || 'home'}><Suspense fallback={<RouteLoading routeName={route.name} />}>
         {route.name === 'home' && <HomeDashboard songs={allSongs} favorites={userState.favorites} recent={userState.recentSongIds} setlistCount={userState.setlists.length} onOpenSong={(id) => openSong(id)} onNavigate={navigate} />}

@@ -87,14 +87,14 @@ export function AdminOverview({
     </div>
     {error && <p className="error-message" role="alert">{error}</p>}
 
-    <div className="admin-kpi-grid" aria-label="Hlavní provozní ukazatele">
+    <div className={`admin-kpi-grid ${loading ? 'admin-kpi-grid--loading' : ''}`} aria-label="Hlavní provozní ukazatele" aria-busy={loading}>
       <button type="button" onClick={() => onOpen('users')}><span className="admin-kpi-icon"><Icon name="users" /></span><small>Registrovaní</small><strong>{profiles.length}</strong><em>celkem profilů</em></button>
       <button type="button" onClick={() => onOpen('users')}><span className="admin-kpi-icon admin-kpi-icon--online"><Icon name="wifi" /></span><small>Online nyní</small><strong>{onlineCount}</strong><em>poslední 2 minuty</em></button>
       <button type="button" onClick={() => onOpen('users')}><span className="admin-kpi-icon"><Icon name="check" /></span><small>Autorizovaní</small><strong>{statusCounts.approved}</strong><em>{approvalPercentage} % účtů</em></button>
       <button type="button" className={pendingTotal ? 'admin-kpi--attention' : ''} onClick={() => onOpen(statusCounts.pending ? 'requests' : pendingSongs ? 'songs' : 'system')}><span className="admin-kpi-icon"><Icon name="alert" /></span><small>Vyžaduje pozornost</small><strong>{pendingTotal}</strong><em>účty, písně a sync</em></button>
     </div>
 
-    <div className="admin-insight-grid">
+    <div className={`admin-insight-grid ${loading ? 'admin-insight-grid--loading' : ''}`} aria-busy={loading}>
       <article className="admin-chart-card">
         <header><span><small>Stav členské základny</small><h3>Schválené účty</h3></span><strong>{approvalPercentage} %</strong></header>
         <div className="admin-donut-layout">

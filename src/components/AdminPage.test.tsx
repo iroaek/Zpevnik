@@ -14,13 +14,13 @@ describe('samostatná administrace', () => {
   it('nabízí profesionální přehled a odděluje uživatele, žádosti, písně a systém', async () => {
     render(<AdminPage online cloudSync={{ status: 'synced', lastSyncedAt: null, error: null, pendingCount: 0, nextRetryAt: null, refresh: vi.fn().mockResolvedValue(undefined) }} onNavigate={vi.fn()} />);
     expect(screen.getByRole('heading', { name: 'Přehled administrace' })).toBeVisible();
-    await userEvent.click(screen.getByRole('button', { name: /Uživatelé/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /Uživatelé/ }));
     expect(screen.getByRole('heading', { name: 'Databáze uživatelů' })).toBeVisible();
-    await userEvent.click(screen.getByRole('button', { name: /Žádosti/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /Žádosti/ }));
     expect(screen.getByRole('heading', { name: 'Čekající registrace' })).toBeVisible();
-    await userEvent.click(screen.getByRole('button', { name: /Písně/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /Písně/ }));
     expect(screen.getByRole('heading', { name: 'Návrhy písní' })).toBeVisible();
-    await userEvent.click(screen.getByRole('button', { name: /Systém/ }));
+    await userEvent.click(screen.getByRole('tab', { name: /Systém/ }));
     expect(screen.getByRole('heading', { name: 'QR kódy' })).toBeVisible();
   });
 });

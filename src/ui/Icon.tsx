@@ -14,6 +14,7 @@ export type IconName =
   | "expand"
   | "fire"
   | "flag"
+  | "grid"
   | "heart"
   | "home"
   | "info"
@@ -101,6 +102,14 @@ const paths: Record<IconName, ReactNode> = {
     <>
       <path d="M5 21V4" />
       <path d="M5 5h11l-2 4 2 4H5" />
+    </>
+  ),
+  grid: (
+    <>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
     </>
   ),
   heart: (
