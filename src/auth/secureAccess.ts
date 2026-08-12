@@ -413,7 +413,8 @@ export async function reviewSecureProfile(userId: string, decision: 'approved' |
 }
 
 export async function setSecureProfileStatus(userId: string, status: 'approved' | 'rejected' | 'suspended'): Promise<void> {
-  await neonRpc('set_account_status', await requireSecureAccessToken(), { target_user_id: userId, desired_status: status });
+  const changed = await neonRpc<boolean>('set_account_status', await requireSecureAccessToken(), { target_user_id: userId, desired_status: status });
+  if (changed !== true) throw new Error('Stav účtu nebyl změněn. Ověřte oprávnění a aktuální stav profilu.');
 }
 
 function currentDeviceLabel(): { label: string; platform: string } {
@@ -425,11 +426,12 @@ function currentDeviceLabel(): { label: string; platform: string } {
 
 export async function registerSecureDevice(deviceId: string, accessToken?: string): Promise<void> {
   const { label, platform } = currentDeviceLabel();
-  await neonRpc('register_my_device', accessToken ?? await requireSecureAccessToken(), {
+  const registered = await neonRpc<boolean>('register_my_device', accessToken ?? await requireSecureAccessToken(), {
     target_device_id: deviceId,
     target_label: label,
     target_platform: platform,
   });
+  if (registered !== true) throw new Error('Toto zařízení nelze autorizovat. Mohlo být správcem odvoláno.');
 }
 
 export async function loadMySecureDevices(profileId: string): Promise<SecureDevice[]> {
@@ -445,7 +447,8 @@ export async function loadAllSecureDevices(): Promise<SecureDevice[]> {
 }
 
 export async function revokeSecureDevice(userId: string, deviceId: string): Promise<void> {
-  await neonRpc('revoke_device', await requireSecureAccessToken(), { target_user_id: userId, target_device_id: deviceId });
+  const revoked = await neonRpc<boolean>('revoke_device', await requireSecureAccessToken(), { target_user_id: userId, target_device_id: deviceId });
+  if (revoked !== true) throw new Error('Zařízení nebylo odvoláno. Zkontrolujte oprávnění nebo zda je ještě aktivní.');
 }
 
 function safeFileName(value: string): string {
@@ -555,7 +558,7 @@ export async function submitSongCorrection(input: {
   note: string;
 }): Promise<string> {
   const id = createUuid();
-  await neonRpc('submit_my_song_correction', await requireSecureAccessToken(), {
+  const submittedId = await neonRpc<string | null>('submit_my_song_correction', await requireSecureAccessToken(), {
     target_id: id,
     target_song_id: input.songId,
     target_song_title: input.songTitle,
@@ -563,6 +566,7 @@ export async function submitSongCorrection(input: {
     target_proposed_value: input.proposedValue?.trim() ?? '',
     target_note: input.note.trim(),
   });
+  if (submittedId !== id) throw new Error('Návrh opravy nebyl přijat. Účet musí být schválený.');
   return id;
 }
 
@@ -577,12 +581,13 @@ export async function reviewSongCorrection(input: {
   note?: string;
   proposedValue?: string;
 }): Promise<void> {
-  await neonRpc('review_song_correction', await requireSecureAccessToken(), {
+  const reviewed = await neonRpc<boolean>('review_song_correction', await requireSecureAccessToken(), {
     target_correction_id: input.id,
     decision: input.decision,
     note: input.note?.trim() ?? '',
     edited_proposed_value: input.proposedValue?.trim() || null,
   });
+  if (reviewed !== true) throw new Error('Rozhodnutí nebylo uloženo. Ověřte oprávnění nebo existenci návrhu.');
 }
 
 export async function loadSharedSetlists(): Promise<SharedSetlist[]> {
