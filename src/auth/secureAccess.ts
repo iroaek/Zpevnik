@@ -13,6 +13,8 @@ import { createUuid } from '../domain/browserCompatibility';
 import { readBlobBytes } from '../domain/readBlobBytes';
 import { neonInsert, neonRpc, neonSelect, neonUpsert } from '../backend/neonDataApi';
 import {
+  clearPendingNeonAuthJwt,
+  consumePendingNeonAuthJwt,
   neonAuthIssuer,
   neonAuthJwksUrl,
   neonAuthUrl,
@@ -153,6 +155,7 @@ export const secureAccessConfigurationError = secureAccessRequired && !secureAcc
   : null;
 
 const sessionListeners = new Set<(event: SecureAuthChangeEvent, session: SecureSession | null) => void>();
+let bootstrapSession: SecureSession | null = null;
 
 function emitSession(event: SecureAuthChangeEvent, session: SecureSession | null): void {
   for (const listener of sessionListeners) listener(event, session);
@@ -202,6 +205,43 @@ function normalizeSession(data: Awaited<ReturnType<ReturnType<typeof requireNeon
   };
 }
 
+function jwtExpiry(token: string): string | null {
+  try {
+    const encoded = token.split('.')[1];
+    if (!encoded) return null;
+    const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(encoded.length / 4) * 4, '=');
+    const payload = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(base64), (character) => character.charCodeAt(0)))) as { exp?: unknown };
+    return typeof payload.exp === 'number' && Number.isFinite(payload.exp)
+      ? new Date(payload.exp * 1_000).toISOString()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function sessionIsUsable(session: SecureSession | null): session is SecureSession {
+  return Boolean(session && Date.parse(session.expires_at) > Date.now() + 5_000);
+}
+
+function sessionFromSignInResponse(
+  data: { user: { id: string; email: string; emailVerified: boolean; name: string } } | null,
+): SecureSession | null {
+  if (!data?.user) return null;
+  const token = consumePendingNeonAuthJwt(data.user.id);
+  const expiresAt = token ? jwtExpiry(token) : null;
+  if (!token || !expiresAt) return null;
+  return {
+    access_token: token,
+    expires_at: expiresAt,
+    user: {
+      id: data.user.id,
+      email: data.user.email,
+      emailVerified: data.user.emailVerified,
+      user_metadata: { display_name: data.user.name || data.user.email.split('@')[0] || 'Člen' },
+    },
+  };
+}
+
 export function subscribeToSecureSession(callback: (event: SecureAuthChangeEvent, session: SecureSession | null) => void): () => void {
   sessionListeners.add(callback);
   // Úvodní relaci načítá jediný koordinovaný refresh v useSecureAccount.
@@ -217,9 +257,15 @@ export function subscribeToSecureSession(callback: (event: SecureAuthChangeEvent
 }
 
 export async function getSecureSession(): Promise<SecureSession | null> {
-  const { data, error } = await requireNeonClient().auth.getSession();
+  if (sessionIsUsable(bootstrapSession)) return bootstrapSession;
+  bootstrapSession = null;
+  const { data, error } = await requireNeonClient().auth.getSession({
+    fetchOptions: { headers: { 'X-Force-Fetch': 'true' } },
+  });
   if (error) throw readableError(error, 'Přihlášení se nepodařilo načíst z Neon Auth.');
-  return normalizeSession(data);
+  const session = normalizeSession(data);
+  if (sessionIsUsable(session)) bootstrapSession = session;
+  return session;
 }
 
 export async function registerSecureAccount(input: { displayName: string; email: string; password: string }): Promise<{ needsEmailConfirmation: boolean }> {
@@ -259,12 +305,15 @@ export async function sendEmailSignInCode(email: string): Promise<void> {
 }
 
 export async function signInSecureAccountWithCode(email: string, otp: string): Promise<void> {
-  const { error } = await requireNeonClient().auth.signIn.emailOtp({
+  clearPendingNeonAuthJwt();
+  const { data, error } = await requireNeonClient().auth.signIn.emailOtp({
     email: email.trim().toLocaleLowerCase('cs'),
     otp: otp.trim(),
   });
   if (error) throw readableError(error, 'Přihlašovací kód není platný nebo už vypršel.');
-  const session = await getSecureSession();
+  const directSession = sessionFromSignInResponse(data);
+  if (directSession) bootstrapSession = directSession;
+  const session = directSession ?? await getSecureSession();
   if (!session?.user.emailVerified) throw new SecureAccessError('Neon Auth nevytvořil ověřenou relaci. Vyžádejte si nový kód.');
   emitSession('SIGNED_IN', session);
 }
@@ -277,27 +326,34 @@ export async function verifyEmailVerificationCode(email: string, otp: string, pa
   if (error) throw readableError(error, 'Ověřovací kód není platný nebo už vypršel.');
   // Ověření e-mailu samo nemusí po předchozím bezpečnostním odhlášení obnovit
   // cookie relace. Heslo zůstává jen v paměti formuláře a použije se jednou.
+  let directSession: SecureSession | null = null;
   if (password) {
-    const { error: signInError } = await requireNeonClient().auth.signIn.email({
+    clearPendingNeonAuthJwt();
+    const { data: signInData, error: signInError } = await requireNeonClient().auth.signIn.email({
       email: email.trim().toLocaleLowerCase('cs'),
       password,
       callbackURL: appRedirectUrl(),
     });
     if (signInError) throw readableError(signInError, 'E-mail je ověřený, ale přihlášení se nepodařilo dokončit.');
+    directSession = sessionFromSignInResponse(signInData);
+    if (directSession) bootstrapSession = directSession;
   }
-  const session = await getSecureSession();
+  const session = directSession ?? await getSecureSession();
   if (!session?.user.emailVerified) throw new SecureAccessError('E-mail se nepodařilo bezpečně ověřit. Vyžádejte si nový kód.');
   emitSession('SIGNED_IN', session);
 }
 
 export async function signInSecureAccount(email: string, password: string): Promise<void> {
-  const { error } = await requireNeonClient().auth.signIn.email({
+  clearPendingNeonAuthJwt();
+  const { data, error } = await requireNeonClient().auth.signIn.email({
     email: email.trim().toLocaleLowerCase('cs'),
     password,
     callbackURL: appRedirectUrl(),
   });
   if (error) throw readableError(error, 'Přihlášení přes Neon Auth se nepodařilo.');
-  const session = await getSecureSession();
+  const directSession = sessionFromSignInResponse(data);
+  if (directSession) bootstrapSession = directSession;
+  const session = directSession ?? await getSecureSession();
   if (!session) throw new SecureAccessError('Neon Auth nevytvořil platnou relaci. Zkuste přihlášení zopakovat.');
   if (!session.user.emailVerified) {
     await requireNeonClient().auth.signOut().catch(() => undefined);
@@ -329,12 +385,16 @@ export async function updateSecurePassword(password: string): Promise<void> {
 export async function signOutSecureAccount(): Promise<void> {
   const session = await getSecureSession().catch(() => null);
   const { error } = await requireNeonClient().auth.signOut();
+  bootstrapSession = null;
+  clearPendingNeonAuthJwt();
   await clearSecureAccountLocalData(session?.user.id);
   emitSession('SIGNED_OUT', null);
   if (error) throw readableError(error, 'Serverové odhlášení z Neonu se nepodařilo, místní oprávnění však bylo odstraněno.');
 }
 
 export async function beginMigratedAccountActivation(): Promise<void> {
+  bootstrapSession = null;
+  clearPendingNeonAuthJwt();
   const { error } = await requireNeonClient().auth.signOut();
   // Při jednorázové aktivaci rušíme jen starou relaci a offline grant. Stažený
   // balíček zůstane na zařízení a po propojení stejného profilu se znovu použije.
@@ -345,6 +405,7 @@ export async function beginMigratedAccountActivation(): Promise<void> {
 
 export async function requestNeonSessionJwt(): Promise<string> {
   if (!neonAuthUrl) throw new SecureAccessError('Neon Auth není nakonfigurovaný.', 503, 'neon_auth_not_configured');
+  if (sessionIsUsable(bootstrapSession)) return bootstrapSession.access_token;
   const response = await fetch(`${neonAuthUrl}/token`, {
     credentials: 'include',
     headers: { Accept: 'application/json' },
