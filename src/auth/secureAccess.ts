@@ -197,12 +197,41 @@ export async function sendEmailVerificationCode(email: string): Promise<void> {
   if (error) throw readableError(error, 'Ověřovací kód se nepodařilo odeslat.');
 }
 
-export async function verifyEmailVerificationCode(email: string, otp: string): Promise<void> {
+export async function sendEmailSignInCode(email: string): Promise<void> {
+  const { error } = await requireNeonClient().auth.emailOtp.sendVerificationOtp({
+    email: email.trim().toLocaleLowerCase('cs'),
+    type: 'sign-in',
+  });
+  if (error) throw readableError(error, 'Přihlašovací kód se nepodařilo odeslat.');
+}
+
+export async function signInSecureAccountWithCode(email: string, otp: string): Promise<void> {
+  const { error } = await requireNeonClient().auth.signIn.emailOtp({
+    email: email.trim().toLocaleLowerCase('cs'),
+    otp: otp.trim(),
+  });
+  if (error) throw readableError(error, 'Přihlašovací kód není platný nebo už vypršel.');
+  const session = await getSecureSession();
+  if (!session?.user.emailVerified) throw new SecureAccessError('Neon Auth nevytvořil ověřenou relaci. Vyžádejte si nový kód.');
+  emitSession('SIGNED_IN', session);
+}
+
+export async function verifyEmailVerificationCode(email: string, otp: string, password?: string): Promise<void> {
   const { error } = await requireNeonClient().auth.emailOtp.verifyEmail({
     email: email.trim().toLocaleLowerCase('cs'),
     otp: otp.trim(),
   });
   if (error) throw readableError(error, 'Ověřovací kód není platný nebo už vypršel.');
+  // Ověření e-mailu samo nemusí po předchozím bezpečnostním odhlášení obnovit
+  // cookie relace. Heslo zůstává jen v paměti formuláře a použije se jednou.
+  if (password) {
+    const { error: signInError } = await requireNeonClient().auth.signIn.email({
+      email: email.trim().toLocaleLowerCase('cs'),
+      password,
+      callbackURL: appRedirectUrl(),
+    });
+    if (signInError) throw readableError(signInError, 'E-mail je ověřený, ale přihlášení se nepodařilo dokončit.');
+  }
   const session = await getSecureSession();
   if (!session?.user.emailVerified) throw new SecureAccessError('E-mail se nepodařilo bezpečně ověřit. Vyžádejte si nový kód.');
   emitSession('SIGNED_IN', session);

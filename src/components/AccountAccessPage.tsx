@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import {
   registerSecureAccount,
+  sendEmailSignInCode,
   sendEmailVerificationCode,
   sendPasswordReset,
   signInSecureAccount,
+  signInSecureAccountWithCode,
   verifyEmailVerificationCode,
 } from '../auth/secureAccess';
 
@@ -32,16 +34,17 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
     setError('');
     try {
       if (mode === 'verify') {
-        await verifyEmailVerificationCode(email, verificationCode);
+        if (verificationPurpose === 'activate') await signInSecureAccountWithCode(email, verificationCode);
+        else await verifyEmailVerificationCode(email, verificationCode, password);
         setVerificationCode('');
+        setPassword('');
+        setPasswordAgain('');
         setMessage('E-mail je ověřený. Původní profil, schválení i setlisty se nyní bezpečně propojí s Neon účtem.');
       } else if (mode === 'register') {
         if (password.length < 10) throw new Error('Heslo musí mít alespoň 10 znaků.');
         if (password !== passwordAgain) throw new Error('Zadaná hesla se neshodují.');
         if (!privacyAccepted) throw new Error('Pro vytvoření účtu potvrďte zpracování registračních údajů.');
         const result = await registerSecureAccount({ displayName, email, password });
-        setPassword('');
-        setPasswordAgain('');
         if (result.needsEmailConfirmation) {
           await sendEmailVerificationCode(email);
           setVerificationPurpose('register');
@@ -51,26 +54,10 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
           setMessage('Registrace byla přijata a nyní čeká na schválení administrátorem.');
         }
       } else if (mode === 'activate') {
-        if (password.length < 10) throw new Error('Nové heslo musí mít alespoň 10 znaků.');
-        if (password !== passwordAgain) throw new Error('Zadaná hesla se neshodují.');
-        let existingActivation = false;
-        let result: Awaited<ReturnType<typeof registerSecureAccount>>;
-        try {
-          result = await registerSecureAccount({ displayName: 'Původní člen', email, password });
-        } catch (activationError) {
-          if (!(activationError instanceof Error) || !activationError.message.includes('už v Neonu existuje')) throw activationError;
-          existingActivation = true;
-          result = { needsEmailConfirmation: true };
-        }
-        setPassword('');
-        setPasswordAgain('');
-        if (!result.needsEmailConfirmation) throw new Error('Účet už je aktivní. Vraťte se na přihlášení nebo použijte obnovu hesla.');
-        await sendEmailVerificationCode(email);
+        await sendEmailSignInCode(email);
         setVerificationPurpose('activate');
         setMode('verify');
-        setMessage(existingActivation
-          ? 'Aktivační účet už existoval. Poslali jsme nový ověřovací kód; platí dříve nastavené nové heslo.'
-          : 'Na e-mail jsme poslali ověřovací kód. Po jeho zadání se automaticky obnoví váš původní profil, schválení, role i setlisty.');
+        setMessage('Na evidovaný e-mail jsme poslali jednorázový kód. Po jeho zadání se automaticky obnoví váš původní profil, schválení, role i setlisty.');
       } else {
         await signInSecureAccount(email, password);
         setPassword('');
@@ -109,7 +96,7 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
           <button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'active' : ''} onClick={() => { setMode('login'); setError(''); setMessage(''); }}>Přihlásit se</button>
           <button type="button" role="tab" aria-selected={mode === 'register'} className={mode === 'register' ? 'active' : ''} onClick={() => { setMode('register'); setError(''); setMessage(''); }}>Registrovat se</button>
         </div>}
-        {mode === 'login' && <aside className="migration-note account-activation-note"><strong>Používali jste aplikaci před přechodem na Neon?</strong><span>Staré heslo nebylo možné přenést. Jednorázově si aktivujte původní účet; schválení ani uložená data neztratíte.</span><button type="button" className="secondary-button" onClick={() => { setMode('activate'); setError(''); setMessage(''); }}>Aktivovat původní účet</button></aside>}
+        {mode === 'login' && <aside className="migration-note account-activation-note"><strong>Převedený účet nebo přihlášení bez hesla</strong><span>Všech 12 původních účtů je připravených. Přihlaste se jednorázovým kódem z evidovaného e-mailu; schválení ani uložená data neztratíte.</span><button type="button" className="secondary-button" onClick={() => { setMode('activate'); setError(''); setMessage(''); }}>Přihlásit se kódem</button></aside>}
         <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
           {mode === 'verify' ? <>
             <p className="migration-note">{verificationPurpose === 'activate' ? 'Po ověření stejného e-mailu se bezpečně připojí váš dřívější profil, role, schválení, oblíbené i setlisty.' : 'Po ověření e-mailu bude nový účet čekat na schválení administrátorem.'}</p>
@@ -117,13 +104,13 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
           </> : <>
           {mode === 'register' && <label htmlFor="account-name">Jméno nebo přezdívka<input id="account-name" autoComplete="nickname" required minLength={2} maxLength={60} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label>}
           <label htmlFor="account-email">E-mail<input id="account-email" type="email" inputMode="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-          <label htmlFor="account-password">Heslo<input id="account-password" type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} required minLength={mode === 'register' ? 10 : undefined} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
-          {(mode === 'register' || mode === 'activate') && <>
+          {mode !== 'activate' && <label htmlFor="account-password">Heslo<input id="account-password" type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} required minLength={mode === 'register' ? 10 : undefined} value={password} onChange={(event) => setPassword(event.target.value)} /></label>}
+          {mode === 'register' && <>
             <label htmlFor="account-password-again">Heslo znovu<input id="account-password-again" type="password" autoComplete="new-password" required minLength={10} value={passwordAgain} onChange={(event) => setPasswordAgain(event.target.value)} /></label>
-            {mode === 'register' && <label className="switch-row registration-consent"><input type="checkbox" required checked={privacyAccepted} onChange={(event) => setPrivacyAccepted(event.target.checked)} /> Souhlasím s uložením jména, e-mailu a stavu schválení pro provoz soukromého zpěvníku.</label>}
+            <label className="switch-row registration-consent"><input type="checkbox" required checked={privacyAccepted} onChange={(event) => setPrivacyAccepted(event.target.checked)} /> Souhlasím s uložením jména, e-mailu a stavu schválení pro provoz soukromého zpěvníku.</label>
           </>}
           </>}
-          <button type="submit" className="primary-button" disabled={busy}>{busy ? 'Ověřuji…' : mode === 'login' ? 'Přihlásit se' : mode === 'activate' ? 'Poslat aktivační kód' : mode === 'register' ? 'Odeslat registraci' : 'Ověřit kód'}</button>
+          <button type="submit" className="primary-button" disabled={busy}>{busy ? 'Ověřuji…' : mode === 'login' ? 'Přihlásit se' : mode === 'activate' ? 'Poslat přihlašovací kód' : mode === 'register' ? 'Odeslat registraci' : 'Ověřit kód'}</button>
           {mode === 'login' && <button type="button" className="text-button" disabled={busy} onClick={() => void resetPassword()}>Zapomenuté heslo</button>}
           {(mode === 'verify' || mode === 'activate') && <button type="button" className="text-button" disabled={busy} onClick={() => { setMode('login'); setVerificationCode(''); setPassword(''); setPasswordAgain(''); }}>Zpět na přihlášení</button>}
         </form>

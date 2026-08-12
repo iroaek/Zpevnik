@@ -6,16 +6,20 @@ import { AccountAccessPage } from './AccountAccessPage';
 const auth = vi.hoisted(() => ({
   register: vi.fn(),
   reset: vi.fn(),
+  sendSignInCode: vi.fn(),
   sendVerification: vi.fn(),
   signIn: vi.fn(),
+  signInWithCode: vi.fn(),
   verify: vi.fn(),
 }));
 
 vi.mock('../auth/secureAccess', () => ({
   registerSecureAccount: auth.register,
+  sendEmailSignInCode: auth.sendSignInCode,
   sendEmailVerificationCode: auth.sendVerification,
   sendPasswordReset: auth.reset,
   signInSecureAccount: auth.signIn,
+  signInSecureAccountWithCode: auth.signInWithCode,
   verifyEmailVerificationCode: auth.verify,
 }));
 
@@ -25,8 +29,10 @@ describe('schvalovaný účet', () => {
   beforeEach(() => {
     auth.register.mockReset().mockResolvedValue({ needsEmailConfirmation: true });
     auth.reset.mockReset().mockResolvedValue(undefined);
+    auth.sendSignInCode.mockReset().mockResolvedValue(undefined);
     auth.sendVerification.mockReset().mockResolvedValue(undefined);
     auth.signIn.mockReset().mockResolvedValue(undefined);
+    auth.signInWithCode.mockReset().mockResolvedValue(undefined);
     auth.verify.mockReset().mockResolvedValue(undefined);
   });
 
@@ -65,38 +71,30 @@ describe('schvalovaný účet', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Zadaná hesla se neshodují.');
   });
 
-  it('aktivuje migrovaný účet novým heslem a přejde na OTP', async () => {
+  it('aktivuje migrovaný účet přihlašovacím kódem bez původního hesla', async () => {
     const user = userEvent.setup();
     render(<AccountAccessPage canInstall={false} installed={false} onInstall={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Aktivovat původní účet' }));
+    await user.click(screen.getByRole('button', { name: 'Přihlásit se kódem' }));
     await user.type(screen.getByLabelText('E-mail'), 'puvodni@example.cz');
-    await user.type(screen.getByLabelText('Heslo', { selector: '#account-password' }), 'NoveBezpecneHeslo42');
-    await user.type(screen.getByLabelText('Heslo znovu'), 'NoveBezpecneHeslo42');
-    await user.click(screen.getByRole('button', { name: 'Poslat aktivační kód' }));
+    await user.click(screen.getByRole('button', { name: 'Poslat přihlašovací kód' }));
 
-    expect(auth.register).toHaveBeenCalledWith({
-      displayName: 'Původní člen',
-      email: 'puvodni@example.cz',
-      password: 'NoveBezpecneHeslo42',
-    });
-    expect(auth.sendVerification).toHaveBeenCalledWith('puvodni@example.cz');
+    expect(auth.register).not.toHaveBeenCalled();
+    expect(auth.sendSignInCode).toHaveBeenCalledWith('puvodni@example.cz');
     expect(await screen.findByRole('heading', { name: 'Ověření e-mailu' })).toBeInTheDocument();
     expect(screen.getByText(/obnoví váš původní profil/i)).toBeInTheDocument();
   });
 
-  it('umožní znovu poslat OTP pro rozpracovanou aktivaci', async () => {
-    auth.register.mockRejectedValueOnce(new Error('Účet s tímto e-mailem už v Neonu existuje. Použijte přihlášení nebo obnovu hesla.'));
+  it('ověří přihlašovací OTP a vytvoří relaci převedeného účtu', async () => {
     const user = userEvent.setup();
     render(<AccountAccessPage canInstall={false} installed={false} onInstall={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Aktivovat původní účet' }));
+    await user.click(screen.getByRole('button', { name: 'Přihlásit se kódem' }));
     await user.type(screen.getByLabelText('E-mail'), 'puvodni@example.cz');
-    await user.type(screen.getByLabelText('Heslo', { selector: '#account-password' }), 'NoveBezpecneHeslo42');
-    await user.type(screen.getByLabelText('Heslo znovu'), 'NoveBezpecneHeslo42');
-    await user.click(screen.getByRole('button', { name: 'Poslat aktivační kód' }));
+    await user.click(screen.getByRole('button', { name: 'Poslat přihlašovací kód' }));
+    await user.type(screen.getByLabelText('Šestimístný kód'), '123456');
+    await user.click(screen.getByRole('button', { name: 'Ověřit kód' }));
 
-    expect(auth.sendVerification).toHaveBeenCalledWith('puvodni@example.cz');
-    expect(await screen.findByText(/aktivační účet už existoval/i)).toBeInTheDocument();
+    expect(auth.signInWithCode).toHaveBeenCalledWith('puvodni@example.cz', '123456');
   });
 });
