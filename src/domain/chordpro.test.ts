@@ -18,4 +18,9 @@ describe('ChordPro parser', () => {
     expect(sanitizeImportedText('\uFEFFŽluťoučký\u0000\r\nřádek')).toBe('Žluťoučký\nřádek');
     expect(sanitizeImportedText('C\u030cesky\u0301 r\u030ca\u0301dek')).toBe('Český řádek');
   });
+
+  it('převede skutečné i omylem zapsané Unicode mezery na běžné mezery', () => {
+    expect(sanitizeImportedText('\\u00a0[Ami]Řádek\u00A0textu\\xA0')).toBe(' [Ami]Řádek textu ');
+    expect(parseChordPro('\\u00a0[Ami]Ve třicátém týdnu').firstLine).toBe('Ve třicátém týdnu');
+  });
 });

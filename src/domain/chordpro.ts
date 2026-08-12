@@ -20,6 +20,9 @@ export function sanitizeImportedText(value: string): string {
   return value
     .replace(/^\uFEFF/, '')
     .replace(/\r\n?/g, '\n')
+    .replace(/\\u(?:00a0|2007|202f)/gi, ' ')
+    .replace(/\\x(?:a0)/gi, ' ')
+    .replace(/[\u00A0\u2007\u202F]/g, ' ')
     .split('')
     .filter((character) => {
       const code = character.charCodeAt(0);

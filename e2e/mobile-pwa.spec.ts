@@ -52,6 +52,7 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await page.goto('./');
   await expect(page.getByRole('heading', { name: 'Český zpěvník', exact: true })).toBeVisible();
   await expectNoPageOverflow(page);
+  await page.getByRole('button', { name: /^Akordy/ }).click();
   await page.getByRole('button', { name: /Syntetická jiskra/ }).click();
   await expect(page.getByText('Jiskra kreslí')).toBeVisible();
   await expectNoPageOverflow(page);
@@ -83,11 +84,18 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await page.getByRole('button', { name: 'Ukončit U ohně' }).click();
 });
 
-test('vyhledávání zůstává uvnitř úvodního panelu na mobilu i desktopu', async ({ page }, testInfo) => {
+test('úvod obsahuje pouze šest hlavních voleb a knihovna drží hledání uvnitř panelu', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-390x844', 'Geometrii stačí ověřit jednou pro oba reprezentativní viewporty.');
   for (const viewport of [{ width: 390, height: 844 }, { width: 1300, height: 1000 }]) {
     await page.setViewportSize(viewport);
     await page.goto('./');
+    await expect(page.locator('.dashboard-orbits button')).toHaveCount(6);
+    await expect(page.locator('.library-sticky-panel')).toHaveCount(0);
+    await expect(page.locator('.song-list')).toHaveCount(0);
+    await expect(page.locator('.app-header')).toHaveCount(0);
+    await expect(page.locator('.bottom-nav')).toHaveCount(0);
+    await page.getByRole('button', { name: /^Akordy/ }).click();
+    await expect.poll(() => page.locator('html').getAttribute('data-view-transition')).toBeNull();
     const panel = await page.locator('.library-sticky-panel').boundingBox();
     const search = await page.locator('.library-sticky-search').boundingBox();
     expect(panel).not.toBeNull();
@@ -135,7 +143,7 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
     };
     requestAnimationFrame(sample);
   }));
-  await page.getByRole('button', { name: 'Setlisty', exact: true }).click();
+  await page.getByRole('button', { name: /^Setlisty/ }).click();
   await expect(page.getByRole('heading', { name: 'Setlisty', exact: true })).toBeVisible();
   await expect.poll(() => page.locator('html').getAttribute('data-view-transition')).toBeNull();
   const transitionMetrics = await transitionFinished;
@@ -148,7 +156,7 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
 
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.getByRole('button', { name: 'Písně', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Český zpěvník', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Písně', exact: true, level: 1 })).toBeVisible();
   const reducedDuration = await page.locator('.route-stage').evaluate((element) => Number.parseFloat(getComputedStyle(element).animationDuration));
   expect(reducedDuration).toBeLessThanOrEqual(0.001);
 });
@@ -230,6 +238,7 @@ test('oblíbené a soukromý setlist přežijí obnovení aplikace', async ({ pa
   await page.reload();
   await expect(page.getByRole('tab', { name: /Aktualizační test/ })).toBeVisible();
   await page.goto('./');
+  await page.getByRole('button', { name: /^Akordy/ }).click();
   await page.getByRole('button', { name: /Syntetická jiskra/ }).click();
   await expect(page.getByRole('button', { name: 'Odebrat z oblíbených' })).toBeVisible();
   await page.goto('setlists');

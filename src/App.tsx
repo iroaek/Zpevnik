@@ -5,8 +5,9 @@ import { AccountAccessPage } from './components/AccountAccessPage';
 import { AdminPage } from './components/AdminPage';
 import { ApprovalGate } from './components/ApprovalGate';
 import { HelpPage } from './components/HelpPage';
+import { HomeDashboard } from './components/HomeDashboard';
 import { InstallPage } from './components/InstallPage';
-import { Library } from './components/Library';
+import { Library, type LibraryEntry } from './components/Library';
 import { OfflineContent } from './components/OfflineContent';
 import { PasswordRecoveryPage } from './components/PasswordRecoveryPage';
 import { PdfImportPage } from './components/PdfImportPage';
@@ -32,7 +33,8 @@ import type { PersonalLibrarySummary } from './personalLibrary';
 import { routeMotionDirection, runRouteTransition } from './ui/motion';
 
 type Route =
-  | { name: 'library' }
+  | { name: 'home' }
+  | { name: 'library'; entry: LibraryEntry }
   | { name: 'setlists' }
   | { name: 'settings' }
   | { name: 'admin' }
@@ -49,7 +51,10 @@ const bundledCatalog = catalogSchema.parse(catalogJson as unknown);
 
 function parseRoute(pathname = window.location.pathname): Route {
   const relative = relativeRoute(pathname);
-  if (!relative) return { name: 'library' };
+  if (!relative) return { name: 'home' };
+  if (relative === 'songs') return { name: 'library', entry: 'all' };
+  if (relative === 'songs/favorites') return { name: 'library', entry: 'favorites' };
+  if (relative === 'songs/artists') return { name: 'library', entry: 'artists' };
   if (relative === 'setlists') return { name: 'setlists' };
   if (relative === 'settings') return { name: 'settings' };
   if (relative === 'admin') return { name: 'admin' };
@@ -67,7 +72,8 @@ function parseRoute(pathname = window.location.pathname): Route {
 
 function routeRelativePath(route: Route): string {
   switch (route.name) {
-    case 'library': return '';
+    case 'home': return '';
+    case 'library': return route.entry === 'all' ? 'songs' : `songs/${route.entry}`;
     case 'song': return `songs/${route.id}`;
     case 'public-setlist': return `setlists/${route.id}`;
     case 'not-found': return relativeRoute(window.location.pathname);
@@ -206,7 +212,7 @@ export default function App() {
     const relative = routeRelativePath(route);
     const canonical = canonicalUrl(relative);
     document.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.setAttribute('href', canonical);
-    const label = route.name === 'song' ? selectedSong?.title : route.name === 'public-setlist' ? selectedPublicSetlist?.title : ({ library: 'Písně', setlists: 'Setlisty', import: 'Import PDF', settings: 'Nastavení', admin: 'Administrace', offline: 'Offline obsah', install: 'Instalace', help: 'Nápověda', diagnostics: 'Diagnostika', 'not-found': 'Nenalezeno' } as const)[route.name];
+    const label = route.name === 'song' ? selectedSong?.title : route.name === 'public-setlist' ? selectedPublicSetlist?.title : ({ home: 'Úvod', library: 'Písně', setlists: 'Setlisty', import: 'Import PDF', settings: 'Nastavení', admin: 'Administrace', offline: 'Offline obsah', install: 'Instalace', help: 'Nápověda', diagnostics: 'Diagnostika', 'not-found': 'Nenalezeno' } as const)[route.name];
     document.title = label ? `${label} · Český zpěvník` : 'Český digitální zpěvník';
     if (route.name === 'library') requestAnimationFrame(() => window.scrollTo({ top: libraryScroll.current }));
     else window.scrollTo({ top: 0 });
@@ -273,18 +279,19 @@ export default function App() {
   if (!userProfile) return <main className="app-main"><RegistrationPage canInstall={installPrompt.canPrompt} installed={installPrompt.installed} onInstall={installPrompt.install} onRegister={setUserProfile} />{(storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}</main>;
 
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <button className="brand" type="button" onClick={() => navigate('')} aria-label="Přejít na seznam písní"><span className="brand-mark" aria-hidden="true"><img src={`${import.meta.env.BASE_URL}icons/icon-lazec-192.png`} alt="" /></span><span><strong>Český zpěvník</strong><small>odkaz · PWA · offline</small></span></button>
+    <div className={`app-shell ${route.name === 'home' ? 'app-shell--home' : ''}`}>
+      {route.name !== 'home' && <header className="app-header">
+        <button className="brand" type="button" onClick={() => navigate('')} aria-label="Přejít na úvodní stránku"><span className="brand-mark" aria-hidden="true"><img src={`${import.meta.env.BASE_URL}icons/icon-lazec-192.png`} alt="" /></span><span><strong>Český zpěvník</strong><small>odkaz · PWA · offline</small></span></button>
         <div className="header-status"><button type="button" className={`sync-badge sync-badge--${cloudSync.status}`} onClick={() => navigate('settings')} aria-label="Otevřít stav synchronizace"><span aria-hidden="true">↻</span><span>{cloudSync.status === 'synced' ? 'Uloženo' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Ukládám' : cloudSync.status === 'error' ? 'Chyba' : cloudSync.status === 'offline' ? 'Čeká' : 'Místně'}</span></button><button type="button" className={`connection-badge ${online ? 'online' : 'offline'}`} onClick={() => navigate('offline')} aria-label={`${online ? 'Online' : 'Offline'}; otevřít stav offline obsahu`}><span aria-hidden="true" />{online ? 'Online' : 'Offline'}</button></div>
-      </header>
-      {secureAccount.authState.status === 'authenticated-offline' && <aside className="offline-auth-banner" role="status"><strong>Offline režim</strong><span>Oprávnění platí do {new Date(secureAccount.authState.offlineValidUntil).toLocaleDateString('cs-CZ')} · obsah {secureAccount.authState.contentVersion.slice(0, 12)}</span></aside>}
-      {updateAvailable && <UpdateBanner onUpdate={() => void activateWaitingUpdate()} onLater={() => setUpdateAvailable(false)} />}
-      {(storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}
-      {systemMessage && <div className="system-message toast-message" role="status"><span>{systemMessage}</span><button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemMessage('')}>×</button></div>}
-      <main id="main-content" className="app-main">
-        <div className="route-stage" key={routeRelativePath(route) || 'library'}>
-        {route.name === 'library' && <Library songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} setlistCount={userState.setlists.length} setlists={userState.setlists} onOpenSong={(id) => openSong(id)} onNavigate={navigate} onToggleFavorite={(id) => setUserState((current) => toggleFavorite(current, id))} onAddToSetlist={(songId, setlistId) => setUserState((current) => { const setlist = current.setlists.find((candidate) => candidate.id === setlistId); return !setlist || setlist.songIds.includes(songId) ? current : updateSetlistSongs(current, setlistId, [...setlist.songIds, songId]); })} onAddToTonight={addToTonightSetlist} onDeleteSong={deleteDeviceSong} onNotify={setSystemMessage} />}
+      </header>}
+      {route.name !== 'home' && secureAccount.authState.status === 'authenticated-offline' && <aside className="offline-auth-banner" role="status"><strong>Offline režim</strong><span>Oprávnění platí do {new Date(secureAccount.authState.offlineValidUntil).toLocaleDateString('cs-CZ')} · obsah {secureAccount.authState.contentVersion.slice(0, 12)}</span></aside>}
+      {route.name !== 'home' && updateAvailable && <UpdateBanner onUpdate={() => void activateWaitingUpdate()} onLater={() => setUpdateAvailable(false)} />}
+      {route.name !== 'home' && (storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}
+      {route.name !== 'home' && systemMessage && <div className="system-message toast-message" role="status"><span>{systemMessage}</span><button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemMessage('')}>×</button></div>}
+      <main id="main-content" className={`app-main ${route.name === 'home' ? 'app-main--home' : ''}`}>
+        <div className="route-stage" key={routeRelativePath(route) || 'home'}>
+        {route.name === 'home' && <HomeDashboard songs={allSongs} favorites={userState.favorites} recent={userState.recentSongIds} setlistCount={userState.setlists.length} onOpenSong={(id) => openSong(id)} onNavigate={navigate} />}
+        {route.name === 'library' && <Library entry={route.entry} songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} setlists={userState.setlists} onOpenSong={(id) => openSong(id)} onToggleFavorite={(id) => setUserState((current) => toggleFavorite(current, id))} onAddToSetlist={(songId, setlistId) => setUserState((current) => { const setlist = current.setlists.find((candidate) => candidate.id === setlistId); return !setlist || setlist.songIds.includes(songId) ? current : updateSetlistSongs(current, setlistId, [...setlist.songIds, songId]); })} onAddToTonight={addToTonightSetlist} onDeleteSong={deleteDeviceSong} onNotify={setSystemMessage} />}
         {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id) => navigate(`setlists/${id}`)} />}
         {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} />}
         {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} cloudSync={cloudSync} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} onRefreshSecureProfile={secureAccount.refresh} />}
@@ -293,13 +300,13 @@ export default function App() {
         {route.name === 'install' && <InstallPage canPrompt={installPrompt.canPrompt} installed={installPrompt.installed} isIosLike={installPrompt.isIosLike} onInstall={installPrompt.install} onNavigate={navigate} />}
         {route.name === 'help' && <HelpPage onNavigate={navigate} />}
         {route.name === 'diagnostics' && import.meta.env.DEV && <DiagnosticsPage onBack={() => navigate('settings')} />}
-        {route.name === 'song' && selectedSong && <SongReader key={selectedSong.id} song={selectedSong} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onBack={() => navigate(readerSequence.length ? 'setlists' : '')} previousSong={previousReaderSong} nextSong={nextReaderSong} onPreviousSong={previousReaderSong ? () => openReaderSibling(previousReaderSong) : undefined} onNextSong={nextReaderSong ? () => openReaderSibling(nextReaderSong) : undefined} />}
+        {route.name === 'song' && selectedSong && <SongReader key={selectedSong.id} song={selectedSong} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onBack={() => navigate(readerSequence.length ? 'setlists' : 'songs')} previousSong={previousReaderSong} nextSong={nextReaderSong} onPreviousSong={previousReaderSong ? () => openReaderSibling(previousReaderSong) : undefined} onNextSong={nextReaderSong ? () => openReaderSibling(nextReaderSong) : undefined} />}
         {route.name === 'public-setlist' && selectedPublicSetlist && <PublicSetlistPage setlist={selectedPublicSetlist} songs={catalog.songs} onOpenSong={(id) => openSong(id, selectedPublicSetlist.songIds)} onBack={() => navigate('setlists')} />}
         {((route.name === 'song' && !selectedSong) || (route.name === 'public-setlist' && !selectedPublicSetlist) || (route.name === 'admin' && (!secureAccount.enabled || secureAccount.profile?.role !== 'admin')) || route.name === 'not-found') && <section className="info-page not-found"><p className="eyebrow">404</p><h1>Tato stránka ve zpěvníku není</h1><p>Odkaz může být starý nebo chybný.</p><button type="button" className="primary-button" onClick={() => navigate('')}>Přejít na písně</button></section>}
         </div>
       </main>
-      {route.name !== 'song' && <nav className="bottom-nav bottom-nav--five" aria-label="Hlavní navigace">
-        <button type="button" className={navScreen === 'library' ? 'active' : ''} aria-current={navScreen === 'library' ? 'page' : undefined} onClick={() => navigate('')}><span aria-hidden="true">⌕</span>Písně</button>
+      {route.name !== 'song' && route.name !== 'home' && <nav className="bottom-nav bottom-nav--five" aria-label="Hlavní navigace">
+        <button type="button" className={navScreen === 'library' ? 'active' : ''} aria-current={navScreen === 'library' ? 'page' : undefined} onClick={() => navigate('songs')}><span aria-hidden="true">⌕</span>Písně</button>
         <button type="button" className={navScreen === 'setlists' ? 'active' : ''} aria-current={navScreen === 'setlists' ? 'page' : undefined} onClick={() => navigate('setlists')}><span aria-hidden="true">☷</span>Setlisty</button>
         <button type="button" className={navScreen === 'import' ? 'active' : ''} aria-current={navScreen === 'import' ? 'page' : undefined} onClick={() => navigate('import')}><span aria-hidden="true">＋</span>Přidat</button>
         <button type="button" className={navScreen === 'offline' ? 'active' : ''} aria-current={navScreen === 'offline' ? 'page' : undefined} onClick={() => navigate('offline')}><span aria-hidden="true">⇩</span>Offline</button>

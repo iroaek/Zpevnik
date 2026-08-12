@@ -4,15 +4,14 @@ import type { PersonalLibrarySummary } from '../personalLibrary';
 import type { Setlist } from '../storage/database';
 
 type CollectionMode = 'all' | 'favorites' | 'recent';
+export type LibraryEntry = 'all' | 'favorites' | 'artists';
 
 interface LibraryProps {
   songs: Song[];
   favorites: string[];
   recent: string[];
-  setlistCount?: number;
   setlists?: Setlist[];
   onOpenSong: (id: string) => void;
-  onNavigate: (path: string) => void;
   onToggleFavorite?: (id: string) => void;
   onAddToSetlist?: (songId: string, setlistId: string) => void;
   onAddToTonight?: (songId: string) => void;
@@ -20,6 +19,7 @@ interface LibraryProps {
   onNotify?: (message: string) => void;
   personalSummary?: PersonalLibrarySummary | null;
   deviceSongCount?: number;
+  entry?: LibraryEntry;
 }
 
 interface LibraryViewState {
@@ -68,8 +68,13 @@ function reviewCount(song: Song): number {
   return new Set([...(song.reviewFlags ?? []), ...song.tags.filter((tag) => tag.startsWith('review:'))]).size;
 }
 
-export function Library({ songs, favorites, recent, setlistCount = 0, setlists = [], onOpenSong, onNavigate, onToggleFavorite, onAddToSetlist, onAddToTonight, onDeleteSong, onNotify, personalSummary, deviceSongCount = 0 }: LibraryProps) {
-  const [view, setView] = useState<LibraryViewState>(loadView);
+export function Library({ songs, favorites, recent, setlists = [], onOpenSong, onToggleFavorite, onAddToSetlist, onAddToTonight, onDeleteSong, onNotify, personalSummary, deviceSongCount = 0, entry = 'all' }: LibraryProps) {
+  const [view, setView] = useState<LibraryViewState>(() => {
+    const saved = loadView();
+    if (entry === 'favorites') return { ...saved, mode: 'favorites' };
+    if (entry === 'artists') return { ...saved, mode: 'all', sort: 'author' };
+    return { ...saved, mode: 'all' };
+  });
   const [page, setPage] = useState({ signature: '', count: PAGE_SIZE });
   const [quickSongId, setQuickSongId] = useState<string | null>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
@@ -108,7 +113,6 @@ export function Library({ songs, favorites, recent, setlistCount = 0, setlists =
   const searchIndex = useMemo(() => new Map(songs.map((song) => [song.id, [song.title, ...song.alternativeTitles, ...song.authors, song.firstLine, ...song.tags, ...song.categories].map(normalize).join(' ')])), [songs]);
   const songById = useMemo(() => new Map(songs.map((song) => [song.id, song])), [songs]);
   const recentSongs = useMemo(() => recent.map((id) => songById.get(id)).filter((song): song is Song => Boolean(song)).slice(0, 8), [recent, songById]);
-  const lastSong = recentSongs[0];
 
   const filtered = useMemo(() => {
     const needle = normalize(deferredQuery.trim());
@@ -215,17 +219,7 @@ export function Library({ songs, favorites, recent, setlistCount = 0, setlists =
 
   return (
     <section className="library" aria-labelledby="library-heading">
-      <section className="library-dashboard" aria-labelledby="library-heading">
-        <div className="library-dashboard__heading"><p className="eyebrow">Váš hudební prostor</p><h1 id="library-heading">Český zpěvník</h1><p>Texty, akordy a setlisty připravené na pódium i k ohni.</p></div>
-        <nav className="dashboard-orbits" aria-label="Hudební rozcestník">
-          <button type="button" onClick={() => lastSong ? onOpenSong(lastSong.id) : window.scrollTo({ top: document.querySelector('.catalog-heading')?.getBoundingClientRect().top ?? 0, behavior: 'smooth' })}><span aria-hidden="true">▶</span><strong>Pokračovat</strong><small>{lastSong?.title ?? 'Vybrat píseň'}</small></button>
-          <button type="button" onClick={() => document.querySelector('.catalog-heading')?.scrollIntoView({ behavior: 'smooth' })}><span aria-hidden="true">♯</span><strong>Akordy</strong><small>{songs.length} písní</small></button>
-          <button type="button" onClick={() => updateView('mode', 'favorites')}><span aria-hidden="true">♡</span><strong>Oblíbené</strong><small>{favorites.length} písní</small></button>
-          <button type="button" onClick={() => { updateView('sort', 'author'); document.querySelector('.catalog-heading')?.scrollIntoView({ behavior: 'smooth' }); }}><span aria-hidden="true">♙</span><strong>Interpreti</strong><small>Podle autora</small></button>
-          <button type="button" onClick={() => onNavigate('setlists')}><span aria-hidden="true">♫</span><strong>Setlisty</strong><small>{setlistCount} seznamů</small></button>
-          <button type="button" onClick={() => onNavigate('import')}><span aria-hidden="true">＋</span><strong>Přidat</strong><small>PDF nebo píseň</small></button>
-        </nav>
-      </section>
+      <div className="catalog-page-heading"><p className="eyebrow">Knihovna</p><h1 id="library-heading">Písně</h1></div>
 
       <div className="library-sticky-panel">
         <label className="search-box library-sticky-search">

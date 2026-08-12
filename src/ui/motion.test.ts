@@ -69,7 +69,7 @@ describe('směr navigačního pohybu', () => {
     await vi.advanceTimersToNextTimerAsync();
     expect(document.documentElement.dataset.transitionPhase).toBe('entering');
     expect(document.querySelector('.route-transition-snapshot')?.getAttribute('data-transition-phase')).toBe('leaving');
-    await vi.advanceTimersByTimeAsync(440);
+    await vi.advanceTimersByTimeAsync(560);
 
     expect(update).toHaveBeenCalledOnce();
     expect(document.documentElement.dataset.viewTransition).toBeUndefined();

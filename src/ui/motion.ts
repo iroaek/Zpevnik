@@ -1,6 +1,6 @@
 export type MotionDirection = 'forward' | 'back' | 'lateral';
 
-const PRIMARY_ROUTE_ORDER = ['library', 'setlists', 'import', 'offline', 'settings'];
+const PRIMARY_ROUTE_ORDER = ['home', 'library', 'setlists', 'import', 'offline', 'settings'];
 
 export function routeMotionDirection(current: string, target: string): MotionDirection {
   if (target === 'song' || target === 'public-setlist') return current === target ? 'lateral' : 'forward';
@@ -60,6 +60,6 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
     window.setTimeout(() => {
       snapshot.remove();
       cleanup();
-    }, 440);
+    }, 560);
   }));
 }
