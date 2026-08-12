@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
+import type { SecureProfile } from '../auth/secureAccess';
 import { createUuid } from '../domain/browserCompatibility';
 import type { PublicSetlist, Song } from '../domain/song';
 import { fetchContent } from '../pwa/contentCache';
 import { createSetlist, duplicateSetlist, removeSetlist, renameSetlist, updateSetlistSongs, type UserState } from '../storage/database';
 import { ChordSheet } from './ChordSheet';
+import { SharedSetlists } from './SharedSetlists';
 
 interface SetlistsProps {
   songs: Song[];
@@ -13,9 +15,11 @@ interface SetlistsProps {
   publicSetlists: PublicSetlist[];
   onOpenPublicSetlist: (id: string) => void;
   catalogVersion: string;
+  secureProfile?: SecureProfile | null;
+  online?: boolean;
 }
 
-export function Setlists({ songs, userState, onUserStateChange, onOpenSong, publicSetlists, onOpenPublicSetlist, catalogVersion }: SetlistsProps) {
+export function Setlists({ songs, userState, onUserStateChange, onOpenSong, publicSetlists, onOpenPublicSetlist, catalogVersion, secureProfile = null, online = true }: SetlistsProps) {
   const [name, setName] = useState('');
   const [selectedId, setSelectedId] = useState(userState.setlists[0]?.id ?? '');
   const [printSources, setPrintSources] = useState<Record<string, string>>({});
@@ -111,6 +115,14 @@ export function Setlists({ songs, userState, onUserStateChange, onOpenSong, publ
     setMessage(`Setlist „${selected.name}“ byl duplikován.`);
   };
 
+  const copySharedSetlist = (sharedName: string, songIds: string[]) => {
+    const id = createUuid();
+    const copyName = `${sharedName} – moje kopie`;
+    onUserStateChange((current) => updateSetlistSongs(createSetlist(current, copyName, id), id, songIds));
+    setSelectedId(id);
+    setMessage(`Setlist „${sharedName}“ byl uložen jako vaše soukromá offline kopie.`);
+  };
+
   const saveName = (event: React.FormEvent) => {
     event.preventDefault();
     if (!selected || !editingName.trim()) return;
@@ -153,6 +165,7 @@ export function Setlists({ songs, userState, onUserStateChange, onOpenSong, publ
       <div className="section-heading"><div><p className="eyebrow">Pořadí na večer</p><h1 id="setlists-heading">Setlisty</h1></div></div>
       <p className="lead setlists-intro">Vytvořte si vlastní pořadí písní. Po přihlášení se setlisty synchronizují mezi vašimi zařízeními; bez připojení zůstávají bezpečně uložené zde.</p>
       {publicSetlists.length > 0 && <section className="public-setlists" aria-labelledby="public-setlists-heading"><div className="results-heading"><h2 id="public-setlists-heading">Veřejné setlisty</h2><span>Mají vlastní QR odkaz</span></div>{publicSetlists.map((setlist) => <button type="button" className="song-card" onClick={() => onOpenPublicSetlist(setlist.id)} key={setlist.id}><span className="song-card__main"><strong>{setlist.title}</strong><span>{setlist.description}</span></span><span className="song-card__meta">{setlist.songIds.length} ♫ <span aria-hidden="true">›</span></span></button>)}</section>}
+      <SharedSetlists songs={songs} profile={secureProfile} online={online} selectedLocal={selected} onOpenSong={onOpenSong} onCopyToMySetlists={copySharedSetlist} />
       <div className="results-heading private-heading"><h2>Moje soukromé setlisty</h2><span>Offline i mezi zařízeními</span></div>
       <form className="new-setlist" onSubmit={submit}><label>Název nového setlistu<input value={name} maxLength={100} onChange={(event) => setName(event.target.value)} placeholder="Např. Sobota u ohně" /></label><button className="primary-button" type="submit">Vytvořit</button></form>
       {message && <p className="success-message" role="status">{message}</p>}

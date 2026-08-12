@@ -9,7 +9,7 @@ export type OnlineSessionResult =
 
 export interface AuthRepository {
   getOnlineSession(signal?: AbortSignal): Promise<OnlineSessionResult>;
-  issueOfflineGrant(profile: SecureProfile, deviceId: string): Promise<VerifiedOfflineGrant & { provider: 'neon-auth'; keySet: NeonOfflineKeySet }>;
+  issueOfflineGrant(profile: SecureProfile, deviceId: string, accessToken?: string): Promise<VerifiedOfflineGrant & { provider: 'neon-auth'; keySet: NeonOfflineKeySet }>;
   getOfflineGrant(): Promise<StoredOfflineGrantRecord | null>;
   saveOfflineGrant(grant: StoredOfflineGrantRecord): Promise<void>;
   removeOfflineGrant(): Promise<void>;

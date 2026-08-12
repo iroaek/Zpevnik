@@ -27,4 +27,10 @@ describe('Neon offline oprávnění', () => {
     expect(repository).not.toMatch(/supabase|private_jwk|service_role/i);
     expect(client).not.toMatch(/functions\.invoke|VITE_NEON_OFFLINE_GRANT_URL/i);
   });
+
+  it('po přihlášení uloží grant z již ověřeného JWT bez druhého cookie požadavku', () => {
+    const hook = readFileSync('src/hooks/useSecureAccount.ts', 'utf8');
+    expect(hook).toContain('result.session.access_token');
+    expect(repository).toContain('accessToken || requestNeonSessionJwt()');
+  });
 });

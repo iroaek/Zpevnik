@@ -56,6 +56,17 @@ const remoteSubmissionSchema = z.object({
   created_at: databaseTimestampSchema,
 });
 
+const sharedSetlistSchema = z.object({
+  id: z.string().uuid(),
+  owner_id: z.string().uuid(),
+  owner_name: z.string().trim().min(2).max(60),
+  source_setlist_id: z.string().min(1).max(120),
+  name: z.string().trim().min(1).max(100),
+  song_ids: z.array(z.string().min(1).max(200)).min(1).max(500),
+  created_at: databaseTimestampSchema,
+  updated_at: databaseTimestampSchema,
+});
+
 const contentPackageRowSchema = z.object({
   scope: z.enum(['admin', 'members']),
   version: z.string().min(1),
@@ -74,6 +85,7 @@ const contentPackageChunkSchema = z.object({
 
 export type SecureProfile = z.infer<typeof secureProfileSchema>;
 export type RemoteSongSubmission = z.infer<typeof remoteSubmissionSchema>;
+export type SharedSetlist = z.infer<typeof sharedSetlistSchema>;
 
 export interface SecureSession {
   access_token: string;
@@ -461,6 +473,37 @@ export async function reviewRemoteSongSubmission(submissionId: string, decision:
     decision,
     note: adminNote.trim(),
   });
+}
+
+export async function loadSharedSetlists(): Promise<SharedSetlist[]> {
+  const rows = await neonRpc<unknown[]>('list_shared_setlists', await requireSecureAccessToken());
+  return z.array(sharedSetlistSchema).parse(rows);
+}
+
+export async function publishMySetlist(input: {
+  id: string;
+  sourceSetlistId: string;
+  name: string;
+  songIds: string[];
+}): Promise<string> {
+  return neonRpc<string>('publish_my_setlist', await requireSecureAccessToken(), {
+    target_id: input.id,
+    target_source_setlist_id: input.sourceSetlistId,
+    target_name: input.name.trim(),
+    target_song_ids: input.songIds,
+  });
+}
+
+export async function updateSharedSetlist(id: string, name: string, songIds: string[]): Promise<void> {
+  await neonRpc('update_shared_setlist', await requireSecureAccessToken(), {
+    target_shared_setlist_id: id,
+    target_name: name.trim(),
+    target_song_ids: songIds,
+  });
+}
+
+export async function deleteSharedSetlist(id: string): Promise<void> {
+  await neonRpc('delete_shared_setlist', await requireSecureAccessToken(), { target_shared_setlist_id: id });
 }
 
 function libraryScope(profile: SecureProfile): 'admin' | 'members' {

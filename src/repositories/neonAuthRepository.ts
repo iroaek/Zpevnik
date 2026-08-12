@@ -40,9 +40,9 @@ export const neonAuthRepository: AuthRepository = {
     return profile ? { status: 'authenticated', session, profile } : { status: 'unauthenticated' };
   },
 
-  async issueOfflineGrant(profile, deviceId) {
+  async issueOfflineGrant(profile, deviceId, accessToken) {
     const [token, rawKeySet, metadata] = await Promise.all([
-      requestNeonSessionJwt(),
+      accessToken || requestNeonSessionJwt(),
       loadNeonPublicJwks(),
       loadDownloadedLibraryMetadata(),
     ]);

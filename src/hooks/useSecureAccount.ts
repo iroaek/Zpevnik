@@ -108,7 +108,10 @@ export function useSecureAccount(): SecureAccountState {
       if (result.profile.status === 'approved' && offlineGrantClientConfigured) {
         try {
           const deviceId = await getOrCreateDeviceId();
-          const verified = await neonAuthRepository.issueOfflineGrant(result.profile, deviceId);
+          // JWT už vrátilo první úspěšné ověření relace. Použijeme právě tento
+          // token, aby uložení trvalého offline oprávnění nezáviselo na druhém
+          // cross-site cookie požadavku, který mobilní PWA může zablokovat.
+          const verified = await neonAuthRepository.issueOfflineGrant(result.profile, deviceId, result.session.access_token);
           const stored: StoredOfflineGrantRecord = {
             schemaVersion: 1,
             provider: verified.provider,
