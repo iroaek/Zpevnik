@@ -15,6 +15,20 @@ async function checkedFetch(label, input, init = {}, accepted = (status) => stat
   return response;
 }
 
+async function checkDataApiProtection(configuredDataUrl) {
+  const response = await globalThis.fetch(`${configuredDataUrl}/rpc/get_my_profile`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: '{}',
+    signal: globalThis.AbortSignal.timeout(timeoutMs),
+  });
+  const body = await response.text();
+  const authenticationRejected = [400, 401, 403].includes(response.status)
+    && /missing authentication credentials|authorization bearer token|jwt|unauthorized|forbidden/i.test(body);
+  if (!authenticationRejected) throw new Error(`Neon Data API ochrana odpověděla HTTP ${response.status} bez očekávaného odmítnutí autentizace.`);
+  globalThis.console.log(`✓ Neon Data API ochrana: HTTP ${response.status}`);
+}
+
 function requireConfigured(name, value) {
   if (!value) throw new Error(`${name} není nastavené v GitHub Actions Variables.`);
   return value;
@@ -37,12 +51,7 @@ async function checkNeon() {
   const configuredAuthUrl = requireConfigured('VITE_NEON_AUTH_URL', authUrl);
   const configuredDataUrl = requireConfigured('VITE_NEON_DATA_API_URL', dataUrl);
   await checkedFetch('Neon Auth JWKS', `${configuredAuthUrl}/.well-known/jwks.json`, { headers: { Accept: 'application/json' } });
-  await checkedFetch(
-    'Neon Data API ochrana',
-    `${configuredDataUrl}/rpc/get_my_profile`,
-    { method: 'POST', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: '{}' },
-    (status) => status === 401 || status === 403,
-  );
+  await checkDataApiProtection(configuredDataUrl);
 
   if (!testEmail || !testPassword) {
     globalThis.console.warn('⚠ Přihlašovací smoke test je přeskočený. Nastavte Secrets PRODUCTION_TEST_EMAIL a PRODUCTION_TEST_PASSWORD.');
