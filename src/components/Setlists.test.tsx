@@ -44,6 +44,8 @@ describe('soukromé setlisty', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Ano, smazat setlist' }));
     expect(screen.queryByRole('tab', { name: /Nedělní setlist/ })).not.toBeInTheDocument();
     expect(screen.getByText('Zatím nemáte žádný setlist.')).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Vrátit zpět' }));
+    expect(screen.getByRole('tab', { name: /Nedělní setlist/ })).toBeVisible();
   });
 
   it('hromadně přidá píseň, vrátí odebrání a duplikuje setlist', async () => {

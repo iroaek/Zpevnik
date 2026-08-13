@@ -1,6 +1,22 @@
 export type MotionDirection = 'forward' | 'back' | 'lateral';
 export type MotionPreference = 'full' | 'gentle' | 'off';
 
+export interface SharedElementTransition {
+  source?: HTMLElement | null;
+  targetSelector: string;
+  name?: string;
+}
+
+interface ViewTransitionLike {
+  finished: Promise<unknown>;
+  ready?: Promise<unknown>;
+  skipTransition?: () => void;
+}
+
+type ViewTransitionDocument = Document & {
+  startViewTransition?: (update: () => void | Promise<void>) => ViewTransitionLike;
+};
+
 const PRIMARY_ROUTE_ORDER = ['home', 'library', 'setlists', 'import', 'offline', 'settings'];
 let transitionSequence = 0;
 let fallbackAnimations: Animation[] = [];
@@ -23,7 +39,7 @@ export function scrollWindowInstantly(top: number): void {
   else root.style.removeProperty('scroll-behavior');
 }
 
-export function runRouteTransition(update: () => void, direction: MotionDirection): void {
+export function runRouteTransition(update: () => void, direction: MotionDirection, shared?: SharedElementTransition): void {
   const transitionId = ++transitionSequence;
   fallbackAnimations.forEach((animation) => animation.cancel());
   fallbackAnimations = [];
@@ -37,14 +53,45 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
   const root = document.documentElement;
   root.dataset.navigationDirection = direction;
   root.dataset.viewTransition = 'active';
+  const sharedName = shared?.name ?? 'shared-route-title';
+  const sharedSource = shared?.source?.isConnected ? shared.source : null;
+  let sharedTarget: HTMLElement | null = null;
+  const clearSharedNames = () => {
+    sharedSource?.style.removeProperty('view-transition-name');
+    sharedTarget?.style.removeProperty('view-transition-name');
+  };
   const cleanup = () => {
     if (transitionId !== transitionSequence) return;
     fallbackAnimations.forEach((animation) => animation.cancel());
     fallbackAnimations = [];
+    clearSharedNames();
     delete root.dataset.viewTransition;
+    delete root.dataset.transitionDriver;
     delete root.dataset.navigationDirection;
     delete root.dataset.transitionPhase;
   };
+
+  const startViewTransition = (document as ViewTransitionDocument).startViewTransition;
+  if (typeof startViewTransition === 'function') {
+    root.dataset.transitionDriver = 'native';
+    root.dataset.transitionPhase = 'preparing';
+    if (sharedSource) sharedSource.style.setProperty('view-transition-name', sharedName);
+    try {
+      const transition = startViewTransition.call(document, () => {
+        update();
+        if (shared?.targetSelector) {
+          sharedTarget = document.querySelector<HTMLElement>(shared.targetSelector);
+          sharedTarget?.style.setProperty('view-transition-name', sharedName);
+        }
+        root.dataset.transitionPhase = 'entering';
+      });
+      void transition.finished.then(cleanup, cleanup);
+      return;
+    } catch {
+      clearSharedNames();
+      delete root.dataset.transitionDriver;
+    }
+  }
 
   const currentStage = document.querySelector<HTMLElement>('.route-stage');
   if (!currentStage || typeof currentStage.animate !== 'function') {
@@ -62,8 +109,8 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
     if (transitionId !== transitionSequence) return;
     root.dataset.transitionPhase = 'leaving';
     const leaving = currentStage.animate([
-      { transform: 'translate3d(0, 0, 0)' },
-      { transform: `translate3d(${-travel}px, 0, 0)` },
+      { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+      { opacity: 0.58, transform: `translate3d(${-travel}px, 0, 0)` },
     ], {
       duration: leaveDuration,
       easing: 'cubic-bezier(.4, 0, 1, 1)',
@@ -86,8 +133,8 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
         return;
       }
       const entering = nextStage.animate([
-        { transform: `translate3d(${travel}px, 0, 0)` },
-        { transform: 'translate3d(0, 0, 0)' },
+        { opacity: 0.58, transform: `translate3d(${travel}px, 0, 0)` },
+        { opacity: 1, transform: 'translate3d(0, 0, 0)' },
       ], {
         duration: enterDuration,
         easing: 'cubic-bezier(.22, 1, .36, 1)',

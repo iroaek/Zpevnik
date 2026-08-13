@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Song } from '../domain/song';
@@ -14,7 +14,10 @@ const song: Song = {
 
 describe('Knihovna', () => {
   beforeEach(() => sessionStorage.clear());
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   it('hledá bez ohledu na diakritiku a otevře píseň', async () => {
     const onOpen = vi.fn();
@@ -22,7 +25,7 @@ describe('Knihovna', () => {
     expect(screen.getByRole('searchbox').closest('.library-sticky-panel')).not.toBeNull();
     await userEvent.type(screen.getByRole('searchbox'), 'zluta');
     await userEvent.click(screen.getByRole('button', { name: /^Žlutá zkouška/ }));
-    expect(onOpen).toHaveBeenCalledWith('synteticky-test');
+    expect(onOpen).toHaveBeenCalledWith('synteticky-test', expect.any(HTMLElement));
   });
 
   it('filtr zachová po návratu', () => {
@@ -71,12 +74,15 @@ describe('Knihovna', () => {
   });
 
   it('přejetí doleva otevře rychlé akce i při okamžitém dokončení gesta', () => {
+    vi.useFakeTimers();
     render(<Library songs={[song]} favorites={[]} recent={[]} onOpenSong={vi.fn()} />);
     const card = screen.getByRole('button', { name: /^Žlutá zkouška/ }).closest('article');
     expect(card).not.toBeNull();
     fireEvent.pointerDown(card!, { pointerType: 'touch', clientX: 120, clientY: 30 });
     fireEvent.pointerMove(card!, { pointerType: 'touch', clientX: 45, clientY: 32 });
     fireEvent.pointerUp(card!, { pointerType: 'touch', clientX: 45, clientY: 32 });
+    act(() => vi.advanceTimersByTime(140));
     expect(screen.getByRole('dialog', { name: 'Žlutá zkouška' })).toBeVisible();
+    vi.useRealTimers();
   });
 });

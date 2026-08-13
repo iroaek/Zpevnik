@@ -15,6 +15,7 @@ afterEach(() => {
   delete (document as unknown as { startViewTransition?: unknown }).startViewTransition;
   delete document.documentElement.dataset.navigationDirection;
   delete document.documentElement.dataset.viewTransition;
+  delete document.documentElement.dataset.transitionDriver;
   delete document.documentElement.dataset.transitionPhase;
   vi.restoreAllMocks();
 });
@@ -52,18 +53,59 @@ describe('směr navigačního pohybu', () => {
     expect(start).not.toHaveBeenCalled();
   });
 
-  it('záměrně nepoužije nativní View Transition, která na mobilu bliká', () => {
+  it('použije nativní View Transition pouze nad stabilním obsahem', async () => {
     reducedMotion(false);
-    const start = vi.fn();
+    let finish!: () => void;
+    const finished = new Promise<void>((resolve) => { finish = resolve; });
+    const start = vi.fn((callback: () => void) => {
+      callback();
+      return { finished };
+    });
     Object.defineProperty(document, 'startViewTransition', { configurable: true, value: start });
     const update = vi.fn();
     runRouteTransition(update, 'back');
     expect(update).toHaveBeenCalledOnce();
-    expect(start).not.toHaveBeenCalled();
+    expect(start).toHaveBeenCalledOnce();
+    expect(document.documentElement.dataset.transitionDriver).toBe('native');
+    expect(document.documentElement.dataset.viewTransition).toBe('active');
+    finish();
+    await finished;
+    await Promise.resolve();
     expect(document.documentElement.dataset.viewTransition).toBeUndefined();
   });
 
-  it('animuje pouze transformaci nové obrazovky bez změny průhlednosti', async () => {
+  it('přenese pojmenovaný prvek ze zdroje do cílové obrazovky', async () => {
+    reducedMotion(false);
+    const source = document.createElement('strong');
+    source.textContent = 'Zdroj';
+    document.body.append(source);
+    let finish!: () => void;
+    const finished = new Promise<void>((resolve) => { finish = resolve; });
+    const start = vi.fn((callback: () => void) => {
+      callback();
+      return { finished };
+    });
+    Object.defineProperty(document, 'startViewTransition', { configurable: true, value: start });
+    const update = vi.fn(() => {
+      const target = document.createElement('h1');
+      target.dataset.viewTransitionTarget = 'song-title';
+      document.body.append(target);
+    });
+
+    runRouteTransition(update, 'forward', { source, targetSelector: '[data-view-transition-target="song-title"]', name: 'shared-song-title' });
+    const target = document.querySelector<HTMLElement>('[data-view-transition-target="song-title"]');
+    expect(source.style.getPropertyValue('view-transition-name')).toBe('shared-song-title');
+    expect(target?.style.getPropertyValue('view-transition-name')).toBe('shared-song-title');
+    finish();
+    await finished;
+    await Promise.resolve();
+    expect(source.style.getPropertyValue('view-transition-name')).toBe('');
+    expect(target?.style.getPropertyValue('view-transition-name')).toBe('');
+    source.remove();
+    target?.remove();
+  });
+
+  it('ve fallbacku plynule propojí starou a novou obrazovku změnou polohy i opacity', async () => {
     reducedMotion(false);
     const stage = document.createElement('div');
     stage.className = 'route-stage';
@@ -92,12 +134,12 @@ describe('směr navigačního pohybu', () => {
     expect(update).toHaveBeenCalledOnce();
     expect(animate).toHaveBeenCalledTimes(2);
     expect(animate.mock.calls[0]?.[0]).toEqual([
-      { transform: 'translate3d(0, 0, 0)' },
-      { transform: 'translate3d(-3px, 0, 0)' },
+      { opacity: 1, transform: 'translate3d(0, 0, 0)' },
+      { opacity: 0.58, transform: 'translate3d(-3px, 0, 0)' },
     ]);
     expect(animate.mock.calls[1]?.[0]).toEqual([
-      { transform: 'translate3d(3px, 0, 0)' },
-      { transform: 'translate3d(0, 0, 0)' },
+      { opacity: 0.58, transform: 'translate3d(3px, 0, 0)' },
+      { opacity: 1, transform: 'translate3d(0, 0, 0)' },
     ]);
     expect(document.documentElement.dataset.viewTransition).toBe('active');
     finishEntering();

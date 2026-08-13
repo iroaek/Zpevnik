@@ -434,7 +434,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
       <div className="song-progress-track" role="progressbar" aria-label="Postup písně" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(readerProgress * 100)}><span style={{ transform: `scaleX(${readerProgress})` }} /></div>
       <header className="reader-header">
         <button type="button" className="icon-button" aria-label="Zpět do seznamu" onClick={onBack}><Icon name="back" /></button>
-        <div><p className="eyebrow">{song.categories.join(' · ')}</p><h1>{song.title}</h1><p>{song.authors.join(', ') || 'Autor neuveden'}</p></div>
+        <div><p className="eyebrow">{song.categories.join(' · ')}</p><h1 data-view-transition-target="song-title">{song.title}</h1><p>{song.authors.join(', ') || 'Autor neuveden'}</p></div>
         <button type="button" className="icon-button" aria-label={isFavorite ? 'Odebrat z oblíbených' : 'Přidat do oblíbených'} aria-pressed={isFavorite} onClick={() => { haptic(isFavorite ? 'selection' : 'success'); onUserStateChange((current) => toggleFavorite(current, song.id)); }}><Icon name={isFavorite ? 'star' : 'heart'} /></button>
       </header>
 

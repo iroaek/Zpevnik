@@ -70,6 +70,13 @@ type Route =
   | { name: 'public-setlist'; id: string }
   | { name: 'not-found' };
 
+interface SystemNotice {
+  id: number;
+  message: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}
+
 function preloadRouteModule(name: Route['name']): Promise<unknown> | null {
   switch (name) {
     case 'admin': return loadAdminPage();
@@ -142,7 +149,14 @@ export default function App() {
     setUserState,
   );
   const [updateAvailable, setUpdateAvailable] = useState(hasWaitingUpdate);
-  const [systemMessage, setSystemMessage] = useState('');
+  const [systemNotice, setSystemNotice] = useState<SystemNotice | null>(null);
+  const [navigationPending, setNavigationPending] = useState(false);
+  const setSystemMessage = useCallback((message: string) => {
+    setSystemNotice(message ? { id: Date.now(), message } : null);
+  }, []);
+  const showSystemNotice = useCallback((message: string, actionLabel?: string, onAction?: () => void) => {
+    setSystemNotice({ id: Date.now(), message, actionLabel, onAction });
+  }, []);
   const [readerSequence, setReaderSequence] = useState<string[]>([]);
   const [firstRunOpen, setFirstRunOpen] = useState(false);
   const [statusCenterOpen, setStatusCenterOpen] = useState(false);
@@ -216,12 +230,20 @@ export default function App() {
       const currentKey = routeScrollKey(route);
       if (currentKey) routeScrollPositions.current[currentKey] = window.scrollY;
       const intent = ++navigationIntent.current;
+      let pendingTimer: number | null = null;
       const commit = () => {
         if (intent !== navigationIntent.current) return;
+        if (pendingTimer !== null) window.clearTimeout(pendingTimer);
+        setNavigationPending(false);
         runRouteTransition(() => flushSync(() => setRoute(target)), routeMotionDirection(route.name, target.name));
       };
       const preload = preloadRouteModule(target.name);
-      if (preload) void preload.then(commit, commit);
+      if (preload) {
+        pendingTimer = window.setTimeout(() => {
+          if (intent === navigationIntent.current) setNavigationPending(true);
+        }, 140);
+        void preload.then(commit, commit);
+      }
       else commit();
     };
     window.addEventListener('popstate', popstate);
@@ -235,13 +257,13 @@ export default function App() {
       if (previous && previous !== latest.version) setSystemMessage(`Katalog byl aktualizován na verzi ${latest.version}; nyní obsahuje ${latest.songs.length} písní.`);
       localStorage.setItem('zpevnik-catalog-version', latest.version);
     });
-  }, [online]);
+  }, [online, setSystemMessage]);
 
   useEffect(() => {
-    if (!systemMessage) return;
-    const timer = window.setTimeout(() => setSystemMessage(''), 4500);
+    if (!systemNotice) return;
+    const timer = window.setTimeout(() => setSystemNotice(null), systemNotice.onAction ? 6500 : 4500);
     return () => window.clearTimeout(timer);
-  }, [systemMessage]);
+  }, [systemNotice]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
@@ -256,7 +278,7 @@ export default function App() {
         if ((error as Error).name !== 'AbortError') setSystemMessage(error instanceof Error ? error.message : 'Osobní katalog se nepodařilo načíst.');
       });
     return () => controller.abort();
-  }, []);
+  }, [setSystemMessage]);
 
   const protectedContentOwnerId = secureAccount.enabled ? secureAccount.profile?.id : undefined;
   const refreshDeviceSongs = useCallback(async () => {
@@ -268,7 +290,7 @@ export default function App() {
     loadPersonalSongs(protectedContentOwnerId)
       .then(setDeviceSongs)
       .catch(() => setSystemMessage('Písně uložené v tomto zařízení se nepodařilo načíst.'));
-  }, [protectedContentOwnerId, secureAccount.enabled, secureAccount.hydrated]);
+  }, [protectedContentOwnerId, secureAccount.enabled, secureAccount.hydrated, setSystemMessage]);
 
   useEffect(() => {
     const available = () => {
@@ -295,7 +317,7 @@ export default function App() {
       window.removeEventListener('zpevnik:offline-shell-ready', offlineReady);
       window.removeEventListener('zpevnik:update-error', updateError);
     };
-  }, []);
+  }, [setSystemMessage]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -344,30 +366,49 @@ export default function App() {
   useLayoutEffect(() => {
     const key = routeScrollKey(route);
     scrollWindowInstantly(key ? (routeScrollPositions.current[key] ?? 0) : 0);
+    const heading = document.querySelector<HTMLElement>('.route-stage h1');
+    if (heading) {
+      const hadTabIndex = heading.hasAttribute('tabindex');
+      if (!hadTabIndex) heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+      if (!hadTabIndex) heading.addEventListener('blur', () => heading.removeAttribute('tabindex'), { once: true });
+    }
   }, [route]);
 
-  const navigate = (relative: string, replace = false) => {
+  const navigate = (relative: string, replace = false, sharedSource?: HTMLElement | null, sharedTargetSelector = '[data-view-transition-target="song-title"]', sharedName = 'shared-song-title') => {
     const destination = routePath(relative);
     const target = parseRoute(destination);
     const currentKey = routeScrollKey(route);
     if (currentKey) routeScrollPositions.current[currentKey] = window.scrollY;
     const intent = ++navigationIntent.current;
+    let pendingTimer: number | null = null;
     const commit = () => {
       if (intent !== navigationIntent.current) return;
+      if (pendingTimer !== null) window.clearTimeout(pendingTimer);
+      setNavigationPending(false);
       runRouteTransition(() => flushSync(() => {
         if (replace) history.replaceState({}, '', destination);
         else history.pushState({}, '', destination);
         setRoute(target);
-      }), routeMotionDirection(route.name, target.name));
+      }), routeMotionDirection(route.name, target.name), sharedSource ? {
+        source: sharedSource,
+        targetSelector: sharedTargetSelector,
+        name: sharedName,
+      } : undefined);
     };
     const preload = preloadRouteModule(target.name);
-    if (preload) void preload.then(commit, commit);
+    if (preload) {
+      pendingTimer = window.setTimeout(() => {
+        if (intent === navigationIntent.current) setNavigationPending(true);
+      }, 140);
+      void preload.then(commit, commit);
+    }
     else commit();
   };
 
-  const openSong = (id: string, sequence: string[] = []) => {
+  const openSong = (id: string, sequence: string[] = [], sharedSource?: HTMLElement | null) => {
     setReaderSequence(sequence);
-    navigate(`songs/${id}`);
+    navigate(`songs/${id}`, false, sharedSource);
     setUserState((current) => addRecent(current, id));
   };
 
@@ -380,11 +421,39 @@ export default function App() {
   };
 
   const addToTonightSetlist = (songId: string) => {
+    const existing = userState.setlists.find((setlist) => setlist.name.toLocaleLowerCase('cs') === 'dnešní setlist');
+    if (existing?.songIds.includes(songId)) {
+      setSystemMessage('Píseň už v dnešním setlistu je.');
+      return;
+    }
     setUserState((current) => {
       const existing = current.setlists.find((setlist) => setlist.name.toLocaleLowerCase('cs') === 'dnešní setlist');
       const withSetlist = existing ? current : createSetlist(current, 'Dnešní setlist');
       const tonight = existing ?? withSetlist.setlists.find((setlist) => setlist.name === 'Dnešní setlist');
       return !tonight || tonight.songIds.includes(songId) ? withSetlist : updateSetlistSongs(withSetlist, tonight.id, [...tonight.songIds, songId]);
+    });
+    showSystemNotice('Píseň byla přidána do dnešního setlistu.', 'Vrátit zpět', () => {
+      setUserState((current) => {
+        const tonight = current.setlists.find((setlist) => setlist.name.toLocaleLowerCase('cs') === 'dnešní setlist');
+        return !tonight ? current : updateSetlistSongs(current, tonight.id, tonight.songIds.filter((id) => id !== songId));
+      });
+      setSystemMessage('Píseň byla z dnešního setlistu odebrána.');
+    });
+  };
+
+  const addSongToSetlist = (songId: string, setlistId: string) => {
+    const target = userState.setlists.find((setlist) => setlist.id === setlistId);
+    if (!target || target.songIds.includes(songId)) return;
+    setUserState((current) => {
+      const setlist = current.setlists.find((candidate) => candidate.id === setlistId);
+      return !setlist || setlist.songIds.includes(songId) ? current : updateSetlistSongs(current, setlistId, [...setlist.songIds, songId]);
+    });
+    showSystemNotice(`Píseň byla přidána do setlistu „${target.name}“.`, 'Vrátit zpět', () => {
+      setUserState((current) => {
+        const setlist = current.setlists.find((candidate) => candidate.id === setlistId);
+        return !setlist ? current : updateSetlistSongs(current, setlistId, setlist.songIds.filter((id) => id !== songId));
+      });
+      setSystemMessage('Přidání písně do setlistu bylo vráceno.');
     });
   };
 
@@ -417,6 +486,7 @@ export default function App() {
 
   return (
     <div className={`app-shell ${route.name === 'home' ? 'app-shell--home' : ''}${showMiniPlayer ? ' app-shell--mini-player' : ''}`}>
+      <div className={`navigation-progress${navigationPending ? ' navigation-progress--active' : ''}`} role="status" aria-live="polite" aria-label={navigationPending ? 'Načítám další obrazovku' : undefined}><span aria-hidden="true" /></div>
       {route.name !== 'home' && <header className="app-header">
         <button className="brand" type="button" onClick={() => navigate('')} aria-label="Přejít na úvodní stránku"><span className="brand-mark" aria-hidden="true"><img src={`${import.meta.env.BASE_URL}icons/icon-lazec-192.png`} alt="" /></span><span><strong>Český zpěvník</strong><small>odkaz · PWA · offline</small></span></button>
         <div className="header-status"><button type="button" className={`sync-badge sync-badge--${cloudSync.status}`} onClick={() => setStatusCenterOpen(true)} aria-label="Otevřít stav zpěvníku"><Icon name="sync" size={17} /><span>{cloudSync.status === 'synced' ? 'Uloženo' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Ukládám' : cloudSync.status === 'error' ? 'Chyba' : cloudSync.status === 'offline' ? 'Čeká' : 'Místně'}</span></button><button type="button" className={`connection-badge ${online ? 'online' : 'offline'}`} onClick={() => setStatusCenterOpen(true)} aria-label={`${online ? 'Online' : 'Offline'}; otevřít stav zpěvníku`}><span aria-hidden="true" />{online ? 'Online' : 'Offline'}</button></div>
@@ -424,12 +494,12 @@ export default function App() {
       {route.name !== 'home' && secureAccount.authState.status === 'authenticated-offline' && <aside className="offline-auth-banner" role="status"><strong>Offline režim</strong><span>Oprávnění platí do {new Date(secureAccount.authState.offlineValidUntil).toLocaleDateString('cs-CZ')} · obsah {secureAccount.authState.contentVersion.slice(0, 12)}</span></aside>}
       {route.name !== 'home' && updateAvailable && <UpdateBanner onUpdate={activateWaitingUpdate} onLater={() => setUpdateAvailable(false)} />}
       {route.name !== 'home' && (storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}
-      {route.name !== 'home' && systemMessage && <div className="system-message toast-message" role="status"><Icon name="check" size={20} /><span>{systemMessage}</span><button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemMessage('')}><Icon name="close" size={19} /></button><i className="toast-life" aria-hidden="true" /></div>}
+      {route.name !== 'home' && systemNotice && <div className={`system-message toast-message${systemNotice.onAction ? ' toast-message--action' : ''}`} role="status" key={systemNotice.id}><Icon name="check" size={20} /><span>{systemNotice.message}</span><div className="toast-actions">{systemNotice.actionLabel && systemNotice.onAction && <button type="button" className="toast-undo" onClick={() => { const action = systemNotice.onAction; setSystemNotice(null); if (action) action(); }}>{systemNotice.actionLabel}</button>}<button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemNotice(null)}><Icon name="close" size={19} /></button></div><i className="toast-life" aria-hidden="true" /></div>}
       <main id="main-content" className={`app-main ${route.name === 'home' ? 'app-main--home' : ''}`}>
         <div className="route-stage" key={routeRelativePath(route) || 'home'}><Suspense fallback={<RouteLoading routeName={route.name} />}>
         {route.name === 'home' && <HomeDashboard songs={allSongs} favorites={userState.favorites} recent={userState.recentSongIds} setlistCount={userState.setlists.length} onOpenSong={(id) => openSong(id)} onNavigate={navigate} />}
-        {route.name === 'library' && <Library entry={route.entry} songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} setlists={userState.setlists} density={userState.settings.catalogDensity} onDensityChange={(catalogDensity) => setUserState((current) => ({ ...current, settings: { ...current.settings, catalogDensity } }))} onOpenSong={(id) => openSong(id)} onToggleFavorite={(id) => setUserState((current) => toggleFavorite(current, id))} onAddToSetlist={(songId, setlistId) => setUserState((current) => { const setlist = current.setlists.find((candidate) => candidate.id === setlistId); return !setlist || setlist.songIds.includes(songId) ? current : updateSetlistSongs(current, setlistId, [...setlist.songIds, songId]); })} onAddToTonight={addToTonightSetlist} onDeleteSong={deleteDeviceSong} onNotify={setSystemMessage} />}
-        {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id) => navigate(`setlists/${id}`)} secureProfile={secureAccount.profile} online={online} followedLiveSetlistId={followedLiveSetlistId} onFollowLiveSetlist={setFollowedLiveSetlistId} />}
+        {route.name === 'library' && <Library entry={route.entry} songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} setlists={userState.setlists} density={userState.settings.catalogDensity} onDensityChange={(catalogDensity) => setUserState((current) => ({ ...current, settings: { ...current.settings, catalogDensity } }))} onOpenSong={(id, source) => openSong(id, [], source)} onToggleFavorite={(id) => setUserState((current) => toggleFavorite(current, id))} onAddToSetlist={addSongToSetlist} onAddToTonight={addToTonightSetlist} onDeleteSong={deleteDeviceSong} onNotify={setSystemMessage} />}
+        {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id, source) => navigate(`setlists/${id}`, false, source, '[data-view-transition-target="setlist-title"]', 'shared-setlist-title')} secureProfile={secureAccount.profile} online={online} followedLiveSetlistId={followedLiveSetlistId} onFollowLiveSetlist={setFollowedLiveSetlistId} />}
         {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} />}
         {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} cloudSync={cloudSync} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} onRefreshSecureProfile={secureAccount.refresh} onOpenGuide={() => setFirstRunOpen(true)} />}
         {route.name === 'admin' && secureAccount.enabled && secureAccount.profile?.role === 'admin' && <AdminPage cloudSync={cloudSync} online={online} onNavigate={navigate} onOpenSong={openSong} songs={allSongs} catalogVersion={catalog.version} downloadedSongs={downloadedLibrarySongs.length} availableSongs={allSongs.length} />}
@@ -442,13 +512,13 @@ export default function App() {
         {((route.name === 'song' && !selectedSong) || (route.name === 'public-setlist' && !selectedPublicSetlist) || (route.name === 'admin' && (!secureAccount.enabled || secureAccount.profile?.role !== 'admin')) || route.name === 'not-found') && <section className="info-page not-found"><p className="eyebrow">404</p><h1>Tato stránka ve zpěvníku není</h1><p>Odkaz může být starý nebo chybný.</p><button type="button" className="primary-button" onClick={() => navigate('')}>Přejít na písně</button></section>}
         </Suspense></div>
       </main>
-      {showMiniPlayer && lastOpenedSong && <aside className="now-playing-bar" aria-label="Rozehraná píseň"><button type="button" onClick={() => { haptic('selection'); openSong(lastOpenedSong.id); }}><span className="now-playing-bar__icon" aria-hidden="true"><Icon name="play" size={18} /></span><span><small>Pokračovat v písni</small><strong>{lastOpenedSong.title}</strong><em>{lastOpenedSong.authors.join(', ') || 'Autor neuveden'}</em></span><Icon name="chevronRight" size={19} /></button></aside>}
+      {showMiniPlayer && lastOpenedSong && <aside className="now-playing-bar" aria-label="Rozehraná píseň"><button type="button" onPointerDown={() => void loadSongReader()} onClick={(event) => { haptic('selection'); openSong(lastOpenedSong.id, [], event.currentTarget.querySelector<HTMLElement>('strong')); }}><span className="now-playing-bar__icon" aria-hidden="true"><Icon name="play" size={18} /></span><span><small>Pokračovat v písni</small><strong>{lastOpenedSong.title}</strong><em>{lastOpenedSong.authors.join(', ') || 'Autor neuveden'}</em></span><Icon name="chevronRight" size={19} /></button></aside>}
       {route.name !== 'song' && route.name !== 'home' && <nav className="bottom-nav bottom-nav--five" aria-label="Hlavní navigace">
         <button type="button" className={navScreen === 'library' ? 'active' : ''} aria-current={navScreen === 'library' ? 'page' : undefined} onClick={() => { haptic(); navigate('songs'); }}><Icon name="search" />Písně</button>
-        <button type="button" className={navScreen === 'setlists' ? 'active' : ''} aria-current={navScreen === 'setlists' ? 'page' : undefined} onPointerEnter={() => void loadSetlists()} onFocus={() => void loadSetlists()} onClick={() => { haptic(); navigate('setlists'); }}><Icon name="list" />Setlisty</button>
-        <button type="button" className={navScreen === 'import' ? 'active' : ''} aria-current={navScreen === 'import' ? 'page' : undefined} onPointerEnter={() => void loadPdfImportPage()} onFocus={() => void loadPdfImportPage()} onClick={() => { haptic(); navigate('import'); }}><Icon name="plus" />Přidat</button>
-        <button type="button" className={navScreen === 'offline' ? 'active' : ''} aria-current={navScreen === 'offline' ? 'page' : undefined} onPointerEnter={() => void loadOfflineContent()} onFocus={() => void loadOfflineContent()} onClick={() => { haptic(); navigate('offline'); }}><Icon name="download" />Offline</button>
-        <button type="button" className={navScreen === 'settings' ? 'active' : ''} aria-current={navScreen === 'settings' ? 'page' : undefined} onPointerEnter={() => void loadSettings()} onFocus={() => void loadSettings()} onClick={() => { haptic(); navigate('settings'); }}><Icon name="settings" />Nastavení</button>
+        <button type="button" className={navScreen === 'setlists' ? 'active' : ''} aria-current={navScreen === 'setlists' ? 'page' : undefined} onPointerDown={() => void loadSetlists()} onPointerEnter={() => void loadSetlists()} onFocus={() => void loadSetlists()} onClick={() => { haptic(); navigate('setlists'); }}><Icon name="list" />Setlisty</button>
+        <button type="button" className={navScreen === 'import' ? 'active' : ''} aria-current={navScreen === 'import' ? 'page' : undefined} onPointerDown={() => void loadPdfImportPage()} onPointerEnter={() => void loadPdfImportPage()} onFocus={() => void loadPdfImportPage()} onClick={() => { haptic(); navigate('import'); }}><Icon name="plus" />Přidat</button>
+        <button type="button" className={navScreen === 'offline' ? 'active' : ''} aria-current={navScreen === 'offline' ? 'page' : undefined} onPointerDown={() => void loadOfflineContent()} onPointerEnter={() => void loadOfflineContent()} onFocus={() => void loadOfflineContent()} onClick={() => { haptic(); navigate('offline'); }}><Icon name="download" />Offline</button>
+        <button type="button" className={navScreen === 'settings' ? 'active' : ''} aria-current={navScreen === 'settings' ? 'page' : undefined} onPointerDown={() => void loadSettings()} onPointerEnter={() => void loadSettings()} onFocus={() => void loadSettings()} onClick={() => { haptic(); navigate('settings'); }}><Icon name="settings" />Nastavení</button>
       </nav>}
       <AppStatusCenter open={statusCenterOpen} online={online} profile={secureAccount.profile} offlineAuthenticated={secureAccount.authState.status === 'authenticated-offline'} cloudSync={cloudSync} downloadedSongs={downloadedLibrarySongs.length} availableSongs={allSongs.length} catalogVersion={catalog.version} updateAvailable={updateAvailable} onUpdateAvailable={() => setUpdateAvailable(true)} onInstallUpdate={activateWaitingUpdate} onClose={() => setStatusCenterOpen(false)} onNavigate={navigate} />
       {followedLiveSetlistId && secureAccount.profile?.status === 'approved' && <LiveSetlistFollower setlistId={followedLiveSetlistId} profile={secureAccount.profile} online={online} songs={allSongs} onOpenSong={openSong} onStop={() => setFollowedLiveSetlistId('')} />}

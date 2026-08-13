@@ -9,6 +9,7 @@ import {
   removeSetlist,
   renameSetlist,
   updateSetlistSongs,
+  type Setlist,
   type UserState,
 } from "../storage/database";
 import { ChordSheet } from "./ChordSheet";
@@ -23,7 +24,7 @@ interface SetlistsProps {
   onUserStateChange: React.Dispatch<React.SetStateAction<UserState>>;
   onOpenSong: (id: string, sequence?: string[]) => void;
   publicSetlists: PublicSetlist[];
-  onOpenPublicSetlist: (id: string) => void;
+  onOpenPublicSetlist: (id: string, sharedSource?: HTMLElement | null) => void;
   catalogVersion: string;
   secureProfile?: SecureProfile | null;
   online?: boolean;
@@ -56,12 +57,11 @@ export function Setlists({
   const [songQuery, setSongQuery] = useState("");
   const [songsToAdd, setSongsToAdd] = useState<string[]>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [undo, setUndo] = useState<{
-    setlistId: string;
-    songId: string;
-    index: number;
-    title: string;
-  } | null>(null);
+  const [undo, setUndo] = useState<
+    | { kind: 'song'; setlistId: string; songId: string; index: number; title: string }
+    | { kind: 'setlist'; setlist: Setlist; index: number }
+    | null
+  >(null);
   const [collection, setCollection] = useState<SetlistCollection>("mine");
   const [menuId, setMenuId] = useState("");
   const selectedIdExists = userState.setlists.some(
@@ -124,6 +124,7 @@ export function Setlists({
       updateSetlistSongs(current, selected.id, next),
     );
     setUndo({
+      kind: 'song',
       setlistId: selected.id,
       songId,
       index,
@@ -134,6 +135,18 @@ export function Setlists({
 
   const restoreRemoved = () => {
     if (!undo) return;
+    if (undo.kind === 'setlist') {
+      onUserStateChange((current) => {
+        if (current.setlists.some((setlist) => setlist.id === undo.setlist.id)) return current;
+        const next = [...current.setlists];
+        next.splice(Math.min(undo.index, next.length), 0, undo.setlist);
+        return { ...current, setlists: next, updatedAt: new Date().toISOString() };
+      });
+      setSelectedId(undo.setlist.id);
+      setMessage(`Setlist „${undo.setlist.name}“ byl vrácen.`);
+      setUndo(null);
+      return;
+    }
     onUserStateChange((current) => {
       const target = current.setlists.find(
         (setlist) => setlist.id === undo.setlistId,
@@ -213,10 +226,12 @@ export function Setlists({
   const deleteSelected = () => {
     if (!selected) return;
     const deletedName = selected.name;
+    const deletedIndex = userState.setlists.findIndex((setlist) => setlist.id === selected.id);
     const remaining = userState.setlists.filter(
       (setlist) => setlist.id !== selected.id,
     );
     onUserStateChange((current) => removeSetlist(current, selected.id));
+    setUndo({ kind: 'setlist', setlist: selected, index: Math.max(0, deletedIndex) });
     setSelectedId(remaining[0]?.id ?? "");
     setConfirmDelete(false);
     setRenaming(false);
@@ -309,7 +324,7 @@ export function Setlists({
               <button
                 type="button"
                 className="song-card"
-                onClick={() => onOpenPublicSetlist(setlist.id)}
+                onClick={(event) => onOpenPublicSetlist(setlist.id, event.currentTarget.querySelector<HTMLElement>('.song-card__main > strong'))}
                 key={setlist.id}
               >
                 <span className="song-card__main">
@@ -370,6 +385,12 @@ export function Setlists({
             <p className="success-message" role="status">
               {message}
             </p>
+          )}
+          {undo?.kind === 'setlist' && (
+            <div className="undo-bar" role="status">
+              <span>Setlist „{undo.setlist.name}“ byl odstraněn.</span>
+              <button type="button" className="secondary-button" onClick={restoreRemoved}>Vrátit zpět</button>
+            </div>
           )}
           {userState.setlists.length === 0 ? (
             <p className="empty-state">Zatím nemáte žádný setlist.</p>
@@ -670,7 +691,7 @@ export function Setlists({
                       </div>
                     </div>
                   )}
-                  {undo?.setlistId === selected.id && (
+                  {undo?.kind === 'song' && undo.setlistId === selected.id && (
                     <div className="undo-bar" role="status">
                       <span>„{undo.title}“ byla odebrána.</span>
                       <button
