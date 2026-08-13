@@ -31,17 +31,17 @@ describe('migrace IndexedDB', () => {
     legacy.close();
   });
 
-  it('povýší databázi na verzi 8, převede stav na schéma 6 a zachová uživatelská data', async () => {
+  it('povýší databázi na verzi 9, převede stav na schéma 7 a zachová uživatelská data', async () => {
     const databaseModule = await import('./database');
     const loaded = await databaseModule.loadUserState();
-    expect(databaseModule.DATABASE_VERSION).toBe(8);
-    expect(loaded.schemaVersion).toBe(6);
+    expect(databaseModule.DATABASE_VERSION).toBe(9);
+    expect(loaded.schemaVersion).toBe(7);
     expect(loaded.settings.motion).toBe('gentle');
     expect(loaded.updatedAt).toBe('2026-08-05T00:00:00.000Z');
     expect(loaded.favorites).toEqual(legacyState.favorites);
     expect(loaded.setlists).toEqual(legacyState.setlists);
     expect(loaded.settings.autoScrollSpeed).toBe(31);
-    const upgraded = await openDB('cesky-zpevnik', 8);
+    const upgraded = await openDB('cesky-zpevnik', 9);
     expect([...upgraded.objectStoreNames]).toContain('metadata');
     expect([...upgraded.objectStoreNames]).toContain('personalSongs');
     expect([...upgraded.objectStoreNames]).toContain('personalSongContent');
@@ -154,7 +154,7 @@ describe('migrace IndexedDB', () => {
     })], 'zpevnik-zaloha.json', { type: 'application/json' });
 
     const imported = await databaseModule.importFullBackup(file);
-    expect(imported.state.schemaVersion).toBe(6);
+    expect(imported.state.schemaVersion).toBe(7);
     expect(imported.personalSongCount).toBe(1);
     expect(await databaseModule.loadPersonalSongs()).toContainEqual(expect.objectContaining({
       id: song.id,
@@ -222,7 +222,7 @@ describe('migrace IndexedDB', () => {
     const databaseModule = await import('./database');
     const file = new File([JSON.stringify({ application: 'cesky-digitalni-zpevnik', data: legacyState })], 'stara-zaloha.json', { type: 'application/json' });
     const imported = await databaseModule.importFullBackup(file);
-    expect(imported.state.schemaVersion).toBe(6);
+    expect(imported.state.schemaVersion).toBe(7);
     expect(imported.personalSongCount).toBe(0);
   });
 
@@ -246,7 +246,7 @@ describe('migrace IndexedDB', () => {
     const databaseModule = await import('./database');
     const versionTwo = { ...legacyState, schemaVersion: 2 as const };
     expect(databaseModule.migrateUserState(versionTwo)).toMatchObject({
-      schemaVersion: 6,
+      schemaVersion: 7,
       updatedAt: '2026-08-05T00:00:00.000Z',
       favorites: legacyState.favorites,
     });
@@ -256,7 +256,7 @@ describe('migrace IndexedDB', () => {
     const databaseModule = await import('./database');
     const versionThree = { ...legacyState, schemaVersion: 3 as const, updatedAt: '2026-08-11T13:00:00.000Z' };
     expect(databaseModule.migrateUserState(versionThree)).toMatchObject({
-      schemaVersion: 6,
+      schemaVersion: 7,
       updatedAt: versionThree.updatedAt,
       settings: {
         catalogDensity: 'standard',
@@ -274,7 +274,7 @@ describe('migrace IndexedDB', () => {
       settings: Object.fromEntries(Object.entries(databaseModule.defaultUserState.settings).filter(([key]) => key !== 'motion')),
     };
     expect(databaseModule.migrateUserState(versionFour)).toMatchObject({
-      schemaVersion: 6,
+      schemaVersion: 7,
       settings: { motion: 'gentle', accessibility: { highContrast: false, largeControls: false, oneHanded: false } },
     });
   });
@@ -287,8 +287,37 @@ describe('migrace IndexedDB', () => {
       settings: Object.fromEntries(Object.entries(databaseModule.defaultUserState.settings).filter(([key]) => key !== 'accessibility')),
     };
     expect(databaseModule.migrateUserState(versionFive)).toMatchObject({
-      schemaVersion: 6,
+      schemaVersion: 7,
       settings: { accessibility: { highContrast: false, largeControls: false, oneHanded: false } },
+    });
+  });
+
+  it('explicitně migruje stav schématu 6 a doplní aranžmá pro každou píseň', async () => {
+    const databaseModule = await import('./database');
+    const currentReader = databaseModule.defaultUserState.settings.reader;
+    const readerV6 = {
+      chordScale: currentReader.chordScale,
+      lineHeight: currentReader.lineHeight,
+      columnWidth: currentReader.columnWidth,
+      focusSections: currentReader.focusSections,
+      wrapLayoutText: currentReader.wrapLayoutText,
+      stageFontSize: currentReader.stageFontSize,
+    };
+    const versionSix = {
+      ...databaseModule.defaultUserState,
+      schemaVersion: 6 as const,
+      settings: { ...databaseModule.defaultUserState.settings, reader: readerV6 },
+      songReaderPreferences: {
+        'synthetic-song': { chordScale: 1.1, lineHeight: 1.4, columnWidth: 720, focusSections: true, wrapLayoutText: true, stageFontSize: 28 },
+      },
+    };
+
+    expect(databaseModule.migrateUserState(versionSix)).toMatchObject({
+      schemaVersion: 7,
+      settings: { reader: { transpose: 0, capoFret: 0, autoScrollSpeed: 25 } },
+      songReaderPreferences: {
+        'synthetic-song': { transpose: 0, capoFret: 0, autoScrollSpeed: 25 },
+      },
     });
   });
 

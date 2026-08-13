@@ -11,6 +11,7 @@ import { UpdateBanner } from './components/UpdateBanner';
 import { FirstRunGuide } from './components/FirstRunGuide';
 import { AppStatusCenter } from './components/AppStatusCenter';
 import { LiveSetlistFollower } from './components/LiveSetlistFollower';
+import { GuitarNeckLoader } from './components/GuitarNeckLoader';
 import { hasCompletedFirstRunGuide } from './components/firstRunState';
 import { catalogSchema, type Catalog } from './domain/song';
 import { useConnectivity } from './hooks/useConnectivity';
@@ -160,6 +161,7 @@ export default function App() {
   const [readerSequence, setReaderSequence] = useState<string[]>([]);
   const [firstRunOpen, setFirstRunOpen] = useState(false);
   const [statusCenterOpen, setStatusCenterOpen] = useState(false);
+  const [welcomeCompleteFor, setWelcomeCompleteFor] = useState<string | null>(null);
   const [followedLiveSetlistId, setFollowedLiveSetlistId] = useState(() => {
     try { return localStorage.getItem('zpevnik-follow-live-setlist-v1') ?? ''; } catch { return ''; }
   });
@@ -167,6 +169,18 @@ export default function App() {
   const navigationIntent = useRef(0);
   const online = useConnectivity();
   const installPrompt = useInstallPrompt();
+  const accountReady = Boolean(userProfile) && (!secureAccount.enabled || (
+    (secureAccount.authState.status === 'authenticated-online' || secureAccount.authState.status === 'authenticated-offline')
+    && secureAccount.profile?.status === 'approved'
+  ));
+
+  useEffect(() => {
+    if (!accountReady || !userProfile || welcomeCompleteFor === userProfile.id) return;
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const duration = import.meta.env.MODE === 'e2e' ? 0 : reduced ? 320 : 1_150;
+    const timer = window.setTimeout(() => setWelcomeCompleteFor(userProfile.id), duration);
+    return () => window.clearTimeout(timer);
+  }, [accountReady, userProfile, welcomeCompleteFor]);
 
   useEffect(() => {
     history.scrollRestoration = 'manual';
@@ -468,7 +482,7 @@ export default function App() {
   const navScreen = route.name === 'library' || route.name === 'setlists' || route.name === 'import' || route.name === 'settings' || route.name === 'offline' ? route.name : null;
   const showMiniPlayer = Boolean(navScreen && lastOpenedSong);
 
-  if (!hydrated || !profileHydrated || (secureAccount.enabled && !secureAccount.hydrated)) return <main className="loading-screen"><span className="brand-mark" aria-hidden="true"><img src={`${import.meta.env.BASE_URL}icons/icon-lazec-192.png`} alt="" /></span><p>Otevírám zpěvník…</p></main>;
+  if (!hydrated || !profileHydrated || (secureAccount.enabled && !secureAccount.hydrated)) return <GuitarNeckLoader message="Otevírám zpěvník…" />;
 
   if (secureAccount.required && !secureAccount.enabled) return <main className="app-main"><section className="registration-page"><div className="registration-card"><p className="eyebrow">Soukromý režim</p><h1>Server není připojený</h1><p className="lead">{friendlyError(secureAccount.error, 'Připojení soukromého serveru není dokončené.')}</p><small>Žádné soukromé písně nebyly načteny. Tuto konfiguraci musí dokončit administrátor.</small></div></section></main>;
 
@@ -483,6 +497,8 @@ export default function App() {
   if (secureAccount.enabled && secureAccount.profile && secureAccount.profile.status !== 'approved') return <ApprovalGate profile={secureAccount.profile} onRefresh={secureAccount.refresh} />;
 
   if (!userProfile) return <main className="app-main"><RegistrationPage canInstall={installPrompt.canPrompt} installed={installPrompt.installed} onInstall={installPrompt.install} onRegister={setUserProfile} />{(storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}</main>;
+
+  if (accountReady && welcomeCompleteFor !== userProfile.id) return <GuitarNeckLoader message={`Vítejte, ${userProfile.displayName}`} />;
 
   return (
     <div className={`app-shell ${route.name === 'home' ? 'app-shell--home' : ''}${showMiniPlayer ? ' app-shell--mini-player' : ''}`}>

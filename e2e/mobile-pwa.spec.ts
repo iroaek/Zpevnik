@@ -72,15 +72,26 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await expect(page.getByText('žádná známá píseň')).toBeVisible();
   await page.getByRole('button', { name: 'Pozastavit automatický posun' }).click();
 
+  await page.getByRole('button', { name: 'Režim u ohně' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-performance-mode', 'fire');
+  await expect(page.getByText('Jiskra kreslí')).toBeVisible();
+  await expect(page.locator('.reader-guidance')).toBeHidden();
+  await expectNoPageOverflow(page);
+  await page.getByRole('button', { name: 'Ukončit režim u ohně' }).click();
+
   await page.getByRole('button', { name: 'Pódiový režim' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-fire-mode', 'true');
+  await expect(page.locator('html')).toHaveAttribute('data-performance-mode', 'stage');
   await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(false);
   const initialFireSize = await page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
-  await page.getByRole('button', { name: 'Zvětšit pódiový text' }).click();
+  await page.getByRole('button', { name: 'Zvětšit text' }).click();
   await expect.poll(() => page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThan(initialFireSize);
   const fireDockBottomGap = await page.locator('.fire-dock').evaluate((element) => Math.abs(window.innerHeight - element.getBoundingClientRect().bottom));
   expect(fireDockBottomGap).toBeLessThanOrEqual(1);
   await expectNoPageOverflow(page);
+  if (!await page.getByRole('button', { name: 'Ukončit pódiový režim' }).isVisible()) {
+    await page.getByRole('button', { name: 'Zobrazit pódiové ovládání' }).click();
+  }
   await page.getByRole('button', { name: 'Ukončit pódiový režim' }).click();
 });
 

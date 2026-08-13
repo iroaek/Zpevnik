@@ -21,6 +21,8 @@ describe('Úvodní rozcestník', () => {
     expect(view.container.querySelectorAll('.dashboard-orbits button')).toHaveLength(6);
     expect(view.container.querySelector('.library-sticky-panel')).toBeNull();
     expect(view.container.querySelector('.song-list')).toBeNull();
+    expect(screen.getByText('1', { selector: '.home-dashboard-stats strong' })).toBeVisible();
+    expect(screen.getByText('Připraveno k hraní')).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: /^Akordy/ }));
     expect(onNavigate).toHaveBeenCalledWith('songs');
   });

@@ -25,7 +25,7 @@ export function useUserState(): [UserState, React.Dispatch<React.SetStateAction<
     setState((current) => {
       const next = typeof change === 'function' ? change(current) : change;
       if (next === current) return current;
-      return { ...next, schemaVersion: 6, updatedAt: new Date().toISOString() };
+      return { ...next, schemaVersion: 7, updatedAt: new Date().toISOString() };
     });
   }, []);
 

@@ -45,10 +45,13 @@ export interface ReaderPreferences {
   focusSections: boolean;
   wrapLayoutText: boolean;
   stageFontSize: number;
+  transpose: number;
+  capoFret: number;
+  autoScrollSpeed: number;
 }
 
 export interface UserState {
-  schemaVersion: 6;
+  schemaVersion: 7;
   updatedAt: string;
   favorites: string[];
   recentSongIds: string[];
@@ -204,7 +207,7 @@ const legacySettingsSchema = z.object({
   autoScrollSpeed: z.number().min(0).max(100),
 });
 
-const readerPreferencesSchema = z.object({
+const readerPreferencesV6Schema = z.object({
   chordScale: z.number().min(0.75).max(1.4),
   lineHeight: z.number().min(1.15).max(1.8),
   columnWidth: z.number().int().min(320).max(980),
@@ -213,9 +216,15 @@ const readerPreferencesSchema = z.object({
   stageFontSize: z.number().int().min(14).max(40),
 });
 
+const readerPreferencesSchema = readerPreferencesV6Schema.extend({
+  transpose: z.number().int().min(-12).max(12),
+  capoFret: z.number().int().min(0).max(11),
+  autoScrollSpeed: z.number().min(5).max(100),
+});
+
 const settingsV4Schema = legacySettingsSchema.extend({
   catalogDensity: z.enum(['stage', 'standard', 'compact']),
-  reader: readerPreferencesSchema,
+  reader: readerPreferencesV6Schema,
 });
 
 const settingsV5Schema = settingsV4Schema.extend({
@@ -228,9 +237,11 @@ const accessibilityPreferencesSchema = z.object({
   oneHanded: z.boolean(),
 });
 
-const settingsSchema = settingsV5Schema.extend({
+const settingsV6Schema = settingsV5Schema.extend({
   accessibility: accessibilityPreferencesSchema,
 });
+
+const settingsSchema = settingsV6Schema.extend({ reader: readerPreferencesSchema });
 
 const legacyUserStateFields = {
   favorites: z.array(z.string()),
@@ -255,7 +266,7 @@ const userStateV4Schema = z.object({
   recentSongIds: legacyUserStateFields.recentSongIds,
   setlists: legacyUserStateFields.setlists,
   settings: settingsV4Schema,
-  songReaderPreferences: z.record(z.string().min(1).max(200), readerPreferencesSchema).refine((value) => Object.keys(value).length <= 250, 'Příliš mnoho nastavení jednotlivých písní.'),
+  songReaderPreferences: z.record(z.string().min(1).max(200), readerPreferencesV6Schema).refine((value) => Object.keys(value).length <= 250, 'Příliš mnoho nastavení jednotlivých písní.'),
 });
 const userStateV5Schema = z.object({
   schemaVersion: z.literal(5),
@@ -264,10 +275,19 @@ const userStateV5Schema = z.object({
   recentSongIds: legacyUserStateFields.recentSongIds,
   setlists: legacyUserStateFields.setlists,
   settings: settingsV5Schema,
-  songReaderPreferences: z.record(z.string().min(1).max(200), readerPreferencesSchema).refine((value) => Object.keys(value).length <= 250, 'Příliš mnoho nastavení jednotlivých písní.'),
+  songReaderPreferences: z.record(z.string().min(1).max(200), readerPreferencesV6Schema).refine((value) => Object.keys(value).length <= 250, 'Příliš mnoho nastavení jednotlivých písní.'),
+});
+const userStateV6Schema = z.object({
+  schemaVersion: z.literal(6),
+  updatedAt: z.string().datetime(),
+  favorites: legacyUserStateFields.favorites,
+  recentSongIds: legacyUserStateFields.recentSongIds,
+  setlists: legacyUserStateFields.setlists,
+  settings: settingsV6Schema,
+  songReaderPreferences: z.record(z.string().min(1).max(200), readerPreferencesV6Schema).refine((value) => Object.keys(value).length <= 250, 'Příliš mnoho nastavení jednotlivých písní.'),
 });
 export const userStateSchema = z.object({
-  schemaVersion: z.literal(6),
+  schemaVersion: z.literal(7),
   updatedAt: z.string().datetime(),
   favorites: legacyUserStateFields.favorites,
   recentSongIds: legacyUserStateFields.recentSongIds,
@@ -314,7 +334,7 @@ const diagnosticEventSchema: z.ZodType<DiagnosticEvent> = z.object({
 const INITIAL_STATE_UPDATED_AT = '1970-01-01T00:00:00.000Z';
 
 export const defaultUserState: UserState = {
-  schemaVersion: 6,
+  schemaVersion: 7,
   updatedAt: INITIAL_STATE_UPDATED_AT,
   favorites: [],
   recentSongIds: [],
@@ -341,6 +361,9 @@ export const defaultUserState: UserState = {
       focusSections: false,
       wrapLayoutText: true,
       stageFontSize: 24,
+      transpose: 0,
+      capoFret: 0,
+      autoScrollSpeed: 25,
     },
   },
   songReaderPreferences: {},
@@ -370,7 +393,7 @@ const personalSongEntrySchema = z.object({
 
 const personalSongBackupSchema = z.array(personalSongEntrySchema).max(5_000);
 
-export const DATABASE_VERSION = 8;
+export const DATABASE_VERSION = 9;
 
 const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
   async upgrade(database, oldVersion, _newVersion, transaction) {
@@ -407,6 +430,14 @@ const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
       // stáhnout jen změněné bloky. Aktivní knihovna zůstává v původních
       // storech a je přepnuta až po ověření celého výsledku.
       database.createObjectStore('contentPackageChunks');
+    }
+    if (oldVersion < 9) {
+      // Verze 9 ukládá osobní aranž písně (tóninu, kapodastr a rychlost)
+      // do synchronizovaného stavu. Převod je čistě datový a zachovává store.
+      const stateStore = transaction.objectStore('state');
+      const stored = await stateStore.get('current') as unknown;
+      const migrated = migrateUserState(stored);
+      if (migrated) await stateStore.put(migrated, 'current');
     }
   },
   blocked() {
@@ -493,25 +524,47 @@ export async function loadSongSubmissions(): Promise<SongSubmission[]> {
   }).sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 }
 
+function migrateReaderPreferences(preferences: z.infer<typeof readerPreferencesV6Schema>): ReaderPreferences {
+  return {
+    ...preferences,
+    transpose: 0,
+    capoFret: 0,
+    autoScrollSpeed: defaultUserState.settings.autoScrollSpeed,
+  };
+}
+
+function migrateSongReaderPreferences(preferences: Record<string, z.infer<typeof readerPreferencesV6Schema>>): Record<string, ReaderPreferences> {
+  return Object.fromEntries(Object.entries(preferences).map(([songId, value]) => [songId, migrateReaderPreferences(value)]));
+}
+
 export function migrateUserState(stored: unknown): UserState | null {
   const current = userStateSchema.safeParse(stored);
   if (current.success) return current.data;
+  const versionSix = userStateV6Schema.safeParse(stored);
+  if (versionSix.success) return {
+    ...versionSix.data,
+    schemaVersion: 7,
+    settings: { ...versionSix.data.settings, reader: migrateReaderPreferences(versionSix.data.settings.reader) },
+    songReaderPreferences: migrateSongReaderPreferences(versionSix.data.songReaderPreferences),
+  };
   const versionFive = userStateV5Schema.safeParse(stored);
   if (versionFive.success) return {
     ...versionFive.data,
-    schemaVersion: 6,
-    settings: { ...versionFive.data.settings, accessibility: { ...defaultUserState.settings.accessibility } },
+    schemaVersion: 7,
+    settings: { ...versionFive.data.settings, accessibility: { ...defaultUserState.settings.accessibility }, reader: migrateReaderPreferences(versionFive.data.settings.reader) },
+    songReaderPreferences: migrateSongReaderPreferences(versionFive.data.songReaderPreferences),
   };
   const versionFour = userStateV4Schema.safeParse(stored);
   if (versionFour.success) return {
     ...versionFour.data,
-    schemaVersion: 6,
-    settings: { ...versionFour.data.settings, motion: defaultUserState.settings.motion, accessibility: { ...defaultUserState.settings.accessibility } },
+    schemaVersion: 7,
+    settings: { ...versionFour.data.settings, motion: defaultUserState.settings.motion, accessibility: { ...defaultUserState.settings.accessibility }, reader: migrateReaderPreferences(versionFour.data.settings.reader) },
+    songReaderPreferences: migrateSongReaderPreferences(versionFour.data.songReaderPreferences),
   };
   const versionThree = userStateV3Schema.safeParse(stored);
   if (versionThree.success) return {
     ...versionThree.data,
-    schemaVersion: 6,
+    schemaVersion: 7,
     settings: {
       ...versionThree.data.settings,
       catalogDensity: defaultUserState.settings.catalogDensity,
@@ -524,7 +577,7 @@ export function migrateUserState(stored: unknown): UserState | null {
   const versionTwo = userStateV2Schema.safeParse(stored);
   if (versionTwo.success) return {
     ...versionTwo.data,
-    schemaVersion: 6,
+    schemaVersion: 7,
     updatedAt: versionTwo.data.setlists.reduce((latest, setlist) => setlist.updatedAt > latest ? setlist.updatedAt : latest, INITIAL_STATE_UPDATED_AT),
     settings: {
       ...versionTwo.data.settings,
@@ -538,7 +591,7 @@ export function migrateUserState(stored: unknown): UserState | null {
   const legacy = legacyUserStateSchema.safeParse(stored);
   return legacy.success ? {
     ...legacy.data,
-    schemaVersion: 6,
+    schemaVersion: 7,
     updatedAt: legacy.data.setlists.reduce((latest, setlist) => setlist.updatedAt > latest ? setlist.updatedAt : latest, INITIAL_STATE_UPDATED_AT),
     settings: {
       ...legacy.data.settings,

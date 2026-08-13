@@ -4,7 +4,7 @@ import { classifySyncError, decideUserStateSync, newestLocalUserState, retryDela
 
 function state(updatedAt: string): UserState {
   return {
-    schemaVersion: 6,
+    schemaVersion: 7,
     updatedAt,
     favorites: [],
     recentSongIds: [],
@@ -20,7 +20,10 @@ function state(updatedAt: string): UserState {
       catalogDensity: 'standard',
       motion: 'gentle',
       accessibility: { highContrast: false, largeControls: false, oneHanded: false },
-      reader: { chordScale: 1, lineHeight: 1.3, columnWidth: 760, focusSections: false, wrapLayoutText: true, stageFontSize: 24 },
+      reader: {
+        chordScale: 1, lineHeight: 1.3, columnWidth: 760, focusSections: false, wrapLayoutText: true,
+        stageFontSize: 24, transpose: 0, capoFret: 0, autoScrollSpeed: 24,
+      },
     },
     songReaderPreferences: {},
   };

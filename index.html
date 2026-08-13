@@ -12,16 +12,26 @@
     <link rel="canonical" href="%PUBLIC_BASE_URL%" />
     <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_BASE_PATH%icons/apple-touch-icon-lazec.png" />
     <style>
-      html, body { margin: 0; min-height: 100%; background: #f3ecdf; }
-      .boot-shell { display: grid; place-content: center; justify-items: center; min-height: 100vh; gap: 14px; color: #34251f; font: 600 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-      .boot-shell span { display: grid; place-items: center; width: 52px; height: 52px; color: #fff; font-size: 25px; border-radius: 16px; background: #7a321f; box-shadow: 0 14px 36px rgba(72,40,25,.18); }
-      @media (prefers-color-scheme: dark) { html, body { background: #171310; } .boot-shell { color: #fff4df; } .boot-shell span { background: #ef9a71; } }
+      html, body { margin: 0; min-height: 100%; background: #160e0b; }
+      .boot-shell { display: grid; place-content: center; justify-items: center; min-height: 100vh; min-height: 100svh; gap: 22px; overflow: hidden; color: #fff5e6; background: radial-gradient(circle at 50% 44%, #874027 0, #3d1c14 31%, #160e0b 72%); font: 600 15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .boot-neck { position: relative; width: min(78vw, 464px); height: clamp(112px, 23vw, 144px); overflow: hidden; border: 1px solid rgba(255,228,190,.32); border-radius: 16px 48px 48px 16px; background: linear-gradient(90deg, #2a120d, #6a321f 20%, #8a4b2e 58%, #4b2217); box-shadow: inset 0 1px rgba(255,255,255,.18), inset 0 -20px 40px rgba(27,10,6,.32), 0 30px 75px rgba(0,0,0,.38); transform: perspective(576px) rotateX(7deg) rotateZ(-1.5deg); }
+      .boot-neck::after { position: absolute; inset: 0; content: ""; background: linear-gradient(104deg, transparent 12%, rgba(255,255,255,.16) 43%, transparent 58%); animation: boot-shimmer 1.8s cubic-bezier(.22,1,.36,1) infinite; }
+      .boot-neck i { position: absolute; z-index: 2; right: 0; left: 0; height: 1px; background: linear-gradient(90deg, #caa67d, #fff3cf 45%, #9e7953); box-shadow: 0 1px rgba(0,0,0,.4); }
+      .boot-neck i:nth-child(1) { top: 15%; }.boot-neck i:nth-child(2) { top: 29%; }.boot-neck i:nth-child(3) { top: 43%; height: 1.4px; }.boot-neck i:nth-child(4) { top: 57%; height: 1.7px; }.boot-neck i:nth-child(5) { top: 71%; height: 2px; }.boot-neck i:nth-child(6) { top: 85%; height: 2.3px; }
+      .boot-neck b { position: absolute; z-index: 1; top: 0; bottom: 0; width: 2px; background: linear-gradient(#f4d7b0, #73533d 45%, #f2cc9b); box-shadow: 1px 0 rgba(0,0,0,.45); }
+      .boot-neck b:nth-of-type(1) { left: 7%; width: 5px; }.boot-neck b:nth-of-type(2) { left: 23%; }.boot-neck b:nth-of-type(3) { left: 40%; }.boot-neck b:nth-of-type(4) { left: 56%; }.boot-neck b:nth-of-type(5) { left: 71%; }.boot-neck b:nth-of-type(6) { left: 85%; }
+      .boot-shell p { margin: 0; font-family: ui-serif, Georgia, serif; font-size: clamp(23px, 5vw, 35px); text-align: center; }
+      .boot-progress { width: min(64vw, 256px); height: 3px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.12); }
+      .boot-progress span { display: block; width: 42%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ff9a67, #ffd06f); animation: boot-progress 1.25s cubic-bezier(.22,1,.36,1) infinite; }
+      @keyframes boot-shimmer { from { transform: translateX(-120%); } 65%, 100% { transform: translateX(135%); } }
+      @keyframes boot-progress { from { transform: translateX(-115%); } to { transform: translateX(250%); } }
+      @media (prefers-reduced-motion: reduce) { .boot-neck::after, .boot-progress span { animation: none; }.boot-progress span { width: 100%; } }
     </style>
     <title>Český digitální zpěvník</title>
   </head>
   <body>
     <a class="skip-link" href="#main-content">Přeskočit na obsah</a>
-    <div id="root"><main class="boot-shell" aria-label="Načítání aplikace"><span aria-hidden="true">♫</span><p>Otevírám zpěvník…</p></main></div>
+    <div id="root"><main class="boot-shell" role="status" aria-live="polite" aria-label="Načítání aplikace"><div class="boot-neck" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><b></b><b></b><b></b><b></b><b></b><b></b></div><p>Otevírám zpěvník…</p><div class="boot-progress" aria-hidden="true"><span></span></div></main></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
