@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { parseChordPro } from '../domain/chordpro';
 import { parseChord, renderChord, transposeCanonicalChord, type ChordNotation } from '../domain/chords';
@@ -106,6 +106,8 @@ export function ChordSheet({
   const parsed = useMemo(() => parseChordPro(source), [source]);
   const [popover, setPopover] = useState<ChordPopoverState | null>(null);
   const [activeSection, setActiveSection] = useState<number | null>(null);
+  const chordDrag = useRef<{ sourceIndex: number; startX: number } | null>(null);
+  const suppressChordClick = useRef(false);
   useEffect(() => {
     if (!popover) return;
     const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setPopover(null); };
@@ -130,8 +132,24 @@ export function ChordSheet({
                 {line.map((token, tokenIndex) => (
                   <span className="chord-token" data-has-chord={Boolean(token.chord)} key={`token-${tokenIndex}`}>
                     {lineHasChords && (token.chord
-                      ? <button type="button" className="chord" aria-label={`Akord ${displayedChord(token.chord, semitones, sourceNotation, notation)}; ${editMode ? 'upravit polohu' : 'zobrazit hmat'}`} aria-haspopup="dialog" onClick={(event) => {
+                      ? <button type="button" className={`chord ${editMode ? 'chord--draggable' : ''}`} aria-label={`Akord ${displayedChord(token.chord, semitones, sourceNotation, notation)}; ${editMode ? 'upravit polohu' : 'zobrazit hmat'}`} aria-haspopup="dialog" onPointerDown={(event) => {
+                        if (!editMode || token.sourceIndex === undefined || !onMoveChord) return;
+                        chordDrag.current = { sourceIndex: token.sourceIndex, startX: event.clientX };
+                        suppressChordClick.current = false;
+                        event.currentTarget.setPointerCapture?.(event.pointerId);
+                      }} onPointerUp={(event) => {
+                        const drag = chordDrag.current;
+                        chordDrag.current = null;
+                        if (!drag || !editMode || !onMoveChord) return;
+                        const pixels = event.clientX - drag.startX;
+                        const delta = Math.round(pixels / Math.max(8, fontSize * 0.55));
+                        if (delta === 0) return;
+                        suppressChordClick.current = true;
+                        onMoveChord(drag.sourceIndex, delta);
+                        navigator.vibrate?.(8);
+                      }} onPointerCancel={() => { chordDrag.current = null; }} onClick={(event) => {
                         event.stopPropagation();
+                        if (suppressChordClick.current) { suppressChordClick.current = false; return; }
                         const rect = event.currentTarget.getBoundingClientRect();
                         const width = Math.min(300, window.innerWidth - 24);
                         const estimatedHeight = 320;

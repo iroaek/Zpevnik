@@ -1,4 +1,4 @@
-import { cleanup, render } from '@testing-library/react';
+import { cleanup, fireEvent, render } from '@testing-library/react';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -67,5 +67,14 @@ describe('sazba textu a akordů', () => {
     expect(screen.getByRole('dialog', { name: 'Úprava polohy akordu F#' })).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: 'Posunout o jeden znak doprava' }));
     expect(onMoveChord).toHaveBeenCalledWith(0, 1);
+  });
+
+  it('v režimu úprav dovolí akord táhnout nad slabiku', () => {
+    const onMoveChord = vi.fn();
+    render(<ChordSheet editMode fontSize={20} source={'[G]Syntetický text'} onMoveChord={onMoveChord} />);
+    const chord = screen.getByRole('button', { name: /Akord G; upravit polohu/ });
+    fireEvent.pointerDown(chord, { pointerId: 1, clientX: 40 });
+    fireEvent.pointerUp(chord, { pointerId: 1, clientX: 62 });
+    expect(onMoveChord).toHaveBeenCalledWith(0, 2);
   });
 });

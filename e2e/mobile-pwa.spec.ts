@@ -90,6 +90,8 @@ test('kapodastr používá křížky a ruční posun akordu uloží přesnou lok
   await expect(page.getByRole('heading', { name: 'Syntetická jiskra' })).toBeVisible();
 
   await page.locator('details.capo-hint > summary').click();
+  await expect(page.getByRole('button', { name: 'Začátečník' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.capo-planner')).toContainText('Obtížné hmaty');
   const capoOne = page.getByRole('radio', { name: /1\. pražec F#/ });
   await expect(capoOne).toBeVisible();
   await expect(page.locator('.capo-option-grid')).not.toContainText(/Cis|Dis|Fis|Gis|Ais/);
@@ -102,6 +104,10 @@ test('kapodastr používá křížky a ruční posun akordu uloží přesnou lok
   await page.getByRole('button', { name: 'Posunout o jeden znak doprava' }).click();
   await expect(page.getByText('Akord byl posunut doprava a uložen v zařízení.')).toBeVisible();
   await page.getByRole('button', { name: 'Zavřít', exact: true }).click();
+  await page.getByRole('button', { name: '↶ Zpět' }).click();
+  await expect(page.getByText('Poslední posun akordu byl vrácen.')).toBeVisible();
+  await page.getByRole('button', { name: '↷ Znovu' }).click();
+  await expect(page.getByText('Vrácený posun akordu byl znovu použit.')).toBeVisible();
   await expectNoPageOverflow(page);
 
   await page.getByRole('button', { name: 'Upravit', exact: true }).click();

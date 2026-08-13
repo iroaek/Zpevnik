@@ -62,4 +62,10 @@ describe('transpozice českých a mezinárodních akordů', () => {
     expect(options.find((option) => option.capo === 2)).toMatchObject({ shapeKey: 'A', difficulty: 'open', recommended: true });
     expect(options.find((option) => option.shapeKey === 'F')).toMatchObject({ difficulty: 'barre' });
   });
+
+  it('hodnotí polohu podle obtížnosti všech akordů v písni', () => {
+    const options = calculateCapoOptions('F', 'czech', ['F', 'B', 'C7'], 'beginner');
+    expect(options[0].barreCount).toBeGreaterThan(0);
+    expect(options.find((option) => option.capo === 5)?.score).toBeLessThan(options[0].score);
+  });
 });

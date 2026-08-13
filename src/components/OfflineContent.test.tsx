@@ -6,7 +6,7 @@ import { catalogSchema } from '../domain/song';
 import catalogJson from '../generated/catalog.json';
 import { inspectOfflineContent } from '../pwa/contentCache';
 import { checkForUpdate } from '../pwa/updateManager';
-import { inspectContentPackageIntegrity, loadDownloadedLibraryMetadata, removeDownloadedLibrarySongs, removePersonalSong, removeProtectedSong } from '../storage/database';
+import { inspectContentPackageIntegrity, loadDownloadedLibraryMetadata, loadPendingMutations, removeDownloadedLibrarySongs, removePersonalSong, removeProtectedSong } from '../storage/database';
 import { OfflineContent } from './OfflineContent';
 
 vi.mock('../hooks/useConnectivity', () => ({ useConnectivity: () => true }));
@@ -19,6 +19,7 @@ vi.mock('../pwa/updateManager', () => ({
 vi.mock('../storage/database', () => ({
   loadDownloadedLibraryMetadata: vi.fn(),
   inspectContentPackageIntegrity: vi.fn(),
+  loadPendingMutations: vi.fn(),
   removeDownloadedLibrarySongs: vi.fn(),
   removePersonalSong: vi.fn(),
   removeProtectedSong: vi.fn(),
@@ -76,6 +77,7 @@ describe('Offline obsah', () => {
     vi.mocked(loadApprovedLibraryManifest).mockReset().mockResolvedValue(null);
     vi.mocked(loadDownloadedLibraryMetadata).mockReset().mockResolvedValue(null);
     vi.mocked(inspectContentPackageIntegrity).mockReset().mockResolvedValue(null);
+    vi.mocked(loadPendingMutations).mockReset().mockResolvedValue([]);
     vi.mocked(removeDownloadedLibrarySongs).mockReset().mockResolvedValue(1);
     vi.mocked(removePersonalSong).mockReset().mockResolvedValue(undefined);
     vi.mocked(removeProtectedSong).mockReset().mockResolvedValue(undefined);

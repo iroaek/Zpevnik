@@ -201,10 +201,20 @@ export interface CapoOption {
   capo: number;
   shapeKey: string;
   difficulty: 'open' | 'barre' | 'advanced';
+  barreCount: number;
+  advancedCount: number;
+  score: number;
   recommended: boolean;
 }
 
-export function calculateCapoOptions(targetKey: string, notation: ChordNotation): CapoOption[] {
+export type CapoPlayerLevel = 'beginner' | 'standard' | 'all';
+
+export function calculateCapoOptions(
+  targetKey: string,
+  notation: ChordNotation,
+  songChords: string[] = [],
+  playerLevel: CapoPlayerLevel = 'standard',
+): CapoOption[] {
   const parsed = parseChord(targetKey, notation);
   if (!parsed) return [];
   const easyPitchClasses = new Set([0, 2, 4, 7, 9]);
@@ -218,11 +228,21 @@ export function calculateCapoOptions(targetKey: string, notation: ChordNotation)
       : barrePitchClasses.has(pitchClass)
         ? 'barre'
         : 'advanced';
-    return { capo, shapeKey, difficulty, recommended: false };
+    const chordDifficulties = songChords.flatMap((symbol) => {
+      const chord = parseChord(symbol, notation) ?? parseChord(symbol, notation === 'czech' ? 'international' : 'czech');
+      if (!chord) return [];
+      const shifted = transposeCanonicalChord(chord, -capo);
+      return [easyPitchClasses.has(shifted.root.pitchClass) ? 'open' : barrePitchClasses.has(shifted.root.pitchClass) ? 'barre' : 'advanced'];
+    });
+    const barreCount = chordDifficulties.filter((value) => value === 'barre').length;
+    const advancedCount = chordDifficulties.filter((value) => value === 'advanced').length;
+    const levelPenalty = playerLevel === 'beginner' ? 3 : playerLevel === 'standard' ? 2 : 1;
+    const score = barreCount * levelPenalty + advancedCount * (levelPenalty + 1) + Math.max(0, capo - 7);
+    return { capo, shapeKey, difficulty, barreCount, advancedCount, score, recommended: false };
   });
   const preferred = options
-    .filter((option) => option.capo <= 7 && option.difficulty === 'open')
-    .sort((left, right) => left.capo - right.capo)
+    .filter((option) => option.capo <= 7 && (playerLevel === 'all' || option.difficulty === 'open'))
+    .sort((left, right) => left.score - right.score || left.capo - right.capo)
     .slice(0, 3)
     .map((option) => option.capo);
   return options.map((option) => ({ ...option, recommended: preferred.includes(option.capo) }));

@@ -18,6 +18,7 @@ import { requestPersistentStorage, storagePersistenceState } from '../pwa/storag
 import {
   loadDownloadedLibraryMetadata,
   inspectContentPackageIntegrity,
+  loadPendingMutations,
   removeDownloadedLibrarySongs,
   removePersonalSong,
   removeProtectedSong,
@@ -73,6 +74,8 @@ export function OfflineContent({
   const [memberIntegrity, setMemberIntegrity] = useState<ContentPackageIntegrity | null>(null);
   const [storagePersistent, setStoragePersistent] = useState<boolean | null>(null);
   const [storageUsage, setStorageUsage] = useState<{ usage: number; quota: number } | null>(null);
+  const [pendingChanges, setPendingChanges] = useState(0);
+  const [openedAt] = useState(() => Date.now());
   const scoreEstimate = useMemo(() => catalog.songs.flatMap((song) => song.scoreAssets).reduce((sum, asset) => sum + asset.byteSize, 0), [catalog]);
   const songEstimate = useMemo(() => catalog.songs.reduce((sum, song) => sum + song.contentBytes, 0), [catalog]);
   const filteredLibrarySongs = useMemo(() => {
@@ -98,6 +101,13 @@ export function OfflineContent({
       setStorageUsage({ usage: estimate.usage ?? 0, quota: estimate.quota ?? 0 });
     }).catch(() => setStorageUsage(null));
   }, [catalog]);
+
+  useEffect(() => {
+    let active = true;
+    const pending = secureProfile ? loadPendingMutations(secureProfile.id) : Promise.resolve([]);
+    void pending.then((items) => { if (active) setPendingChanges(items.length); }).catch(() => { if (active) setPendingChanges(0); });
+    return () => { active = false; };
+  }, [online, secureProfile]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -311,6 +321,7 @@ export function OfflineContent({
     && ((stats?.downloadedScores ?? 0) === 0 || missingScores === 0);
   const shellReady = Boolean(stats?.serviceWorkerActive);
   const authorizationReady = !secureMode || Boolean(offlineGrant);
+  const grantDaysRemaining = offlineGrant ? Math.ceil((new Date(offlineGrant.offlineValidUntil).getTime() - openedAt) / 86_400_000) : null;
   const ready = secureMode
     ? memberLibraryReady && authorizationReady && shellReady
     : publicCatalogReady && shellReady;
@@ -345,6 +356,8 @@ export function OfflineContent({
         <span><small>Uložená cache</small><strong>{formatBytes(stats?.bytes ?? 0)}</strong></span>
         <span><small>Offline oprávnění</small><strong>{offlineGrant ? `do ${new Date(offlineGrant.offlineValidUntil).toLocaleDateString('cs-CZ')}` : secureMode ? 'není aktivní' : 'nevyžaduje se'}</strong></span>
         <span><small>Trvalé úložiště</small><strong>{storagePersistent === true ? 'povoleno' : storagePersistent === false ? 'nepovoleno' : 'nezjištěno'}</strong></span>
+        <span><small>Změny čekající na synchronizaci</small><strong>{pendingChanges}</strong></span>
+        <span><small>Platnost zařízení</small><strong>{grantDaysRemaining === null ? '—' : grantDaysRemaining > 1 ? `${grantDaysRemaining} dní` : grantDaysRemaining === 1 ? 'poslední den' : 'vyžaduje obnovu'}</strong></span>
       </div>
       <p className="last-update">Poslední změna offline obsahu: {stats?.lastUpdated ? new Date(stats.lastUpdated).toLocaleString('cs-CZ') : 'zatím žádná'}</p>
       {storageUsage && <p className="last-update">Úložiště aplikace: přibližně {formatBytes(storageUsage.usage)} z dostupných {formatBytes(storageUsage.quota)}.</p>}
@@ -356,7 +369,9 @@ export function OfflineContent({
           <li className={authorizationReady ? 'complete' : ''}><span aria-hidden="true">{authorizationReady ? '✓' : '2'}</span><div><strong>Offline oprávnění</strong><small>{authorizationReady ? (offlineGrant ? `Podepsané oprávnění platí do ${new Date(offlineGrant.offlineValidUntil).toLocaleDateString('cs-CZ')}.` : 'Pro veřejný obsah není vyžadováno.') : 'Přihlaste se online a nechte oprávnění bezpečně uložit.'}</small></div></li>
           <li className={(secureMode ? memberLibraryReady : publicCatalogReady) ? 'complete' : ''}><span aria-hidden="true">{(secureMode ? memberLibraryReady : publicCatalogReady) ? '✓' : '3'}</span><div><strong>Obsah písní</strong><small>{secureMode ? `${downloadedLibrarySongs.length} členských písní v zařízení.` : `${stats?.downloadedSongs ?? 0} z ${stats?.totalSongs ?? catalog.songs.length} ukázek v zařízení.`}</small></div></li>
         </ul>
-        <div className="offline-protection-row"><span><strong>Ochrana úložiště</strong><small>{storagePersistent === true ? 'Systém nebude data automaticky uvolňovat.' : 'Lze požádat systém o vyšší ochranu místních dat.'}</small></span>{storagePersistent !== true && <button type="button" className="secondary-button" disabled={busy} onClick={() => void protectOfflineStorage()}>Chránit offline data</button>}</div>
+        <div className="offline-protection-row"><span><strong>Ochrana úložiště</strong><small>{storagePersistent === true ? 'Systém nebude data automaticky uvolňovat.' : 'Lze požádat systém o vyšší ochranu místních dat.'}</small></span><div className="button-row">{storagePersistent !== true && <button type="button" className="secondary-button" disabled={busy} onClick={() => void protectOfflineStorage()}>Chránit offline data</button>}<button type="button" className="secondary-button" onClick={() => onNavigate('settings')}>Exportovat nouzovou zálohu</button></div></div>
+        {pendingChanges > 0 && <p className="offline-queue-note" role="status"><strong>{pendingChanges} změn čeká.</strong> Oblíbené, setlisty nebo nastavení zůstávají bezpečně v zařízení a odešlou se při stabilním připojení.</p>}
+        {grantDaysRemaining !== null && grantDaysRemaining <= 7 && <p className="offline-renew-note" role="status"><strong>Offline oprávnění brzy vyprší.</strong> Před cestou aplikaci jednou otevřete online; oprávnění se při ověření účtu obnoví.</p>}
         <p className="offline-data-warning"><strong>Důležité:</strong> běžné zavření aplikace ani aktualizace vás neodhlásí. Volba telefonu „Smazat data webu/aplikace“ ale odstraní také bezpečný offline klíč, knihovnu a setlisty; potom je záměrně nutné znovu ověřit účet online.</p>
       </article>
 

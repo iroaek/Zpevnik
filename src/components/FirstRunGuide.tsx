@@ -29,9 +29,15 @@ const STEPS = [
   },
   {
     eyebrow: '4 · Hraní',
-    title: 'Přizpůsobte si čtečku',
-    body: 'V písni lze měnit velikost textu, tóninu, rychlost posunu i režim u ohně. Nastavení se uchová a synchronizuje mezi vašimi zařízeními.',
+    title: 'Pódium bez rušení',
+    body: 'Pódiový režim drží displej aktivní, dovolí zamknout ovládání, měnit velikost textu a přecházet mezi písněmi tahem. Odpočet spustí automatický posun bez hledání malých tlačítek.',
     icon: '♯',
+  },
+  {
+    eyebrow: '5 · Vlastní úpravy',
+    title: 'Akord usaďte nad správnou slabiku',
+    body: 'V režimu úprav lze akord přetáhnout prstem, vracet kroky a sjednotit české názvy s „is“ na zápis s #. Lokální oprava zůstane ve vašem zařízení, návrh můžete poslat správci.',
+    icon: '↔',
   },
 ] as const;
 

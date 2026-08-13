@@ -53,6 +53,8 @@ describe('administrátorská kontrola kvality', () => {
 
     expect(screen.getByText('Rozpadlé umístění akordů')).toBeVisible();
     expect(screen.getAllByText('Shodný název a interpret')).toHaveLength(3);
+    await userEvent.click(screen.getAllByRole('button', { name: 'Porovnat verze' })[0]);
+    expect(screen.getByRole('heading', { name: 'Porovnání 3 verzí' })).toBeVisible();
     await userEvent.click(screen.getByRole('tab', { name: /Akordy/ }));
     await userEvent.click(screen.getByRole('button', { name: /Otevřít a prověřit/ }));
     expect(openSong).toHaveBeenCalledWith('prvni');

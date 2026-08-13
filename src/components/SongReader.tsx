@@ -1,8 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { submitSongCorrection, type SecureProfile } from '../auth/secureAccess';
 import { metadataValue, parseChordPro, sanitizeImportedText } from '../domain/chordpro';
-import { moveChordInSource } from '../domain/chordEditor';
-import { calculateCapoOptions, parseChord, renderPitch, transposeCanonicalChord } from '../domain/chords';
+import { inspectChordSource, moveChordInSource, normalizeChordSpellingsInSource } from '../domain/chordEditor';
+import { calculateCapoOptions, parseChord, renderPitch, transposeCanonicalChord, transposeChord, type CapoPlayerLevel } from '../domain/chords';
 import type { Song } from '../domain/song';
 import { fetchContent } from '../pwa/contentCache';
 import { getLocalSongOverride, getPersonalSongContent, removeLocalSongOverride, saveLocalSongOverride, toggleFavorite, updateSetlistSongs, type UserState } from '../storage/database';
@@ -52,6 +52,8 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   const [chordEditMode, setChordEditMode] = useState(false);
   const [chordEditMessage, setChordEditMessage] = useState('');
   const [capoFret, setCapoFret] = useState(0);
+  const [capoPlayerLevel, setCapoPlayerLevel] = useState<CapoPlayerLevel>('beginner');
+  const [editHistory, setEditHistory] = useState<{ past: string[]; future: string[] }>({ past: [], future: [] });
   const readerRef = useRef<HTMLElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const settings = userState.settings;
@@ -88,6 +90,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
         const sanitized = sanitizeImportedText(text);
         setSource(sanitized);
         setEditableSource(sanitized);
+        setEditHistory({ past: [], future: [] });
       })
       .catch((error: unknown) => {
         if ((error as Error).name !== 'AbortError') setLoadError(friendlyError(error, 'Píseň je nečitelná nebo není uložená v tomto zařízení.'));
@@ -174,8 +177,11 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
     const parsed = parseChord(song.originalKey, sourceNotation);
     return parsed ? renderPitch(transposeCanonicalChord(parsed, semitones).root, settings.notation, parsed.root.accidental === 'flat' ? 'flat' : 'sharp') : song.originalKey;
   }, [song.originalKey, sourceNotation, semitones, settings.notation]);
-  const capoOptions = targetKey ? calculateCapoOptions(targetKey, settings.notation) : [];
+  const sourceChords = useMemo(() => parsedSource?.sections.flatMap((section) => section.kind === 'comment' ? [] : section.lines.flatMap((line) => line.flatMap((token) => token.chord ? [token.chord] : []))) ?? [], [parsedSource]);
+  const scoredSongChords = useMemo(() => sourceChords.map((chord) => transposeChord(chord, semitones, sourceNotation)), [semitones, sourceChords, sourceNotation]);
+  const capoOptions = targetKey ? calculateCapoOptions(targetKey, settings.notation, scoredSongChords, capoPlayerLevel) : [];
   const activeCapo = capoOptions.find((option) => option.capo === capoFret) ?? capoOptions[0];
+  const chordSourceIssues = useMemo(() => inspectChordSource(source), [source]);
   const isFavorite = userState.favorites.includes(song.id);
   const effectiveSetlistId = userState.setlists.some((setlist) => setlist.id === setlistId)
     ? setlistId
@@ -187,6 +193,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   const moveChord = (sourceIndex: number, delta: number) => {
     const next = moveChordInSource(source, sourceIndex, delta);
     if (next === source) return;
+    setEditHistory((current) => ({ past: [...current.past, source].slice(-50), future: [] }));
     setSource(next);
     setEditableSource(next);
     setHasLocalOverride(true);
@@ -194,6 +201,40 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
     void saveLocalSongOverride(song.id, next).catch((error) => {
       setChordEditMessage(friendlyError(error, 'Novou polohu akordu se nepodařilo uložit.'));
     });
+  };
+
+  const persistEditedSource = (next: string, message: string) => {
+    setSource(next);
+    setEditableSource(next);
+    setHasLocalOverride(true);
+    setChordEditMessage(message);
+    void saveLocalSongOverride(song.id, next).catch((error) => {
+      setChordEditMessage(friendlyError(error, 'Úpravu akordů se nepodařilo uložit.'));
+    });
+  };
+
+  const undoChordEdit = () => {
+    const previous = editHistory.past.at(-1);
+    if (!previous) return;
+    setEditHistory((current) => ({ past: current.past.slice(0, -1), future: [source, ...current.future].slice(0, 50) }));
+    persistEditedSource(previous, 'Poslední posun akordu byl vrácen.');
+  };
+
+  const redoChordEdit = () => {
+    const next = editHistory.future[0];
+    if (!next) return;
+    setEditHistory((current) => ({ past: [...current.past, source].slice(-50), future: current.future.slice(1) }));
+    persistEditedSource(next, 'Vrácený posun akordu byl znovu použit.');
+  };
+
+  const normalizeSongChords = () => {
+    const next = normalizeChordSpellingsInSource(source);
+    if (next === source) {
+      setChordEditMessage('Všechny akordy už používají jednotný zápis s #.');
+      return;
+    }
+    setEditHistory((current) => ({ past: [...current.past, source].slice(-50), future: [] }));
+    persistEditedSource(next, 'Akordy s příponou „is“ byly převedeny na zápis s #.');
   };
 
   const updateSettings = (change: Partial<UserState['settings']>) => {
@@ -388,9 +429,9 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
             <div className="reader-guidance">
               {song.chordsVerified && <p className="verified-chords-note"><Icon name="check" size={18} /><span><strong>Akordy zkontrolovány</strong><small>Transpozice a kapodastr jsou aktivní.</small></span></p>}
               {hasLocalOverride && <p className="local-override-note"><Icon name="database" size={18} /><span><strong>Lokální oprava</strong><small>Používá se verze uložená jen v tomto zařízení.</small></span><button type="button" className="text-button" onClick={() => openCorrection()}>Upravit</button></p>}
-              {chordEditMode && <p className="chord-edit-note" role="status"><Icon name="edit" size={18} /><span><strong>Ruční posun akordů</strong><small>Klepněte na modrý akord a posuňte jej šipkami. Změna se uloží pouze do tohoto zařízení.</small></span></p>}
+              {chordEditMode && <div className="chord-edit-console" role="region" aria-label="Nástroje ručního posunu akordů"><p className="chord-edit-note" role="status"><Icon name="edit" size={18} /><span><strong>Ruční posun akordů</strong><small>Akord přetáhněte prstem nad správnou slabiku nebo klepněte a použijte přesné šipky. Každý krok lze vrátit.</small></span></p><div className="chord-edit-actions"><button type="button" className="secondary-button" disabled={editHistory.past.length === 0} onClick={undoChordEdit}>↶ Zpět</button><button type="button" className="secondary-button" disabled={editHistory.future.length === 0} onClick={redoChordEdit}>↷ Znovu</button><button type="button" className="secondary-button" onClick={normalizeSongChords}>Převést „is“ na #</button></div>{chordSourceIssues.length > 0 && <details className="chord-source-audit"><summary>{chordSourceIssues.length} míst vyžaduje pozornost</summary><ul>{chordSourceIssues.slice(0, 12).map((issue, index) => <li key={`${issue.line}-${issue.kind}-${index}`}><strong>Řádek {issue.line}</strong> · {issue.message}</li>)}</ul></details>}</div>}
               {chordEditMessage && <p className="info-message chord-edit-message" role="status">{chordEditMessage}</p>}
-              {targetKey && capoOptions.length > 1 && <details className="capo-hint"><summary><Icon name="info" size={17} />Kapodastr a hmaty <span>{capoFret ? `${capoFret}. pražec` : 'bez'}</span></summary><div className="capo-planner"><header><span><small>Znějící tónina</small><strong>{targetKey}</strong></span><span><small>Hrané hmaty</small><strong>{activeCapo?.shapeKey ?? targetKey}</strong></span></header><p>Zvolte pražec. Akordy v textu se automaticky přepíšou na hmaty, ale znějící tónina zůstane stejná.{song.capo ? ` Původní podklad uvádí ${song.capo}. pražec.` : ''}</p><div className="capo-option-grid" role="radiogroup" aria-label="Vybrat polohu kapodastru">{capoOptions.map((option) => <button type="button" role="radio" aria-checked={capoFret === option.capo} className={`${capoFret === option.capo ? 'active' : ''} capo-option--${option.difficulty}`} onClick={() => setCapoFret(option.capo)} key={option.capo}><small>{option.capo === 0 ? 'Bez' : `${option.capo}. pražec`}</small><strong>{option.shapeKey}</strong>{option.recommended && <em>Doporučeno</em>}</button>)}</div><button type="button" className="text-button" disabled={capoFret === 0} onClick={() => setCapoFret(0)}>Vrátit bez kapodastru</button></div></details>}
+              {targetKey && capoOptions.length > 1 && <details className="capo-hint"><summary><Icon name="info" size={17} />Kapodastr a hmaty <span>{capoFret ? `${capoFret}. pražec` : 'bez'}</span></summary><div className="capo-planner"><header><span><small>Znějící tónina</small><strong>{targetKey}</strong></span><span><small>Hrané hmaty</small><strong>{activeCapo?.shapeKey ?? targetKey}</strong></span><span><small>Obtížné hmaty</small><strong>{activeCapo ? `${activeCapo.barreCount} barré · ${activeCapo.advancedCount} pokročilých` : '—'}</strong></span></header><p>Zvolte pražec. Akordy v textu se automaticky přepíšou na hmaty, ale znějící tónina zůstane stejná.{song.capo ? ` Původní podklad uvádí ${song.capo}. pražec.` : ''}</p><div className="capo-level-control" role="group" aria-label="Úroveň hráče">{([['beginner', 'Začátečník'], ['standard', 'Běžně'], ['all', 'Všechny možnosti']] as const).map(([value, label]) => <button type="button" className={capoPlayerLevel === value ? 'active' : ''} aria-pressed={capoPlayerLevel === value} onClick={() => setCapoPlayerLevel(value)} key={value}>{label}</button>)}</div><div className="capo-option-grid" role="radiogroup" aria-label="Vybrat polohu kapodastru">{capoOptions.map((option) => <button type="button" role="radio" aria-checked={capoFret === option.capo} className={`${capoFret === option.capo ? 'active' : ''} capo-option--${option.difficulty}`} onClick={() => { setCapoFret(option.capo); navigator.vibrate?.(6); }} key={option.capo}><small>{option.capo === 0 ? 'Bez' : `${option.capo}. pražec`}</small><strong>{option.shapeKey}</strong><span>{option.barreCount ? `${option.barreCount}× barré` : 'bez barré'}</span>{option.recommended && <em>Doporučeno</em>}</button>)}</div><button type="button" className="text-button" disabled={capoFret === 0} onClick={() => setCapoFret(0)}>Vrátit bez kapodastru</button></div></details>}
             </div>
             {loadError && <p className="error-message" role="alert">{loadError}</p>}
             {!source && !loadError && <div className="reader-loading-skeleton" role="status" aria-label="Načítám píseň"><span /><span /><span /><span /><span /></div>}

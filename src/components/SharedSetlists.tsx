@@ -127,6 +127,22 @@ export function SharedSetlists({
     setBusy('save');
     setError('');
     try {
+      const latestRecords = await loadSharedSetlists();
+      const latestSelected = latestRecords.find((record) => record.id === selectedShared.id);
+      if (!latestSelected) {
+        setRecords(latestRecords);
+        setEditing(false);
+        setError('Tento setlist už mezitím není sdílený. Seznam byl obnoven.');
+        return;
+      }
+      if (latestSelected.updated_at !== selectedShared.updated_at) {
+        setRecords(latestRecords);
+        setSelectedSharedId(latestSelected.id);
+        setDraftName(latestSelected.name);
+        setDraftSongIds(latestSelected.song_ids.filter((id) => shareableSongIds.has(id)));
+        setError('Setlist mezitím upravil jiný člen. Načetli jsme jeho novější verzi; zkontrolujte změny a upravte ji znovu.');
+        return;
+      }
       await updateSharedSetlist(selectedShared.id, draftName, draftSongIds);
       setEditing(false);
       await refresh(selectedShared.id);

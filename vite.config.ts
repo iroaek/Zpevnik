@@ -8,9 +8,15 @@ export default defineConfig(({ mode }) => {
   const environment = loadEnv(mode, process.cwd(), '');
   const publicBaseUrl = new URL(process.env.VITE_PUBLIC_BASE_URL || process.env.CF_PAGES_URL || environment.VITE_PUBLIC_BASE_URL || 'https://zpevnik.example.invalid/');
   const basePath = `${publicBaseUrl.pathname.replace(/\/+$/, '')}/`.replace(/\/{2,}/g, '/');
+  const appVersion = process.env.npm_package_version || '1.0.0';
+  const buildId = (process.env.GITHUB_SHA || environment.VITE_BUILD_ID || 'local').slice(0, 12);
 
   return {
     base: basePath,
+    define: {
+      __APP_VERSION__: JSON.stringify(appVersion),
+      __BUILD_ID__: JSON.stringify(buildId),
+    },
     build: {
       rollupOptions: {
         output: {

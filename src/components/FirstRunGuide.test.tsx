@@ -35,6 +35,7 @@ describe('průvodce prvním spuštěním', () => {
     expect(screen.getByRole('heading', { name: 'Přihlášení zůstává v zařízení' })).toBeVisible();
     await userEvent.click(screen.getByRole('button', { name: 'Pokračovat' }));
     await userEvent.click(screen.getByRole('button', { name: 'Pokračovat' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Pokračovat' }));
     await userEvent.click(screen.getByRole('button', { name: 'Otevřít Offline' }));
 
     expect(onClose).toHaveBeenCalledOnce();

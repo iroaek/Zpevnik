@@ -45,6 +45,7 @@ function songIssues(song: Song, duplicateKeys: Set<string>): QualityIssue[] {
 export function AdminLibraryQualityPanel({ songs, onOpenSong }: { songs: Song[]; onOpenSong: (id: string) => void }) {
   const [filter, setFilter] = useState<QualityFilter>('all');
   const [query, setQuery] = useState('');
+  const [compareKey, setCompareKey] = useState('');
   const deferredQuery = useDeferredValue(query);
 
   const duplicateKeys = useMemo(() => {
@@ -54,6 +55,16 @@ export function AdminLibraryQualityPanel({ songs, onOpenSong }: { songs: Song[];
   }, [songs]);
 
   const audited = useMemo(() => songs.map((song) => ({ song, issues: songIssues(song, duplicateKeys) })), [duplicateKeys, songs]);
+  const duplicateGroups = useMemo(() => {
+    const groups = new Map<string, Song[]>();
+    for (const song of songs) {
+      const key = duplicateKey(song);
+      if (!duplicateKeys.has(key)) continue;
+      groups.set(key, [...(groups.get(key) ?? []), song]);
+    }
+    return groups;
+  }, [duplicateKeys, songs]);
+  const comparedSongs = duplicateGroups.get(compareKey) ?? [];
   const counts = useMemo(() => ({
     all: audited.filter((entry) => entry.issues.length > 0).length,
     chords: audited.filter((entry) => entry.issues.some((issue) => issue.type === 'chords')).length,
@@ -94,10 +105,11 @@ export function AdminLibraryQualityPanel({ songs, onOpenSong }: { songs: Song[];
     </div>
 
     <p className="admin-quality-note"><Icon name="info" size={18} />Duplicity se zde pouze označí. Aplikace nikdy sama nemaže ani neslučuje písně a záznamy s nejasnými právy zůstávají ve stavu ke kontrole.</p>
+    {comparedSongs.length > 1 && <section className="duplicate-compare" aria-labelledby="duplicate-compare-heading"><header><span><p className="eyebrow">Ruční rozhodnutí</p><h3 id="duplicate-compare-heading">Porovnání {comparedSongs.length} verzí</h3></span><button type="button" className="icon-button" aria-label="Zavřít porovnání duplicit" onClick={() => setCompareKey('')}>×</button></header><div>{comparedSongs.map((song) => <article key={song.id}><span><strong>{song.title}</strong><small>{song.authors.join(', ') || 'Autor neuveden'}</small></span><dl><div><dt>Formát</dt><dd>{song.contentFormat === 'layout_text' ? 'PDF rozvržení' : 'ChordPro'}</dd></div><div><dt>Akordy</dt><dd>{song.chordsVerified ? 'ověřené' : 'ke kontrole'}</dd></div><div><dt>Práva</dt><dd>{song.rightsStatus}</dd></div><div><dt>Velikost</dt><dd>{song.contentBytes} B</dd></div></dl><p>{song.firstLine || 'První řádek není k dispozici.'}</p><button type="button" className="secondary-button" onClick={() => onOpenSong(song.id)}>Otevřít tuto verzi</button></article>)}</div><p>Vyberte věrohodnější verzi až po kontrole zdroje, práv, textu a poloh akordů. Automatické slučování je záměrně vypnuté.</p></section>}
     <div className="admin-quality-list" aria-busy={deferredQuery !== query}>
       {visible.map(({ song, issues }) => <article key={song.id}>
         <span className="admin-quality-song"><strong>{song.title}</strong><small>{song.authors.join(', ') || 'Autor neuveden'} · {song.contentFormat === 'layout_text' ? 'rozvržení z PDF' : 'ChordPro'}</small><span>{issues.map((issue) => <em className={`quality-badge quality-badge--${issue.type}`} key={`${issue.type}-${issue.label}`}>{issue.label}</em>)}</span></span>
-        <button type="button" className="secondary-button" onClick={() => onOpenSong(song.id)}>Otevřít a prověřit<Icon name="chevronRight" /></button>
+        <span className="admin-quality-actions">{issues.some((issue) => issue.type === 'duplicates') && <button type="button" className="secondary-button" onClick={() => setCompareKey(duplicateKey(song))}>Porovnat verze</button>}<button type="button" className="secondary-button" onClick={() => onOpenSong(song.id)}>Otevřít a prověřit<Icon name="chevronRight" /></button></span>
       </article>)}
       {visible.length === 0 && <p className="empty-state">V tomto filtru nejsou žádné položky k prověření.</p>}
     </div>

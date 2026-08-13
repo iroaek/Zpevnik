@@ -92,7 +92,7 @@ describe('členské sdílené setlisty', () => {
 
   it('administrátor upraví setlist jiného člena', async () => {
     const admin: SecureProfile = { ...member, id: '44444444-4444-4444-8444-444444444444', auth_user_id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', role: 'admin', display_name: 'Správce' };
-    api.load.mockResolvedValueOnce([shared]).mockResolvedValueOnce([{ ...shared, name: 'Upravený večer' }]);
+    api.load.mockResolvedValueOnce([shared]).mockResolvedValueOnce([shared]).mockResolvedValueOnce([{ ...shared, name: 'Upravený večer' }]);
     render(<SharedSetlists songs={catalog.songs} profile={admin} online onOpenSong={vi.fn()} onCopyToMySetlists={vi.fn()} />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'Upravit sdílený setlist' }));
@@ -103,5 +103,17 @@ describe('členské sdílené setlisty', () => {
 
     await waitFor(() => expect(api.update).toHaveBeenCalledWith(shared.id, 'Upravený večer', [song.id]));
     expect(await screen.findByText(/Administrátorská úprava/i)).toBeVisible();
+  });
+
+  it('nepřepíše novější úpravu jiného člena', async () => {
+    const newer = { ...shared, name: 'Novější verze', updated_at: '2026-08-12T11:00:00.000Z' };
+    api.load.mockResolvedValueOnce([shared]).mockResolvedValueOnce([newer]);
+    render(<SharedSetlists songs={catalog.songs} profile={member} online onOpenSong={vi.fn()} onCopyToMySetlists={vi.fn()} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Upravit sdílený setlist' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Uložit sdílené změny' }));
+
+    expect(await screen.findByText(/mezitím upravil jiný člen/i)).toBeVisible();
+    expect(api.update).not.toHaveBeenCalled();
   });
 });

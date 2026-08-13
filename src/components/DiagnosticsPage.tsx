@@ -66,7 +66,7 @@ export function DiagnosticsPage({ onBack }: { onBack: () => void }) {
     const payload = JSON.stringify({
       schemaVersion: 1,
       exportedAt: new Date().toISOString(),
-      app: { catalogRoute: location.pathname, online: device.online, serviceWorker: device.serviceWorker, standalone: device.standalone },
+      app: { version: __APP_VERSION__, build: __BUILD_ID__, catalogRoute: location.pathname, online: device.online, serviceWorker: device.serviceWorker, standalone: device.standalone },
       storage: { usage: device.storageUsage, quota: device.storageQuota },
       browser: device.userAgent,
       events,
