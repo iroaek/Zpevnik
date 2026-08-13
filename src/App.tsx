@@ -27,6 +27,7 @@ import type { PersonalLibrarySummary } from './personalLibrary';
 import { routeMotionDirection, runRouteTransition, scrollWindowInstantly } from './ui/motion';
 import { Icon } from './ui/Icon';
 import { friendlyError } from './ui/friendlyError';
+import { haptic } from './ui/haptics';
 
 const loadAdminPage = () => import('./components/AdminPage');
 const loadDiagnosticsPage = () => import('./components/DiagnosticsPage');
@@ -204,6 +205,10 @@ export default function App() {
   );
   const selectedSong = useMemo(() => route.name === 'song' ? allSongs.find((song) => song.id === route.id) : undefined, [allSongs, route]);
   const selectedPublicSetlist = useMemo(() => route.name === 'public-setlist' ? catalog.publicSetlists.find((setlist) => setlist.id === route.id) : undefined, [catalog, route]);
+  const lastOpenedSong = useMemo(() => {
+    const byId = new Map(allSongs.map((song) => [song.id, song]));
+    return userState.recentSongIds.map((id) => byId.get(id)).find((song): song is Catalog['songs'][number] => Boolean(song));
+  }, [allSongs, userState.recentSongIds]);
 
   useEffect(() => {
     const popstate = () => {
@@ -392,6 +397,7 @@ export default function App() {
   };
 
   const navScreen = route.name === 'library' || route.name === 'setlists' || route.name === 'import' || route.name === 'settings' || route.name === 'offline' ? route.name : null;
+  const showMiniPlayer = Boolean(navScreen && lastOpenedSong);
 
   if (!hydrated || !profileHydrated || (secureAccount.enabled && !secureAccount.hydrated)) return <main className="loading-screen"><span className="brand-mark" aria-hidden="true"><img src={`${import.meta.env.BASE_URL}icons/icon-lazec-192.png`} alt="" /></span><p>Otevírám zpěvník…</p></main>;
 
@@ -410,7 +416,7 @@ export default function App() {
   if (!userProfile) return <main className="app-main"><RegistrationPage canInstall={installPrompt.canPrompt} installed={installPrompt.installed} onInstall={installPrompt.install} onRegister={setUserProfile} />{(storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}</main>;
 
   return (
-    <div className={`app-shell ${route.name === 'home' ? 'app-shell--home' : ''}`}>
+    <div className={`app-shell ${route.name === 'home' ? 'app-shell--home' : ''}${showMiniPlayer ? ' app-shell--mini-player' : ''}`}>
       {route.name !== 'home' && <header className="app-header">
         <button className="brand" type="button" onClick={() => navigate('')} aria-label="Přejít na úvodní stránku"><span className="brand-mark" aria-hidden="true"><img src={`${import.meta.env.BASE_URL}icons/icon-lazec-192.png`} alt="" /></span><span><strong>Český zpěvník</strong><small>odkaz · PWA · offline</small></span></button>
         <div className="header-status"><button type="button" className={`sync-badge sync-badge--${cloudSync.status}`} onClick={() => setStatusCenterOpen(true)} aria-label="Otevřít stav zpěvníku"><Icon name="sync" size={17} /><span>{cloudSync.status === 'synced' ? 'Uloženo' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Ukládám' : cloudSync.status === 'error' ? 'Chyba' : cloudSync.status === 'offline' ? 'Čeká' : 'Místně'}</span></button><button type="button" className={`connection-badge ${online ? 'online' : 'offline'}`} onClick={() => setStatusCenterOpen(true)} aria-label={`${online ? 'Online' : 'Offline'}; otevřít stav zpěvníku`}><span aria-hidden="true" />{online ? 'Online' : 'Offline'}</button></div>
@@ -436,12 +442,13 @@ export default function App() {
         {((route.name === 'song' && !selectedSong) || (route.name === 'public-setlist' && !selectedPublicSetlist) || (route.name === 'admin' && (!secureAccount.enabled || secureAccount.profile?.role !== 'admin')) || route.name === 'not-found') && <section className="info-page not-found"><p className="eyebrow">404</p><h1>Tato stránka ve zpěvníku není</h1><p>Odkaz může být starý nebo chybný.</p><button type="button" className="primary-button" onClick={() => navigate('')}>Přejít na písně</button></section>}
         </Suspense></div>
       </main>
+      {showMiniPlayer && lastOpenedSong && <aside className="now-playing-bar" aria-label="Rozehraná píseň"><button type="button" onClick={() => { haptic('selection'); openSong(lastOpenedSong.id); }}><span className="now-playing-bar__icon" aria-hidden="true"><Icon name="play" size={18} /></span><span><small>Pokračovat v písni</small><strong>{lastOpenedSong.title}</strong><em>{lastOpenedSong.authors.join(', ') || 'Autor neuveden'}</em></span><Icon name="chevronRight" size={19} /></button></aside>}
       {route.name !== 'song' && route.name !== 'home' && <nav className="bottom-nav bottom-nav--five" aria-label="Hlavní navigace">
-        <button type="button" className={navScreen === 'library' ? 'active' : ''} aria-current={navScreen === 'library' ? 'page' : undefined} onClick={() => navigate('songs')}><Icon name="search" />Písně</button>
-        <button type="button" className={navScreen === 'setlists' ? 'active' : ''} aria-current={navScreen === 'setlists' ? 'page' : undefined} onPointerEnter={() => void loadSetlists()} onFocus={() => void loadSetlists()} onClick={() => navigate('setlists')}><Icon name="list" />Setlisty</button>
-        <button type="button" className={navScreen === 'import' ? 'active' : ''} aria-current={navScreen === 'import' ? 'page' : undefined} onPointerEnter={() => void loadPdfImportPage()} onFocus={() => void loadPdfImportPage()} onClick={() => navigate('import')}><Icon name="plus" />Přidat</button>
-        <button type="button" className={navScreen === 'offline' ? 'active' : ''} aria-current={navScreen === 'offline' ? 'page' : undefined} onPointerEnter={() => void loadOfflineContent()} onFocus={() => void loadOfflineContent()} onClick={() => navigate('offline')}><Icon name="download" />Offline</button>
-        <button type="button" className={navScreen === 'settings' ? 'active' : ''} aria-current={navScreen === 'settings' ? 'page' : undefined} onPointerEnter={() => void loadSettings()} onFocus={() => void loadSettings()} onClick={() => navigate('settings')}><Icon name="settings" />Nastavení</button>
+        <button type="button" className={navScreen === 'library' ? 'active' : ''} aria-current={navScreen === 'library' ? 'page' : undefined} onClick={() => { haptic(); navigate('songs'); }}><Icon name="search" />Písně</button>
+        <button type="button" className={navScreen === 'setlists' ? 'active' : ''} aria-current={navScreen === 'setlists' ? 'page' : undefined} onPointerEnter={() => void loadSetlists()} onFocus={() => void loadSetlists()} onClick={() => { haptic(); navigate('setlists'); }}><Icon name="list" />Setlisty</button>
+        <button type="button" className={navScreen === 'import' ? 'active' : ''} aria-current={navScreen === 'import' ? 'page' : undefined} onPointerEnter={() => void loadPdfImportPage()} onFocus={() => void loadPdfImportPage()} onClick={() => { haptic(); navigate('import'); }}><Icon name="plus" />Přidat</button>
+        <button type="button" className={navScreen === 'offline' ? 'active' : ''} aria-current={navScreen === 'offline' ? 'page' : undefined} onPointerEnter={() => void loadOfflineContent()} onFocus={() => void loadOfflineContent()} onClick={() => { haptic(); navigate('offline'); }}><Icon name="download" />Offline</button>
+        <button type="button" className={navScreen === 'settings' ? 'active' : ''} aria-current={navScreen === 'settings' ? 'page' : undefined} onPointerEnter={() => void loadSettings()} onFocus={() => void loadSettings()} onClick={() => { haptic(); navigate('settings'); }}><Icon name="settings" />Nastavení</button>
       </nav>}
       <AppStatusCenter open={statusCenterOpen} online={online} profile={secureAccount.profile} offlineAuthenticated={secureAccount.authState.status === 'authenticated-offline'} cloudSync={cloudSync} downloadedSongs={downloadedLibrarySongs.length} availableSongs={allSongs.length} catalogVersion={catalog.version} updateAvailable={updateAvailable} onUpdateAvailable={() => setUpdateAvailable(true)} onInstallUpdate={activateWaitingUpdate} onClose={() => setStatusCenterOpen(false)} onNavigate={navigate} />
       {followedLiveSetlistId && secureAccount.profile?.status === 'approved' && <LiveSetlistFollower setlistId={followedLiveSetlistId} profile={secureAccount.profile} online={online} songs={allSongs} onOpenSong={openSong} onStop={() => setFollowedLiveSetlistId('')} />}

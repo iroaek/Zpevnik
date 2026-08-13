@@ -52,6 +52,16 @@ describe('sazba textu a akordů', () => {
     expect(sections[0]).toHaveClass('song-section--active');
   });
 
+  it('v pódiovém režimu odliší odehranou, aktuální a následující sloku', () => {
+    const view = render(<ChordSheet performanceProgress={0.5} source={'[C]První sloka\n{soc}\n[G]Druhá sloka\n{eoc}\n[Am]Třetí sloka'} />);
+    const sections = view.container.querySelectorAll('.song-section');
+    expect(sections).toHaveLength(3);
+    expect(sections[0]).toHaveClass('song-section--performed');
+    expect(sections[1]).toHaveClass('song-section--performing');
+    expect(sections[1]).toHaveAttribute('aria-current', 'step');
+    expect(sections[2]).toHaveClass('song-section--upcoming');
+  });
+
   it('předá hlášený akord do bezpečného návrhu opravy', async () => {
     const onSuggestCorrection = vi.fn();
     render(<ChordSheet source={'[Am7]Syntetický text'} onSuggestCorrection={onSuggestCorrection} />);

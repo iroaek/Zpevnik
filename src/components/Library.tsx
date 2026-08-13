@@ -4,7 +4,9 @@ import { createLibrarySearchDocuments, searchLibraryDocuments } from '../domain/
 import type { Song } from '../domain/song';
 import type { PersonalLibrarySummary } from '../personalLibrary';
 import type { CatalogDensity, Setlist } from '../storage/database';
+import { EmptyState } from '../ui/EmptyState';
 import { Icon } from '../ui/Icon';
+import { haptic } from '../ui/haptics';
 
 type CollectionMode = 'all' | 'favorites' | 'recent';
 export type LibraryEntry = 'all' | 'favorites' | 'artists';
@@ -203,7 +205,7 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
   }, [deferredQuery, searchDocuments, shouldUseSearchWorker]);
 
   const virtualized = filtered.length > VIRTUALIZE_AFTER;
-  const rowHeight = effectiveDensity === 'compact' ? 67 : effectiveDensity === 'stage' ? 147 : 95;
+  const rowHeight = effectiveDensity === 'compact' ? 58 : effectiveDensity === 'stage' ? 147 : 95;
   const rowGap = effectiveDensity === 'compact' ? 6 : 11;
   const rowStride = rowHeight + rowGap;
   const totalRows = Math.ceil(filtered.length / virtualViewport.columns);
@@ -239,6 +241,7 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
     longPressTriggered.current = false;
     longPressTimer.current = window.setTimeout(() => {
       longPressTriggered.current = true;
+      haptic('selection');
       setQuickSongId(id);
     }, 550);
   };
@@ -278,10 +281,12 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
     if (Math.abs(offset) > 10) longPressTriggered.current = true;
     if (offset > 48) {
       longPressTriggered.current = true;
+      haptic('success');
       onAddToTonight?.(id);
       onNotify?.('Píseň byla přidána do dnešního setlistu.');
     } else if (offset < -48) {
       longPressTriggered.current = true;
+      haptic('selection');
       setQuickSongId(id);
     }
   };
@@ -359,7 +364,7 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
       <div ref={listRef} className={`song-list song-list--${effectiveDensity}${effectiveDensity === 'stage' ? ' song-list--cards' : ''}${virtualized ? ' song-list--virtualized' : ''}`} aria-busy={deferredQuery !== view.query}>
         {topSpacer > 0 && <div className="virtual-song-spacer" aria-hidden="true" style={{ height: topSpacer }} />}
         {visibleSongs.map((song) => <article className={`song-card-shell ${swipe?.id === song.id ? 'song-card-shell--swiping' : ''}`} key={song.id} onPointerDown={(event) => { if (event.pointerType === 'touch') startSwipe(song.id, event.clientX, event.clientY); else startLongPress(song.id); }} onPointerUp={() => finishSwipe(song.id)} onPointerCancel={() => { cancelLongPress(); swipeStart.current = null; swipeOffset.current = null; setSwipe(null); }} onPointerMove={(event) => { if (event.pointerType === 'touch') moveSwipe(song.id, event.clientX, event.clientY); else cancelLongPress(); }} onContextMenu={(event) => { event.preventDefault(); setQuickSongId(song.id); }}><span className="swipe-action swipe-action--right" aria-hidden="true"><Icon name="plus" size={18} />Dnešní setlist</span><span className="swipe-action swipe-action--left" aria-hidden="true"><Icon name="menu" size={18} />Akce</span><div className="song-card-motion" style={{ transform: swipe?.id === song.id ? `translate3d(${swipe.x}px, 0, 0)` : undefined }}><button type="button" className="song-card song-card__open" onClick={() => openFromCard(song.id)}><span className="song-card__main"><strong>{song.title}</strong><span>{song.authors.join(', ') || 'Autor neuveden'}</span>{song.personalOnly && reviewCount(song) > 0 && <span className="song-card__labels"><span>Ke kontrole · {reviewCount(song)}</span></span>}</span><span className="song-card__meta"><strong className="song-key" aria-label={`Tónina ${song.originalKey ? displaySongKey(song.originalKey) : 'neuvedena'}`}>{displaySongKey(song.originalKey)}</strong>{song.chordProPath.startsWith('indexeddb:') && <Icon name="download" size={17} className="offline-song-badge" />}{song.scoreAssets.length > 0 && <Icon name="music" size={17} />}{favoriteIds.has(song.id) && <Icon name="star" size={17} />}<Icon name="chevronRight" size={18} /></span></button><button type="button" className="song-quick-button" aria-label="Rychlé akce" title={`Rychlé akce pro ${song.title}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => setQuickSongId(song.id)}><Icon name="menu" size={19} /></button></div></article>)}
-        {filtered.length === 0 && <p className="empty-state">Tomuto hledání neodpovídá žádná píseň. <button type="button" className="text-button" onClick={() => setView(initialView)}>Zrušit hledání a filtry</button></p>}
+        {filtered.length === 0 && <EmptyState icon="search" title="Žádná píseň neodpovídá výběru" description="Zkuste kratší výraz nebo zrušte některý z aktivních filtrů." action={<button type="button" className="secondary-button" onClick={() => setView(initialView)}>Zrušit hledání a filtry</button>} />}
         {bottomSpacer > 0 && <div className="virtual-song-spacer" aria-hidden="true" style={{ height: bottomSpacer }} />}
       </div>
       {showBackToTop && <button type="button" className="back-to-top" aria-label="Zpět nahoru" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>↑</button>}

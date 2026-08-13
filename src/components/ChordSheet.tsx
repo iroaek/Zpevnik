@@ -15,6 +15,7 @@ interface ChordSheetProps {
   lineHeight?: number;
   columnWidth?: number;
   focusSections?: boolean;
+  performanceProgress?: number | null;
   editMode?: boolean;
   onMoveChord?: (sourceIndex: number, delta: number) => void;
   onSuggestCorrection?: (chord: string) => void;
@@ -99,11 +100,16 @@ export function ChordSheet({
   lineHeight = 1.3,
   columnWidth = 760,
   focusSections = false,
+  performanceProgress = null,
   editMode = false,
   onMoveChord,
   onSuggestCorrection,
 }: ChordSheetProps) {
   const parsed = useMemo(() => parseChordPro(source), [source]);
+  const performanceSectionIndexes = useMemo(() => parsed.sections.flatMap((section, index) => section.kind === 'comment' || (section.kind === 'chorus' && section.repeated && collapseRepeatedChoruses) ? [] : [index]), [collapseRepeatedChoruses, parsed.sections]);
+  const performanceSection = performanceProgress === null || performanceSectionIndexes.length === 0
+    ? null
+    : performanceSectionIndexes[Math.min(performanceSectionIndexes.length - 1, Math.floor(Math.max(0, Math.min(.999, performanceProgress)) * performanceSectionIndexes.length))];
   const [popover, setPopover] = useState<ChordPopoverState | null>(null);
   const [activeSection, setActiveSection] = useState<number | null>(null);
   const chordDrag = useRef<{ sourceIndex: number; startX: number } | null>(null);
@@ -115,7 +121,7 @@ export function ChordSheet({
     return () => window.removeEventListener('keydown', close);
   }, [popover]);
   return (
-    <div className={`chord-sheet ${focusSections && activeSection !== null ? 'chord-sheet--focus-active' : ''} ${editMode ? 'chord-sheet--editing' : ''}`} style={{ '--song-font-size': `${fontSize}px`, '--chord-scale': chordScale, '--song-line-height': lineHeight, '--song-column-width': `${columnWidth}px` } as React.CSSProperties}>
+    <div className={`chord-sheet ${focusSections && activeSection !== null ? 'chord-sheet--focus-active' : ''} ${performanceSection !== null ? 'chord-sheet--performance' : ''} ${editMode ? 'chord-sheet--editing' : ''}`} style={{ '--song-font-size': `${fontSize}px`, '--chord-scale': chordScale, '--song-line-height': lineHeight, '--song-column-width': `${columnWidth}px` } as React.CSSProperties}>
       {parsed.sections.map((section, sectionIndex) => {
         if (section.kind === 'comment') {
           return <p className="song-comment" key={`comment-${sectionIndex}`}>{section.label}</p>;
@@ -124,7 +130,7 @@ export function ChordSheet({
           return <p className="chorus-repeat" key={`repeat-${sectionIndex}`} aria-label="Opakuje se refrén">↻ Refrén znovu</p>;
         }
         return (
-          <section className={`song-section song-section--${section.kind} ${activeSection === sectionIndex ? 'song-section--active' : ''}`} tabIndex={focusSections ? 0 : undefined} aria-label={focusSections ? `${section.label || 'Sloka'}; klepnutím zvýraznit` : undefined} onClick={focusSections ? () => setActiveSection((current) => current === sectionIndex ? null : sectionIndex) : undefined} onKeyDown={focusSections ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setActiveSection((current) => current === sectionIndex ? null : sectionIndex); } } : undefined} key={`section-${sectionIndex}`}>
+          <section className={`song-section song-section--${section.kind} ${activeSection === sectionIndex ? 'song-section--active' : ''}${performanceSection !== null ? sectionIndex < performanceSection ? ' song-section--performed' : sectionIndex === performanceSection ? ' song-section--performing' : ' song-section--upcoming' : ''}`} tabIndex={focusSections ? 0 : undefined} aria-current={performanceSection === sectionIndex ? 'step' : undefined} aria-label={focusSections ? `${section.label || 'Sloka'}; klepnutím zvýraznit` : undefined} onClick={focusSections ? () => setActiveSection((current) => current === sectionIndex ? null : sectionIndex) : undefined} onKeyDown={focusSections ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setActiveSection((current) => current === sectionIndex ? null : sectionIndex); } } : undefined} key={`section-${sectionIndex}`}>
             {section.label && <h3>{section.label}</h3>}
             {section.lines.map((line, lineIndex) => {
               const lineHasChords = showChords && line.some((token) => Boolean(token.chord));

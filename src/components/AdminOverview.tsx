@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'r
 import { loadAllProfiles, loadRemoteSongSubmissions, type SecureProfile } from '../auth/secureAccess';
 import type { CloudSyncState } from '../hooks/useCloudUserState';
 import { isProfileOnline } from './adminUserPresence';
+import { EmptyState } from '../ui/EmptyState';
 import { Icon } from '../ui/Icon';
 import { friendlyError } from '../ui/friendlyError';
 
@@ -83,6 +84,7 @@ export function AdminOverview({
   return <section className="admin-overview" aria-labelledby="admin-overview-heading">
     <div className="admin-command-bar">
       <span><p className="eyebrow">Živý provoz</p><h2 id="admin-overview-heading">Přehled administrace</h2><small>{observedAt ? `Aktualizováno ${new Date(observedAt).toLocaleTimeString('cs-CZ')}` : 'Načítám aktuální stav z Neonu…'}</small></span>
+      <div className="admin-command-pulse" aria-label="Rychlý stav"><span className={online ? 'status-tone--success' : 'status-tone--warning'}><i />{online ? 'Server dostupný' : 'Bez spojení'}</span><span><i />{onlineCount} online</span><span className={pendingTotal ? 'status-tone--warning' : 'status-tone--success'}><i />{pendingTotal ? `${pendingTotal} úloh` : 'Fronta čistá'}</span></div>
       <button type="button" className="secondary-button" disabled={loading || !online} onClick={() => void refresh()}><Icon name="sync" />{loading ? 'Načítám…' : 'Obnovit data'}</button>
     </div>
     {error && <p className="error-message" role="alert">{error}</p>}
@@ -139,7 +141,7 @@ export function AdminOverview({
 
     <article className="admin-recent-card">
       <header><span><small>Poslední registrace</small><h3>Nejnovější členové</h3></span><button type="button" className="text-button" onClick={() => onOpen('users')}>Všichni uživatelé</button></header>
-      <div>{newestProfiles.length ? newestProfiles.map((profile) => <span key={profile.id}><i className={`admin-user-presence ${isProfileOnline(profile, observedAt) ? 'online' : 'offline'}`} /><span><strong>{profile.display_name}</strong><small>{profile.email}</small></span><em className={`status-badge status-badge--${profile.status}`}>{statusLabels[profile.status]}</em></span>) : <p className="empty-state">Zatím nejsou dostupné žádné profily.</p>}</div>
+      <div>{newestProfiles.length ? newestProfiles.map((profile) => <span key={profile.id}><i className={`admin-user-presence ${isProfileOnline(profile, observedAt) ? 'online' : 'offline'}`} /><span><strong>{profile.display_name}</strong><small>{profile.email}</small></span><em className={`status-badge status-badge--${profile.status}`}>{statusLabels[profile.status]}</em></span>) : <EmptyState icon="users" title="Zatím tu nejsou žádné profily" description="Nově registrovaní členové se zobrazí po obnovení přehledu." />}</div>
     </article>
   </section>;
 }
