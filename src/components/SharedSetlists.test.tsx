@@ -10,6 +10,7 @@ const api = vi.hoisted(() => ({
   load: vi.fn<() => Promise<SharedSetlist[]>>(),
   publish: vi.fn<() => Promise<string>>(),
   update: vi.fn<() => Promise<void>>(),
+  updateLive: vi.fn<() => Promise<void>>(),
   remove: vi.fn<() => Promise<void>>(),
 }));
 
@@ -17,6 +18,7 @@ vi.mock('../auth/secureAccess', () => ({
   loadSharedSetlists: api.load,
   publishMySetlist: api.publish,
   updateSharedSetlist: api.update,
+  updateSharedSetlistLiveSong: api.updateLive,
   deleteSharedSetlist: api.remove,
 }));
 
@@ -51,6 +53,10 @@ const shared: SharedSetlist = {
   song_ids: [song.id],
   created_at: '2026-08-12T10:00:00.000Z',
   updated_at: '2026-08-12T10:00:00.000Z',
+  live_song_id: null,
+  live_started_at: null,
+  live_updated_at: null,
+  live_by: null,
 };
 
 describe('členské sdílené setlisty', () => {
@@ -59,8 +65,10 @@ describe('členské sdílené setlisty', () => {
     api.publish.mockReset();
     api.update.mockReset();
     api.remove.mockReset();
+    api.updateLive.mockReset();
     api.update.mockResolvedValue();
     api.remove.mockResolvedValue();
+    api.updateLive.mockResolvedValue();
   });
   afterEach(cleanup);
 

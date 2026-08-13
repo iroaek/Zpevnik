@@ -84,7 +84,7 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await page.getByRole('button', { name: 'Ukončit pódiový režim' }).click();
 });
 
-test('kapodastr používá křížky a ruční posun akordu uloží přesnou lokální polohu', async ({ page }, testInfo) => {
+test('kapodastr používá křížky a ruční posun akordu uloží potvrzenou lokální polohu', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-390x844', 'Dotykový editor stačí ověřit v reprezentativním mobilním viewportu.');
   await page.goto('songs/synteticka-jiskra');
   await expect(page.getByRole('heading', { name: 'Syntetická jiskra' })).toBeVisible();
@@ -102,12 +102,14 @@ test('kapodastr používá křížky a ruční posun akordu uloží přesnou lok
   await page.getByRole('button', { name: 'Ručně posunout akordy' }).click();
   await page.getByRole('button', { name: /Akord F#; upravit polohu/ }).first().click();
   await page.getByRole('button', { name: 'Posunout o jeden znak doprava' }).click();
-  await expect(page.getByText('Akord byl posunut doprava a uložen v zařízení.')).toBeVisible();
+  await expect(page.getByText('Náhled: akord byl posunut doprava.')).toBeVisible();
   await page.getByRole('button', { name: 'Zavřít', exact: true }).click();
   await page.getByRole('button', { name: '↶ Zpět' }).click();
   await expect(page.getByText('Poslední posun akordu byl vrácen.')).toBeVisible();
   await page.getByRole('button', { name: '↷ Znovu' }).click();
   await expect(page.getByText('Vrácený posun akordu byl znovu použit.')).toBeVisible();
+  await page.getByRole('button', { name: 'Uložit úpravy' }).click();
+  await expect(page.getByText('Úpravy byly uloženy pouze do tohoto zařízení.')).toBeVisible();
   await expectNoPageOverflow(page);
 
   await page.getByRole('button', { name: 'Upravit', exact: true }).click();

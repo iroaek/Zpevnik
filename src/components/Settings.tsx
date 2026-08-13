@@ -1,9 +1,10 @@
 import { lazy, Suspense, useRef, useState } from 'react';
 import { beginMigratedAccountActivation, signOutSecureAccount, type SecureProfile } from '../auth/secureAccess';
+import { decryptBackup, downloadEncryptedBackup, encryptBackup, isEncryptedBackup } from '../backup/encryptedBackup';
 import type { Song } from '../domain/song';
 import type { CloudSyncState } from '../hooks/useCloudUserState';
 import { downloadPersonalLibrary } from '../personalLibraryDownload';
-import { exportFullBackup, importFullBackup, type UserProfile, type UserState } from '../storage/database';
+import { createFullBackupPayload, importFullBackup, type UserProfile, type UserState } from '../storage/database';
 import { Icon } from '../ui/Icon';
 import { friendlyError } from '../ui/friendlyError';
 
@@ -41,6 +42,8 @@ export function Settings({
   const fileRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState('');
   const [backupBusy, setBackupBusy] = useState(false);
+  const [backupPassword, setBackupPassword] = useState('');
+  const [backupPasswordConfirm, setBackupPasswordConfirm] = useState('');
   const [accessCode, setAccessCode] = useState('');
   const [permissionBusy, setPermissionBusy] = useState(false);
   const [permissionMessage, setPermissionMessage] = useState('');
@@ -81,11 +84,21 @@ export function Settings({
   };
 
   const exportBackup = async () => {
+    if (backupPassword.length < 12) {
+      setMessage('Zvolte heslo zálohy o délce alespoň 12 znaků.');
+      return;
+    }
+    if (backupPassword !== backupPasswordConfirm) {
+      setMessage('Hesla zálohy se neshodují.');
+      return;
+    }
     setBackupBusy(true);
-    setMessage('Připravuji zálohu osobní knihovny…');
+    setMessage('Připravuji a šifruji kompletní zálohu…');
     try {
-      const count = await exportFullBackup(userState, personalSongs);
-      setMessage(`Záloha byla vytvořena: ${count} osobních písní a nastavení.`);
+      const backup = await createFullBackupPayload(userState, personalSongs);
+      const encrypted = await encryptBackup(backup.payload, backupPassword);
+      downloadEncryptedBackup(encrypted);
+      setMessage(`Zašifrovaná záloha byla vytvořena: ${backup.personalSongCount} osobních písní a nastavení.`);
     } catch (error) {
       setMessage(friendlyError(error, 'Zálohu nelze vytvořit.'));
     } finally {
@@ -97,7 +110,10 @@ export function Settings({
     if (!file) return;
     setBackupBusy(true);
     try {
-      const imported = await importFullBackup(file);
+      const encrypted = await isEncryptedBackup(file);
+      if (encrypted && backupPassword.length < 12) throw new Error('Pro odemknutí zadejte heslo použité při vytvoření zálohy.');
+      const source = encrypted ? await decryptBackup(file, backupPassword) : file;
+      const imported = await importFullBackup(source);
       onUserStateChange(imported.state);
       await onPersonalLibraryChanged();
       setMessage(`Záloha byla obnovena${imported.personalSongCount ? ` včetně ${imported.personalSongCount} osobních písní` : ''}.`);
@@ -154,11 +170,13 @@ export function Settings({
         {localAdmin && <label className="switch-row"><input type="checkbox" checked={userProfile.monochromeMode} onChange={(event) => onUserProfileChange((current) => current ? { ...current, monochromeMode: event.target.checked, updatedAt: new Date().toISOString() } : current)} /> Monochromatický administrátorský režim – barevné pouze akordy</label>}
       </div>
 
+      <section className="accessibility-card" aria-labelledby="accessibility-heading"><div><p className="eyebrow">Přístupnost</p><h2 id="accessibility-heading">Pohodlné ovládání</h2><p>Volby se synchronizují mezi vašimi zařízeními a projeví se okamžitě.</p></div><div className="accessibility-options"><label className="switch-row"><input type="checkbox" checked={settings.accessibility.highContrast} onChange={(event) => update({ accessibility: { ...settings.accessibility, highContrast: event.target.checked } })} /> Vyšší kontrast textu a okrajů</label><label className="switch-row"><input type="checkbox" checked={settings.accessibility.largeControls} onChange={(event) => update({ accessibility: { ...settings.accessibility, largeControls: event.target.checked } })} /> Větší ovládací prvky</label><label className="switch-row"><input type="checkbox" checked={settings.accessibility.oneHanded} onChange={(event) => update({ accessibility: { ...settings.accessibility, oneHanded: event.target.checked } })} /> Ovládání jednou rukou na telefonu</label><button type="button" className="secondary-button" onClick={() => update({ motion: 'off' })}>Omezit všechny animace</button></div></section>
+
       {!secureMode && <section className="backup-card personal-download-card"><h2>{userProfile.role === 'admin' ? 'Stáhnout moji osobní knihovnu' : 'Aktivovat správcovské zařízení'}</h2><p>Balíček je na serveru pouze v zašifrované podobě. Správný osobní kód odemkne písně v tomto zařízení a aktivuje administrátorské funkce.</p><form onSubmit={(event) => { event.preventDefault(); void downloadLegacyLibrary(); }}><label htmlFor="library-access-code">Osobní administrátorský kód</label><div className="access-code-row"><input id="library-access-code" type="password" autoComplete="off" spellCheck={false} value={accessCode} onChange={(event) => setAccessCode(event.target.value)} placeholder="XXXX-XXXX-XXXX-XXXX" disabled={backupBusy} /><button type="submit" className="primary-button" disabled={backupBusy || !accessCode.trim()}>{backupBusy ? 'Stahuji…' : 'Odemknout a stáhnout'}</button></div></form></section>}
 
       {localAdmin && !serverAdmin && <Suspense fallback={<div className="route-loading route-loading--compact" role="status" aria-label="Načítám generátor QR kódu"><span className="route-loading__compact-bar" /></div>}><QrCodeGenerator /></Suspense>}
 
-      <section className="backup-card"><h2>Přenos celého zpěvníku souborem</h2><p>Záloha obsahuje nastavení, oblíbené, setlisty i všechny osobní písně ({personalSongs.length}). Soubor zůstane u vás a lze jej ručně načíst v telefonu.</p><div className="button-row"><button type="button" className="secondary-button" disabled={backupBusy} onClick={() => void exportBackup()}>{backupBusy ? 'Pracuji…' : 'Exportovat celou zálohu'}</button><label className={backupBusy ? 'secondary-button file-button disabled' : 'secondary-button file-button'}>Importovat celou zálohu<input ref={fileRef} type="file" accept="application/json,.json" disabled={backupBusy} onChange={(event) => void importBackup(event.target.files?.[0])} /></label></div>{message && <p role="status">{message}</p>}</section>
+      <section className="backup-card encrypted-backup-card"><h2>Šifrovaná kompletní záloha</h2><p>Záloha obsahuje nastavení, oblíbené, setlisty i všechny osobní písně ({personalSongs.length}). Před uložením se v tomto zařízení zašifruje pomocí AES‑GCM; heslo se nikam neodesílá.</p><div className="backup-password-grid"><label>Heslo zálohy<input type="password" autoComplete="new-password" minLength={12} value={backupPassword} onChange={(event) => setBackupPassword(event.target.value)} placeholder="Alespoň 12 znaků" disabled={backupBusy} /></label><label>Heslo znovu<input type="password" autoComplete="new-password" minLength={12} value={backupPasswordConfirm} onChange={(event) => setBackupPasswordConfirm(event.target.value)} placeholder="Pro kontrolu při exportu" disabled={backupBusy} /></label></div><small className="backup-warning">Zapomenuté heslo nelze obnovit. Pro import starší nešifrované JSON zálohy heslo není potřeba.</small><div className="button-row"><button type="button" className="secondary-button" disabled={backupBusy || backupPassword.length < 12 || backupPassword !== backupPasswordConfirm} onClick={() => void exportBackup()}>{backupBusy ? 'Pracuji…' : 'Exportovat šifrovanou zálohu'}</button><label className={backupBusy ? 'secondary-button file-button disabled' : 'secondary-button file-button'}>Importovat zálohu<input ref={fileRef} type="file" accept="application/json,.json,.zpevnik,application/vnd.zpevnik.backup+json" disabled={backupBusy} onChange={(event) => void importBackup(event.target.files?.[0])} /></label></div>{message && <p role="status">{message}</p>}</section>
       <section className="privacy-card"><h2>Soukromí a offline provoz</h2><p>{secureMode ? 'Účet, schválení a návrhy zpracovává zabezpečený server. Soukromé soubory podléhají pravidlům účtu; veřejná PWA je neobsahuje.' : 'V místním režimu se profil, importované písně ani návrhy ze zařízení neodesílají.'} Po stažení mohou vybrané písně fungovat offline.</p></section>
       <section className="settings-links" aria-label="Nápověda, instalace a provoz">{onOpenGuide && <button className="secondary-button" type="button" onClick={onOpenGuide}>Spustit úvodního průvodce</button>}<button className="secondary-button" type="button" onClick={() => onNavigate('install')}>Nainstalovat zpěvník</button><button className="secondary-button" type="button" onClick={() => onNavigate('offline')}>Offline obsah</button><button className="secondary-button" type="button" onClick={() => onNavigate('help')}>Nápověda pro táborníky</button><button className="secondary-button" type="button" onClick={() => onNavigate('diagnostics')}><Icon name="shield" />Diagnostika zařízení</button></section>
     </section>

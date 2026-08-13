@@ -2,6 +2,11 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Song } from '../domain/song';
+
+vi.mock('../storage/database', () => ({
+  getPersonalSongContent: vi.fn().mockResolvedValue(null),
+}));
+
 import { AdminLibraryQualityPanel } from './AdminLibraryQualityPanel';
 
 function song(id: string, change: Partial<Song> = {}): Song {

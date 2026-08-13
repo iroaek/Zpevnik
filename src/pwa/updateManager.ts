@@ -6,7 +6,9 @@ export type UpdateCheckResult = 'update-available' | 'up-to-date' | 'service-wor
 let applyUpdate: ((reloadPage?: boolean) => Promise<void>) | null = null;
 let registration: ServiceWorkerRegistration | undefined;
 let updatePending = false;
+let activatingUpdate = false;
 const observedRegistrations = new WeakSet<ServiceWorkerRegistration>();
+const UPDATE_ACTIVATION_KEY = 'zpevnik-update-activation-v1';
 
 function emit(name: PwaEventName, detail?: string): void {
   window.dispatchEvent(new CustomEvent(name, { detail }));
@@ -113,10 +115,38 @@ export function registerPwa(): void {
 }
 
 export async function activateWaitingUpdate(): Promise<void> {
+  if (activatingUpdate) return;
   if (!hasWaitingUpdate()) throw new Error('Nová verze zatím není připravená k instalaci.');
   if (!applyUpdate) throw new Error('Aktualizační služba není připravená. Zavřete aplikaci a znovu ji otevřete.');
-  await applyUpdate(true);
-  updatePending = false;
+  activatingUpdate = true;
+  document.documentElement.dataset.appUpdating = 'true';
+  try {
+    localStorage.setItem(UPDATE_ACTIVATION_KEY, JSON.stringify({ build: __BUILD_ID__, startedAt: new Date().toISOString() }));
+  } catch { /* Aktualizace funguje i v soukromém režimu bez localStorage. */ }
+  try {
+    if (!('serviceWorker' in navigator) || typeof navigator.serviceWorker.addEventListener !== 'function') {
+      await applyUpdate(true);
+    } else {
+      const controllerChanged = new Promise<void>((resolve) => {
+        let timeout = 0;
+        const finish = () => {
+          window.clearTimeout(timeout);
+          navigator.serviceWorker.removeEventListener('controllerchange', finish);
+          resolve();
+        };
+        timeout = window.setTimeout(finish, 12_000);
+        navigator.serviceWorker.addEventListener('controllerchange', finish);
+      });
+      await applyUpdate(false);
+      await controllerChanged;
+      try { localStorage.removeItem(UPDATE_ACTIVATION_KEY); } catch { /* bez úložiště */ }
+      window.location.reload();
+    }
+    updatePending = false;
+  } finally {
+    activatingUpdate = false;
+    delete document.documentElement.dataset.appUpdating;
+  }
 }
 
 export async function checkForUpdate(): Promise<UpdateCheckResult> {

@@ -17,7 +17,7 @@ import { requestPersistentStorage } from '../pwa/storagePersistence';
 import { withDeadline } from '../domain/asyncDeadline';
 
 const ONLINE_CHECK_TIMEOUT_MS = 8_000;
-const OFFLINE_GRANT_READ_TIMEOUT_MS = 2_000;
+const OFFLINE_GRANT_READ_TIMEOUT_MS = 5_000;
 
 export interface SecureAccountState {
   enabled: boolean;
@@ -62,6 +62,28 @@ export function useSecureAccount(): SecureAccountState {
   const [error, setError] = useState<string | null>(secureAccessConfigurationError);
   const [passwordRecovery, setPasswordRecovery] = useState(false);
   const refreshSequence = useRef(0);
+
+  const persistOfflineGrant = useCallback(async (
+    onlineProfile: SecureProfile,
+    accessToken: string,
+    sequence: number,
+  ) => {
+    const deviceId = await withDeadline(getOrCreateDeviceId(), 5_000, 'Místní úložiště zařízení neodpovídá.');
+    const verified = await neonAuthRepository.issueOfflineGrant(onlineProfile, deviceId, accessToken);
+    const stored: StoredOfflineGrantRecord = {
+      schemaVersion: 1,
+      provider: verified.provider,
+      token: verified.token,
+      payload: verified.payload,
+      profile: onlineProfile,
+      verifiedAt: verified.verifiedAt,
+      keySet: verified.keySet,
+    };
+    await withDeadline(neonAuthRepository.saveOfflineGrant(stored), 5_000, 'Offline oprávnění se nepodařilo včas uložit.');
+    const persistent = await requestPersistentStorage();
+    if (sequence === refreshSequence.current) setOfflineGrant(verified.payload);
+    void recordDiagnostic({ category: 'auth', event: 'offline_grant_valid', level: 'info', details: { persistentStorage: persistent } }).catch(() => undefined);
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!enabled) return;
@@ -116,43 +138,34 @@ export function useSecureAccount(): SecureAccountState {
         return;
       }
 
-      setSession(result.session);
-      setProfile(result.profile);
-      setAuthState({ status: 'authenticated-online', userId: result.profile.id });
-      setError(null);
-      void recordDiagnostic({ category: 'auth', event: 'online_session_valid', level: 'info' }).catch(() => undefined);
-
       if (result.profile.status === 'approved' && offlineGrantClientConfigured) {
-        // Vydání a lokální uložení grantu nesmí blokovat zobrazení již platné
-        // online relace. Proběhne na pozadí a stav doplní až po dokončení.
-        void (async () => {
+        if (local.grant) {
+          // Existující lokální grant už cold start chrání. Jeho prodloužení proto
+          // může bezpečně proběhnout na pozadí bez zdržení navigace.
+          void persistOfflineGrant(result.profile, result.session.access_token, sequence).catch(() => {
+            void recordDiagnostic({ category: 'auth', event: 'offline_grant_refresh_failed', level: 'warning' }).catch(() => undefined);
+          });
+        } else {
+          // Při prvním přihlášení nesmíme uživatele pustit domů dříve, než je
+          // podepsané offline oprávnění opravdu v IndexedDB. Jinak rychlé zavření
+          // PWA vytvoří zdánlivě úspěšnou, ale jen paměťovou relaci.
           try {
-            const deviceId = await withDeadline(getOrCreateDeviceId(), 3_000, 'Místní úložiště zařízení neodpovídá.');
-            // JWT už vrátilo první úspěšné ověření relace. Použijeme právě tento
-            // token, aby uložení trvalého offline oprávnění nezáviselo na druhém
-            // cross-site cookie požadavku, který mobilní PWA může zablokovat.
-            const verified = await neonAuthRepository.issueOfflineGrant(result.profile, deviceId, result.session.access_token);
-            const stored: StoredOfflineGrantRecord = {
-              schemaVersion: 1,
-              provider: verified.provider,
-              token: verified.token,
-              payload: verified.payload,
-              profile: result.profile,
-              verifiedAt: verified.verifiedAt,
-              keySet: verified.keySet,
-            };
-            await withDeadline(neonAuthRepository.saveOfflineGrant(stored), 3_000, 'Offline oprávnění se nepodařilo včas uložit.');
-            const persistent = await requestPersistentStorage();
-            if (sequence === refreshSequence.current) setOfflineGrant(verified.payload);
-            void recordDiagnostic({ category: 'auth', event: 'offline_grant_valid', level: 'info', details: { persistentStorage: persistent } }).catch(() => undefined);
+            await persistOfflineGrant(result.profile, result.session.access_token, sequence);
           } catch (grantError) {
             void recordDiagnostic({ category: 'auth', event: 'offline_grant_refresh_failed', level: 'warning' }).catch(() => undefined);
-            if (!local.grant && sequence === refreshSequence.current) {
+            if (sequence === refreshSequence.current) {
               setError(grantError instanceof Error ? `Offline oprávnění se nepodařilo obnovit: ${grantError.message}` : 'Offline oprávnění se nepodařilo obnovit.');
             }
           }
-        })();
+        }
       }
+
+      if (sequence !== refreshSequence.current) return;
+      setSession(result.session);
+      setProfile(result.profile);
+      setAuthState({ status: 'authenticated-online', userId: result.profile.id });
+      setError((current) => current?.startsWith('Offline oprávnění se nepodařilo') ? current : null);
+      void recordDiagnostic({ category: 'auth', event: 'online_session_valid', level: 'info' }).catch(() => undefined);
     } catch (caught) {
       if (sequence !== refreshSequence.current) return;
       const failure = classifyAuthError(caught);
@@ -186,7 +199,7 @@ export function useSecureAccount(): SecureAccountState {
       window.clearTimeout(timeout);
       if (sequence === refreshSequence.current) setHydrated(true);
     }
-  }, [enabled]);
+  }, [enabled, persistOfflineGrant]);
 
   useEffect(() => {
     if (!enabled) return;

@@ -1,0 +1,36 @@
+name: Production health
+
+on:
+  workflow_run:
+    workflows: ["Validate and deploy PWA"]
+    types: [completed]
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-health
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      PRODUCTION_URL: ${{ vars.VITE_PUBLIC_BASE_URL || format('https://{0}.github.io/{1}/', github.repository_owner, github.event.repository.name) }}
+      PRODUCTION_NEON_AUTH_URL: ${{ vars.VITE_NEON_AUTH_URL }}
+      PRODUCTION_NEON_DATA_API_URL: ${{ vars.VITE_NEON_DATA_API_URL }}
+      PRODUCTION_TEST_EMAIL: ${{ secrets.PRODUCTION_TEST_EMAIL }}
+      PRODUCTION_TEST_PASSWORD: ${{ secrets.PRODUCTION_TEST_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Verify PWA, Neon Auth and Data API
+        run: npm run health:production

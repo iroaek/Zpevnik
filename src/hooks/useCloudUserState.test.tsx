@@ -49,7 +49,7 @@ const profile: SecureProfile = {
 };
 
 const state: UserState = {
-  schemaVersion: 5,
+  schemaVersion: 6,
   updatedAt: '2026-08-11T12:00:00.000Z',
   favorites: ['synthetic-song'],
   recentSongIds: [],
@@ -64,6 +64,7 @@ const state: UserState = {
     autoScrollSpeed: 24,
     catalogDensity: 'standard',
     motion: 'gentle',
+    accessibility: { highContrast: false, largeControls: false, oneHanded: false },
     reader: { chordScale: 1, lineHeight: 1.3, columnWidth: 760, focusSections: false, wrapLayoutText: true, stageFontSize: 24 },
   },
   songReaderPreferences: {},

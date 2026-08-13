@@ -4,6 +4,7 @@ import {
   loadSharedSetlists,
   publishMySetlist,
   updateSharedSetlist,
+  updateSharedSetlistLiveSong,
   type SecureProfile,
   type SharedSetlist,
 } from '../auth/secureAccess';
@@ -19,6 +20,19 @@ interface SharedSetlistsProps {
   selectedLocal?: Setlist;
   onOpenSong: (id: string, sequence?: string[]) => void;
   onCopyToMySetlists: (name: string, songIds: string[]) => void;
+  followedLiveSetlistId?: string;
+  onFollowLive?: (setlistId: string) => void;
+}
+
+const SHARED_SETLIST_CACHE_KEY = 'zpevnik-shared-setlists-cache-v1';
+
+function loadCachedSharedSetlists(): SharedSetlist[] {
+  try {
+    const cached = JSON.parse(localStorage.getItem(SHARED_SETLIST_CACHE_KEY) ?? '[]') as unknown;
+    return Array.isArray(cached) ? cached as SharedSetlist[] : [];
+  } catch {
+    return [];
+  }
 }
 
 function normalizedSearch(value: string): string {
@@ -32,9 +46,11 @@ export function SharedSetlists({
   selectedLocal,
   onOpenSong,
   onCopyToMySetlists,
+  followedLiveSetlistId = '',
+  onFollowLive = () => undefined,
 }: SharedSetlistsProps) {
-  const [records, setRecords] = useState<SharedSetlist[]>([]);
-  const [selectedSharedId, setSelectedSharedId] = useState('');
+  const [records, setRecords] = useState<SharedSetlist[]>(loadCachedSharedSetlists);
+  const [selectedSharedId, setSelectedSharedId] = useState(() => loadCachedSharedSetlists()[0]?.id ?? '');
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -58,25 +74,29 @@ export function SharedSetlists({
     ? selectedShared.song_ids.filter((id) => !songsById.has(id)).length
     : 0;
 
-  const refresh = useCallback(async (preferredId = '') => {
+  const refresh = useCallback(async (preferredId = '', silent = false) => {
     if (!approved || !online) return;
-    setBusy('loading');
-    setError('');
+    if (!silent) {
+      setBusy('loading');
+      setError('');
+    }
     try {
       const next = await loadSharedSetlists();
       setRecords(next);
+      try { localStorage.setItem(SHARED_SETLIST_CACHE_KEY, JSON.stringify(next)); } catch { /* Cache je jen offline fallback. */ }
       setSelectedSharedId((current) => preferredId || (next.some((record) => record.id === current) ? current : next[0]?.id ?? ''));
     } catch (caught) {
-      setError(friendlyError(caught, 'Sdílené setlisty se nepodařilo načíst.'));
+      if (!silent) setError(friendlyError(caught, 'Sdílené setlisty se nepodařilo načíst.'));
     } finally {
-      setBusy('');
+      if (!silent) setBusy('');
     }
   }, [approved, online]);
 
   useEffect(() => {
     if (!approved || !online) return;
     const refreshTimer = window.setTimeout(() => void refresh(), 0);
-    return () => window.clearTimeout(refreshTimer);
+    const pollingTimer = window.setInterval(() => void refresh('', true), 5_000);
+    return () => { window.clearTimeout(refreshTimer); window.clearInterval(pollingTimer); };
   }, [approved, online, refresh]);
 
   const publishSelected = async () => {
@@ -172,6 +192,20 @@ export function SharedSetlists({
     }
   };
 
+  const setLiveSong = async (record: SharedSetlist, songId: string | null) => {
+    setBusy('live');
+    setError('');
+    try {
+      await updateSharedSetlistLiveSong(record.id, songId);
+      await refresh(record.id);
+      setMessage(songId ? 'Aktuální píseň byla odeslána sledujícím členům.' : 'Živý režim byl ukončen.');
+    } catch (caught) {
+      setError(friendlyError(caught, 'Živý stav se nepodařilo změnit. Je možné, že serverová migrace ještě není nasazená.'));
+    } finally {
+      setBusy('');
+    }
+  };
+
   const addCandidates = useMemo(() => {
     const needle = normalizedSearch(songQuery);
     return shareableSongs.filter((song) => {
@@ -187,7 +221,7 @@ export function SharedSetlists({
     </header>
 
     {!approved && <p className="empty-state">Sdílení se zpřístupní po přihlášení a schválení účtu.</p>}
-    {approved && !online && <p className="offline-note">Sdílené setlisty vyžadují připojení. Vaše vlastní setlisty a jejich uložené kopie dál fungují offline.</p>}
+    {approved && !online && <p className="offline-note">Zobrazuje se poslední uložený stav sdílených setlistů. Nové změny a živé přepínání se obnoví po připojení; otevřená stažená píseň dál funguje offline.</p>}
 
     {approved && online && selectedLocal && <article className="share-current-card">
       <span><small>{existingShare ? 'Tento setlist je sdílený' : 'Sdílet vybraný setlist'}</small><strong>{selectedLocal.name}</strong><p>{selectedLocalShareableIds.length} členských písní{selectedLocal.songIds.length !== selectedLocalShareableIds.length ? ` · ${selectedLocal.songIds.length - selectedLocalShareableIds.length} neveřejných se nesdílí` : ''}</p></span>
@@ -201,11 +235,11 @@ export function SharedSetlists({
     {records.length > 0 && <div className="shared-setlist-grid" role="list" aria-label="Sdílené setlisty">{records.map((record) => <button type="button" role="listitem" className={record.id === selectedShared?.id ? 'shared-setlist-card shared-setlist-card--active' : 'shared-setlist-card'} onClick={() => { setSelectedSharedId(record.id); setEditing(false); setConfirmDelete(false); }} key={record.id}><span><strong>{record.name}</strong><small>{record.owner_name}</small></span><span>{record.song_ids.length} ♫</span></button>)}</div>}
 
     {selectedShared && <article className="shared-setlist-detail">
-      <header><span><p className="eyebrow">Sdílí {selectedShared.owner_name}</p><h3>{selectedShared.name}</h3><small>{selectedShared.song_ids.length} písní · aktualizováno {new Date(selectedShared.updated_at).toLocaleDateString('cs-CZ')}</small></span>{profile?.role === 'admin' && selectedShared.owner_id !== profile.id && <span className="admin-edit-badge">Správa administrátora</span>}</header>
+      <header><span><p className="eyebrow">Sdílí {selectedShared.owner_name}</p><h3>{selectedShared.name}</h3><small>{selectedShared.song_ids.length} písní · aktualizováno {new Date(selectedShared.updated_at).toLocaleDateString('cs-CZ')}</small></span><span className="shared-setlist-statuses">{selectedShared.live_song_id && <span className="live-setlist-badge">● Živě</span>}{profile?.role === 'admin' && selectedShared.owner_id !== profile.id && <span className="admin-edit-badge">Správa administrátora</span>}</span></header>
       {missingSongCount > 0 && <p className="offline-note">{missingSongCount} písní z tohoto setlistu není ve vaší členské knihovně.</p>}
-      <div className="button-row"><button type="button" className="primary-button" disabled={selectedShared.song_ids.every((id) => !songsById.has(id))} onClick={() => onCopyToMySetlists(selectedShared.name, selectedShared.song_ids.filter((id) => songsById.has(id)))}>Uložit kopii mezi moje setlisty</button>{canManageSelected && <button type="button" className="secondary-button" onClick={startEditing}>Upravit sdílený setlist</button>}</div>
+      <div className="button-row"><button type="button" className="primary-button" disabled={selectedShared.song_ids.every((id) => !songsById.has(id))} onClick={() => onCopyToMySetlists(selectedShared.name, selectedShared.song_ids.filter((id) => songsById.has(id)))}>Uložit kopii mezi moje setlisty</button>{selectedShared.live_song_id && <button type="button" className={followedLiveSetlistId === selectedShared.id ? 'secondary-button active' : 'secondary-button'} aria-pressed={followedLiveSetlistId === selectedShared.id} onClick={() => onFollowLive(selectedShared.id)}>{followedLiveSetlistId === selectedShared.id ? 'Sledujete živě' : 'Sledovat vedoucího'}</button>}{canManageSelected && <button type="button" className="secondary-button" onClick={startEditing}>Upravit sdílený setlist</button>}{canManageSelected && !selectedShared.live_song_id && <button type="button" className="secondary-button" disabled={!online || busy === 'live'} onClick={() => void setLiveSong(selectedShared, selectedShared.song_ids.find((id) => songsById.has(id)) ?? null)}>Spustit živý režim</button>}{canManageSelected && selectedShared.live_song_id && <button type="button" className="danger-button" disabled={!online || busy === 'live'} onClick={() => void setLiveSong(selectedShared, null)}>Ukončit živě</button>}</div>
 
-      {!editing && <div className="shared-song-list">{selectedShared.song_ids.map((songId, index) => { const song = songsById.get(songId); return song ? <button type="button" onClick={() => onOpenSong(songId, selectedShared.song_ids)} key={`${songId}-${index}`}><span className="order-number">{index + 1}</span><span><strong>{song.title}</strong><small>{song.authors.join(', ') || 'Autor neuveden'}</small></span><span aria-hidden="true">›</span></button> : null; })}</div>}
+      {!editing && <div className="shared-song-list">{selectedShared.song_ids.map((songId, index) => { const song = songsById.get(songId); const live = selectedShared.live_song_id === songId; return song ? <div className={live ? 'shared-live-song shared-live-song--current' : 'shared-live-song'} key={`${songId}-${index}`}><button type="button" onClick={() => onOpenSong(songId, selectedShared.song_ids)}><span className="order-number">{index + 1}</span><span><strong>{song.title}</strong><small>{song.authors.join(', ') || 'Autor neuveden'}{live ? ' · právě hraje' : ''}</small></span><span aria-hidden="true">›</span></button>{canManageSelected && selectedShared.live_song_id && <button type="button" className="live-song-send" disabled={!online || busy === 'live' || live} onClick={() => void setLiveSong(selectedShared, songId)}>{live ? 'Živě' : 'Vysílat'}</button>}</div> : null; })}</div>}
 
       {editing && <section className="shared-setlist-editor" aria-label="Úprava sdíleného setlistu">
         <label>Název sdíleného setlistu<input value={draftName} maxLength={100} onChange={(event) => setDraftName(event.target.value)} /></label>

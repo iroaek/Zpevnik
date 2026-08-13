@@ -9,6 +9,7 @@ const auth = vi.hoisted(() => ({
   resetPassword: vi.fn(),
   signInWithEmail: vi.fn(),
   signInWithOtp: vi.fn(),
+  signOut: vi.fn().mockResolvedValue({ error: null }),
 }));
 
 vi.mock('../backend/neonClient', () => ({
@@ -26,6 +27,7 @@ vi.mock('../backend/neonClient', () => ({
         resetPassword: auth.resetPassword,
       },
       getSession: auth.getSession,
+      signOut: auth.signOut,
       signIn: {
         email: auth.signInWithEmail,
         emailOtp: auth.signInWithOtp,
@@ -39,6 +41,7 @@ import {
   getSecureSession,
   sendMigratedPasswordSetupCode,
   signInSecureAccountWithCode,
+  signOutSecureAccount,
   subscribeToSecureSession,
 } from './secureAccess';
 
@@ -51,9 +54,37 @@ function testJwt(): string {
 }
 
 describe('Neon OTP relace', () => {
-  afterEach(() => {
+  afterEach(async () => {
+    await signOutSecureAccount().catch(() => undefined);
     vi.clearAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it('po restartu vymění obnovený neprůhledný session token za JWT', async () => {
+    const user = {
+      id: '22222222-2222-4222-8222-222222222222',
+      email: 'restart@example.test',
+      emailVerified: true,
+      name: 'Restartovaný člen',
+    };
+    const jwt = testJwt();
+    auth.getSession.mockResolvedValue({
+      data: { session: { token: 'opaque-restart-token', expiresAt: new Date(Date.now() + 600_000) }, user },
+      error: null,
+    });
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token: jwt }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const session = await getSecureSession();
+
+    expect(fetchMock).toHaveBeenCalledWith('https://auth.example.test/token', expect.objectContaining({
+      credentials: 'omit',
+      headers: expect.objectContaining({ Authorization: 'Bearer opaque-restart-token' }),
+    }));
+    expect(session).toMatchObject({ access_token: jwt, user: { id: user.id } });
   });
 
   it('použije JWT z úspěšné OTP odpovědi i když Safari neuloží cross-site cookie', async () => {

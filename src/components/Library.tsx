@@ -1,5 +1,6 @@
 import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { normalizeSharpSpelling } from '../domain/chords';
+import { createLibrarySearchDocuments, searchLibraryDocuments } from '../domain/librarySearch';
 import type { Song } from '../domain/song';
 import type { PersonalLibrarySummary } from '../personalLibrary';
 import type { CatalogDensity, Setlist } from '../storage/database';
@@ -42,6 +43,7 @@ interface LibraryViewState {
 const VIRTUALIZE_AFTER = 160;
 const VIRTUAL_OVERSCAN_ROWS = 4;
 const VIEW_STORAGE_KEY = 'zpevnik-library-view-v1';
+const EMPTY_SEARCH_RESULTS = new Set<string>();
 const initialView: LibraryViewState = { query: '', mode: 'all', key: '', difficulty: '', language: '', category: '', scoreAvailability: '', instrument: '', letter: '', sort: 'title' };
 
 function loadView(): LibraryViewState {
@@ -96,7 +98,11 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
   const swipeOffset = useRef<{ id: string; x: number } | null>(null);
   const longPressTimer = useRef<number | null>(null);
   const longPressTriggered = useRef(false);
+  const searchWorkerRef = useRef<Worker | null>(null);
+  const searchRequestRef = useRef(0);
+  const [workerSearchIds, setWorkerSearchIds] = useState<Set<string> | null>(null);
   const deferredQuery = useDeferredValue(view.query);
+  const shouldUseSearchWorker = typeof Worker !== 'undefined' && songs.length >= VIRTUALIZE_AFTER;
   const favoriteIds = useMemo(() => new Set(favorites), [favorites]);
 
   const updateView = <K extends keyof LibraryViewState>(key: K, value: LibraryViewState[K]) => setView((current) => ({ ...current, [key]: value }));
@@ -132,7 +138,8 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
     letters: [...new Set(songs.map(firstLetter))].sort((left, right) => left.localeCompare(right, 'cs')),
   }), [songs]);
 
-  const searchIndex = useMemo(() => new Map(songs.map((song) => [song.id, [song.title, ...song.alternativeTitles, ...song.authors, song.firstLine, ...song.tags, ...song.categories].map(normalize).join(' ')])), [songs]);
+  const searchDocuments = useMemo(() => createLibrarySearchDocuments(songs), [songs]);
+  const synchronousSearchIds = useMemo(() => shouldUseSearchWorker ? null : new Set(searchLibraryDocuments(searchDocuments, deferredQuery)), [deferredQuery, searchDocuments, shouldUseSearchWorker]);
   const songById = useMemo(() => new Map(songs.map((song) => [song.id, song])), [songs]);
   const recentSongs = useMemo(() => recent.map((id) => songById.get(id)).filter((song): song is Song => Boolean(song)).slice(0, 8), [recent, songById]);
 
@@ -144,8 +151,8 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
         ? recent.map((id) => songById.get(id)).filter((song): song is Song => Boolean(song))
         : songs;
     const matches = base.filter((song) => {
-      const haystack = searchIndex.get(song.id) ?? '';
-      return (!needle || haystack.includes(needle))
+      const matchesSearch = !needle || (workerSearchIds ?? synchronousSearchIds ?? EMPTY_SEARCH_RESULTS).has(song.id);
+      return matchesSearch
         && (!view.letter || firstLetter(song) === view.letter)
         && (!view.key || displaySongKey(song.originalKey) === view.key)
         && (!view.difficulty || song.difficulty === view.difficulty)
@@ -160,7 +167,40 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
       if (view.sort === 'recent') return (recentOrder.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (recentOrder.get(right.id) ?? Number.MAX_SAFE_INTEGER) || left.sortTitle.localeCompare(right.sortTitle, 'cs');
       return left.sortTitle.localeCompare(right.sortTitle, 'cs');
     });
-  }, [deferredQuery, favoriteIds, recent, searchIndex, songById, songs, view]);
+  }, [deferredQuery, favoriteIds, recent, songById, songs, synchronousSearchIds, view, workerSearchIds]);
+
+  useEffect(() => {
+    if (!shouldUseSearchWorker) return;
+    const worker = new Worker(new URL('../workers/librarySearch.worker.ts', import.meta.url), { type: 'module' });
+    searchWorkerRef.current = worker;
+    worker.postMessage({ type: 'index', documents: searchDocuments });
+    worker.addEventListener('message', (event: MessageEvent<{ type: 'result'; requestId: number; ids: string[] }>) => {
+      if (event.data.type !== 'result' || event.data.requestId !== searchRequestRef.current) return;
+      setWorkerSearchIds(new Set(event.data.ids));
+    });
+    return () => {
+      worker.terminate();
+      searchWorkerRef.current = null;
+    };
+  }, [searchDocuments, shouldUseSearchWorker]);
+
+  useEffect(() => {
+    const query = deferredQuery.trim();
+    let active = true;
+    if (!query) {
+      void Promise.resolve().then(() => { if (active) setWorkerSearchIds(null); });
+      return () => { active = false; };
+    }
+    const worker = searchWorkerRef.current;
+    if (!shouldUseSearchWorker || !worker) {
+      void Promise.resolve().then(() => { if (active) setWorkerSearchIds(new Set(searchLibraryDocuments(searchDocuments, query))); });
+      return () => { active = false; };
+    }
+    const requestId = ++searchRequestRef.current;
+    void Promise.resolve().then(() => { if (active) setWorkerSearchIds(null); });
+    worker.postMessage({ type: 'search', requestId, query });
+    return () => { active = false; };
+  }, [deferredQuery, searchDocuments, shouldUseSearchWorker]);
 
   const virtualized = filtered.length > VIRTUALIZE_AFTER;
   const rowHeight = effectiveDensity === 'compact' ? 67 : effectiveDensity === 'stage' ? 147 : 95;

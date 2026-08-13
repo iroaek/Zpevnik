@@ -26,10 +26,17 @@ export interface UserSettings {
   autoScrollSpeed: number;
   catalogDensity: CatalogDensity;
   motion: 'full' | 'gentle' | 'off';
+  accessibility: AccessibilityPreferences;
   reader: ReaderPreferences;
 }
 
 export type CatalogDensity = 'stage' | 'standard' | 'compact';
+
+export interface AccessibilityPreferences {
+  highContrast: boolean;
+  largeControls: boolean;
+  oneHanded: boolean;
+}
 
 export interface ReaderPreferences {
   chordScale: number;
@@ -41,7 +48,7 @@ export interface ReaderPreferences {
 }
 
 export interface UserState {
-  schemaVersion: 5;
+  schemaVersion: 6;
   updatedAt: string;
   favorites: string[];
   recentSongIds: string[];
@@ -211,8 +218,18 @@ const settingsV4Schema = legacySettingsSchema.extend({
   reader: readerPreferencesSchema,
 });
 
-const settingsSchema = settingsV4Schema.extend({
+const settingsV5Schema = settingsV4Schema.extend({
   motion: z.enum(['full', 'gentle', 'off']),
+});
+
+const accessibilityPreferencesSchema = z.object({
+  highContrast: z.boolean(),
+  largeControls: z.boolean(),
+  oneHanded: z.boolean(),
+});
+
+const settingsSchema = settingsV5Schema.extend({
+  accessibility: accessibilityPreferencesSchema,
 });
 
 const legacyUserStateFields = {
@@ -240,8 +257,17 @@ const userStateV4Schema = z.object({
   settings: settingsV4Schema,
   songReaderPreferences: z.record(z.string().min(1).max(200), readerPreferencesSchema).refine((value) => Object.keys(value).length <= 250, 'Příliš mnoho nastavení jednotlivých písní.'),
 });
-export const userStateSchema = z.object({
+const userStateV5Schema = z.object({
   schemaVersion: z.literal(5),
+  updatedAt: z.string().datetime(),
+  favorites: legacyUserStateFields.favorites,
+  recentSongIds: legacyUserStateFields.recentSongIds,
+  setlists: legacyUserStateFields.setlists,
+  settings: settingsV5Schema,
+  songReaderPreferences: z.record(z.string().min(1).max(200), readerPreferencesSchema).refine((value) => Object.keys(value).length <= 250, 'Příliš mnoho nastavení jednotlivých písní.'),
+});
+export const userStateSchema = z.object({
+  schemaVersion: z.literal(6),
   updatedAt: z.string().datetime(),
   favorites: legacyUserStateFields.favorites,
   recentSongIds: legacyUserStateFields.recentSongIds,
@@ -288,7 +314,7 @@ const diagnosticEventSchema: z.ZodType<DiagnosticEvent> = z.object({
 const INITIAL_STATE_UPDATED_AT = '1970-01-01T00:00:00.000Z';
 
 export const defaultUserState: UserState = {
-  schemaVersion: 5,
+  schemaVersion: 6,
   updatedAt: INITIAL_STATE_UPDATED_AT,
   favorites: [],
   recentSongIds: [],
@@ -303,6 +329,11 @@ export const defaultUserState: UserState = {
     autoScrollSpeed: 25,
     catalogDensity: 'standard',
     motion: 'gentle',
+    accessibility: {
+      highContrast: false,
+      largeControls: false,
+      oneHanded: false,
+    },
     reader: {
       chordScale: 1,
       lineHeight: 1.3,
@@ -465,20 +496,27 @@ export async function loadSongSubmissions(): Promise<SongSubmission[]> {
 export function migrateUserState(stored: unknown): UserState | null {
   const current = userStateSchema.safeParse(stored);
   if (current.success) return current.data;
+  const versionFive = userStateV5Schema.safeParse(stored);
+  if (versionFive.success) return {
+    ...versionFive.data,
+    schemaVersion: 6,
+    settings: { ...versionFive.data.settings, accessibility: { ...defaultUserState.settings.accessibility } },
+  };
   const versionFour = userStateV4Schema.safeParse(stored);
   if (versionFour.success) return {
     ...versionFour.data,
-    schemaVersion: 5,
-    settings: { ...versionFour.data.settings, motion: defaultUserState.settings.motion },
+    schemaVersion: 6,
+    settings: { ...versionFour.data.settings, motion: defaultUserState.settings.motion, accessibility: { ...defaultUserState.settings.accessibility } },
   };
   const versionThree = userStateV3Schema.safeParse(stored);
   if (versionThree.success) return {
     ...versionThree.data,
-    schemaVersion: 5,
+    schemaVersion: 6,
     settings: {
       ...versionThree.data.settings,
       catalogDensity: defaultUserState.settings.catalogDensity,
       motion: defaultUserState.settings.motion,
+      accessibility: { ...defaultUserState.settings.accessibility },
       reader: { ...defaultUserState.settings.reader, stageFontSize: versionThree.data.settings.fontSize },
     },
     songReaderPreferences: {},
@@ -486,12 +524,13 @@ export function migrateUserState(stored: unknown): UserState | null {
   const versionTwo = userStateV2Schema.safeParse(stored);
   if (versionTwo.success) return {
     ...versionTwo.data,
-    schemaVersion: 5,
+    schemaVersion: 6,
     updatedAt: versionTwo.data.setlists.reduce((latest, setlist) => setlist.updatedAt > latest ? setlist.updatedAt : latest, INITIAL_STATE_UPDATED_AT),
     settings: {
       ...versionTwo.data.settings,
       catalogDensity: defaultUserState.settings.catalogDensity,
       motion: defaultUserState.settings.motion,
+      accessibility: { ...defaultUserState.settings.accessibility },
       reader: { ...defaultUserState.settings.reader, stageFontSize: versionTwo.data.settings.fontSize },
     },
     songReaderPreferences: {},
@@ -499,12 +538,13 @@ export function migrateUserState(stored: unknown): UserState | null {
   const legacy = legacyUserStateSchema.safeParse(stored);
   return legacy.success ? {
     ...legacy.data,
-    schemaVersion: 5,
+    schemaVersion: 6,
     updatedAt: legacy.data.setlists.reduce((latest, setlist) => setlist.updatedAt > latest ? setlist.updatedAt : latest, INITIAL_STATE_UPDATED_AT),
     settings: {
       ...legacy.data.settings,
       catalogDensity: defaultUserState.settings.catalogDensity,
       motion: defaultUserState.settings.motion,
+      accessibility: { ...defaultUserState.settings.accessibility },
       reader: { ...defaultUserState.settings.reader, stageFontSize: legacy.data.settings.fontSize },
     },
     songReaderPreferences: {},
@@ -789,6 +829,14 @@ async function readPersonalSongContent(song: Song): Promise<string> {
   return response.text();
 }
 
+export interface FullBackupPayload {
+  application: 'cesky-digitalni-zpevnik';
+  backupVersion: 2;
+  exportedAt: string;
+  data: UserState;
+  personalSongs: PersonalSongEntry[];
+}
+
 function downloadBackup(payload: unknown): void {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -799,7 +847,7 @@ function downloadBackup(payload: unknown): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-export async function exportFullBackup(state: UserState, personalSongs: Song[]): Promise<number> {
+export async function createFullBackupPayload(state: UserState, personalSongs: Song[]): Promise<{ payload: FullBackupPayload; personalSongCount: number }> {
   const validatedState = userStateSchema.parse(state);
   const uniqueSongs = [...new Map(personalSongs.filter((song) => song.personalOnly).map((song) => [song.id, song])).values()];
   const entries = await Promise.all(uniqueSongs.map(async (song) => {
@@ -814,14 +862,20 @@ export async function exportFullBackup(state: UserState, personalSongs: Song[]):
       content,
     });
   }));
-  downloadBackup({
+  const payload: FullBackupPayload = {
     application: 'cesky-digitalni-zpevnik',
     backupVersion: 2,
     exportedAt: new Date().toISOString(),
     data: validatedState,
     personalSongs: entries,
-  });
-  return entries.length;
+  };
+  return { payload, personalSongCount: entries.length };
+}
+
+export async function exportFullBackup(state: UserState, personalSongs: Song[]): Promise<number> {
+  const backup = await createFullBackupPayload(state, personalSongs);
+  downloadBackup(backup.payload);
+  return backup.personalSongCount;
 }
 
 export function isDownloadedLibrarySong(song: Song): boolean {

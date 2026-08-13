@@ -25,7 +25,8 @@
     "test": "npm run test:unit && npm run test:integration",
     "test:unit": "vitest run src",
     "test:integration": "vitest run tests",
-    "test:e2e": "npm run build:e2e && playwright test"
+    "test:e2e": "npm run build:e2e && playwright test",
+    "health:production": "node scripts/production-health.mjs"
   },
   "dependencies": {
     "@neondatabase/neon-js": "^0.7.0-beta",

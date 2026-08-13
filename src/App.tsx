@@ -10,6 +10,7 @@ import { RegistrationPage } from './components/RegistrationPage';
 import { UpdateBanner } from './components/UpdateBanner';
 import { FirstRunGuide } from './components/FirstRunGuide';
 import { AppStatusCenter } from './components/AppStatusCenter';
+import { LiveSetlistFollower } from './components/LiveSetlistFollower';
 import { hasCompletedFirstRunGuide } from './components/firstRunState';
 import { catalogSchema, type Catalog } from './domain/song';
 import { useConnectivity } from './hooks/useConnectivity';
@@ -144,6 +145,9 @@ export default function App() {
   const [readerSequence, setReaderSequence] = useState<string[]>([]);
   const [firstRunOpen, setFirstRunOpen] = useState(false);
   const [statusCenterOpen, setStatusCenterOpen] = useState(false);
+  const [followedLiveSetlistId, setFollowedLiveSetlistId] = useState(() => {
+    try { return localStorage.getItem('zpevnik-follow-live-setlist-v1') ?? ''; } catch { return ''; }
+  });
   const routeScrollPositions = useRef<Record<string, number>>({});
   const navigationIntent = useRef(0);
   const online = useConnectivity();
@@ -307,8 +311,22 @@ export default function App() {
   }, [userState.settings.motion]);
 
   useEffect(() => {
+    const root = document.documentElement;
+    root.dataset.contrast = userState.settings.accessibility.highContrast ? 'high' : 'normal';
+    root.dataset.controls = userState.settings.accessibility.largeControls ? 'large' : 'standard';
+    root.dataset.oneHanded = userState.settings.accessibility.oneHanded ? 'true' : 'false';
+  }, [userState.settings.accessibility]);
+
+  useEffect(() => {
     document.body.dataset.printSize = userState.settings.printSize;
   }, [userState.settings.printSize]);
+
+  useEffect(() => {
+    try {
+      if (followedLiveSetlistId) localStorage.setItem('zpevnik-follow-live-setlist-v1', followedLiveSetlistId);
+      else localStorage.removeItem('zpevnik-follow-live-setlist-v1');
+    } catch { /* Sledování zůstane aktivní alespoň do zavření aplikace. */ }
+  }, [followedLiveSetlistId]);
 
   useEffect(() => {
     const relative = routeRelativePath(route);
@@ -398,14 +416,14 @@ export default function App() {
         <div className="header-status"><button type="button" className={`sync-badge sync-badge--${cloudSync.status}`} onClick={() => setStatusCenterOpen(true)} aria-label="Otevřít stav zpěvníku"><Icon name="sync" size={17} /><span>{cloudSync.status === 'synced' ? 'Uloženo' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Ukládám' : cloudSync.status === 'error' ? 'Chyba' : cloudSync.status === 'offline' ? 'Čeká' : 'Místně'}</span></button><button type="button" className={`connection-badge ${online ? 'online' : 'offline'}`} onClick={() => setStatusCenterOpen(true)} aria-label={`${online ? 'Online' : 'Offline'}; otevřít stav zpěvníku`}><span aria-hidden="true" />{online ? 'Online' : 'Offline'}</button></div>
       </header>}
       {route.name !== 'home' && secureAccount.authState.status === 'authenticated-offline' && <aside className="offline-auth-banner" role="status"><strong>Offline režim</strong><span>Oprávnění platí do {new Date(secureAccount.authState.offlineValidUntil).toLocaleDateString('cs-CZ')} · obsah {secureAccount.authState.contentVersion.slice(0, 12)}</span></aside>}
-      {route.name !== 'home' && updateAvailable && <UpdateBanner onUpdate={() => void activateWaitingUpdate()} onLater={() => setUpdateAvailable(false)} />}
+      {route.name !== 'home' && updateAvailable && <UpdateBanner onUpdate={activateWaitingUpdate} onLater={() => setUpdateAvailable(false)} />}
       {route.name !== 'home' && (storageError || profileError) && <p className="global-warning" role="alert">{storageError || profileError}</p>}
       {route.name !== 'home' && systemMessage && <div className="system-message toast-message" role="status"><Icon name="check" size={20} /><span>{systemMessage}</span><button type="button" aria-label="Zavřít zprávu" onClick={() => setSystemMessage('')}><Icon name="close" size={19} /></button><i className="toast-life" aria-hidden="true" /></div>}
       <main id="main-content" className={`app-main ${route.name === 'home' ? 'app-main--home' : ''}`}>
         <div className="route-stage" key={routeRelativePath(route) || 'home'}><Suspense fallback={<RouteLoading routeName={route.name} />}>
         {route.name === 'home' && <HomeDashboard songs={allSongs} favorites={userState.favorites} recent={userState.recentSongIds} setlistCount={userState.setlists.length} onOpenSong={(id) => openSong(id)} onNavigate={navigate} />}
         {route.name === 'library' && <Library entry={route.entry} songs={allSongs} personalSummary={personalSummary} deviceSongCount={deviceSongs.length} favorites={userState.favorites} recent={userState.recentSongIds} setlists={userState.setlists} density={userState.settings.catalogDensity} onDensityChange={(catalogDensity) => setUserState((current) => ({ ...current, settings: { ...current.settings, catalogDensity } }))} onOpenSong={(id) => openSong(id)} onToggleFavorite={(id) => setUserState((current) => toggleFavorite(current, id))} onAddToSetlist={(songId, setlistId) => setUserState((current) => { const setlist = current.setlists.find((candidate) => candidate.id === setlistId); return !setlist || setlist.songIds.includes(songId) ? current : updateSetlistSongs(current, setlistId, [...setlist.songIds, songId]); })} onAddToTonight={addToTonightSetlist} onDeleteSong={deleteDeviceSong} onNotify={setSystemMessage} />}
-        {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id) => navigate(`setlists/${id}`)} secureProfile={secureAccount.profile} online={online} />}
+        {route.name === 'setlists' && <Setlists songs={allSongs} publicSetlists={catalog.publicSetlists} catalogVersion={catalog.version} userState={userState} onUserStateChange={setUserState} onOpenSong={openSong} onOpenPublicSetlist={(id) => navigate(`setlists/${id}`)} secureProfile={secureAccount.profile} online={online} followedLiveSetlistId={followedLiveSetlistId} onFollowLiveSetlist={setFollowedLiveSetlistId} />}
         {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} />}
         {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} cloudSync={cloudSync} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} onRefreshSecureProfile={secureAccount.refresh} onOpenGuide={() => setFirstRunOpen(true)} />}
         {route.name === 'admin' && secureAccount.enabled && secureAccount.profile?.role === 'admin' && <AdminPage cloudSync={cloudSync} online={online} onNavigate={navigate} onOpenSong={openSong} songs={allSongs} catalogVersion={catalog.version} downloadedSongs={downloadedLibrarySongs.length} availableSongs={allSongs.length} />}
@@ -426,6 +444,7 @@ export default function App() {
         <button type="button" className={navScreen === 'settings' ? 'active' : ''} aria-current={navScreen === 'settings' ? 'page' : undefined} onPointerEnter={() => void loadSettings()} onFocus={() => void loadSettings()} onClick={() => navigate('settings')}><Icon name="settings" />Nastavení</button>
       </nav>}
       <AppStatusCenter open={statusCenterOpen} online={online} profile={secureAccount.profile} offlineAuthenticated={secureAccount.authState.status === 'authenticated-offline'} cloudSync={cloudSync} downloadedSongs={downloadedLibrarySongs.length} availableSongs={allSongs.length} catalogVersion={catalog.version} updateAvailable={updateAvailable} onUpdateAvailable={() => setUpdateAvailable(true)} onInstallUpdate={activateWaitingUpdate} onClose={() => setStatusCenterOpen(false)} onNavigate={navigate} />
+      {followedLiveSetlistId && secureAccount.profile?.status === 'approved' && <LiveSetlistFollower setlistId={followedLiveSetlistId} profile={secureAccount.profile} online={online} songs={allSongs} onOpenSong={openSong} onStop={() => setFollowedLiveSetlistId('')} />}
       {firstRunOpen && <FirstRunGuide userId={userProfile.id} role={userProfile.role} onClose={() => setFirstRunOpen(false)} onNavigate={navigate} />}
     </div>
   );

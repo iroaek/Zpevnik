@@ -70,6 +70,10 @@ const sharedSetlistSchema = z.object({
   song_ids: z.array(z.string().min(1).max(200)).min(1).max(500),
   created_at: databaseTimestampSchema,
   updated_at: databaseTimestampSchema,
+  live_song_id: z.string().min(1).max(200).nullable().default(null),
+  live_started_at: databaseTimestampSchema.nullable().default(null),
+  live_updated_at: databaseTimestampSchema.nullable().default(null),
+  live_by: z.string().uuid().nullable().default(null),
 });
 
 const songCorrectionSchema = z.object({
@@ -289,7 +293,18 @@ export async function getSecureSession(): Promise<SecureSession | null> {
   });
   if (error) throw readableError(error, 'Přihlášení se nepodařilo načíst z Neon Auth.');
   const session = normalizeSession(data);
-  if (sessionIsUsable(session)) bootstrapSession = session;
+  if (!sessionIsUsable(session)) return null;
+  // Better Auth může po restartu PWA vrátit neprůhledný session token, nikoli
+  // JWT použitelné pro Data API a podepsané offline oprávnění. Vyměníme jej
+  // proto hned při obnově relace; další vrstvy už vždy dostanou skutečný JWT.
+  if (!jwtExpiry(session.access_token)) {
+    const jwt = await jwtFromSessionToken(session.access_token);
+    const expiresAt = jwt ? jwtExpiry(jwt) : null;
+    if (!jwt || !expiresAt) throw new SecureAccessError('Neon Auth neobnovil autorizační token po otevření aplikace.', 401, 'neon_session_jwt_failed');
+    bootstrapSession = { ...session, access_token: jwt, expires_at: expiresAt };
+    return bootstrapSession;
+  }
+  bootstrapSession = session;
   return session;
 }
 
@@ -722,6 +737,14 @@ export async function updateSharedSetlist(id: string, name: string, songIds: str
 
 export async function deleteSharedSetlist(id: string): Promise<void> {
   await neonRpc('delete_shared_setlist', await requireSecureAccessToken(), { target_shared_setlist_id: id });
+}
+
+export async function updateSharedSetlistLiveSong(id: string, songId: string | null): Promise<void> {
+  const changed = await neonRpc<boolean>('set_shared_setlist_live_song', await requireSecureAccessToken(), {
+    target_shared_setlist_id: id,
+    target_song_id: songId ?? '',
+  });
+  if (changed !== true) throw new Error('Živý stav nebyl změněn. Ověřte oprávnění a obsah setlistu.');
 }
 
 function libraryScope(profile: SecureProfile): 'admin' | 'members' {

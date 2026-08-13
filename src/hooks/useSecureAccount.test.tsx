@@ -110,22 +110,28 @@ describe('useSecureAccount offline cold start', () => {
     const { result } = renderHook(() => useSecureAccount());
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(2_000);
+      await vi.advanceTimersByTimeAsync(5_000);
     });
     expect(result.current.hydrated).toBe(true);
     expect(result.current.authState.status).toBe('unauthenticated');
   });
 
-  it('ukáže online relaci dříve, než doběhne tvorba offline grantu', async () => {
+  it('při prvním přihlášení počká se vstupem na bezpečné uložení offline grantu', async () => {
     mocks.getOfflineGrant.mockResolvedValue(null);
     mocks.getOnlineSession.mockResolvedValue({
       status: 'authenticated',
       profile: localGrant.profile,
       session: { access_token: 'synthetic-access', token_type: 'bearer', expires_in: 3600, expires_at: 4_102_444_800 },
     });
-    mocks.issueOfflineGrant.mockReturnValue(new Promise<never>(() => undefined));
+    let finishGrant!: (value: StoredOfflineGrantRecord) => void;
+    mocks.issueOfflineGrant.mockReturnValue(new Promise((resolve) => { finishGrant = resolve; }));
     const { result } = renderHook(() => useSecureAccount());
 
+    await waitFor(() => expect(mocks.issueOfflineGrant).toHaveBeenCalled());
+    expect(result.current.hydrated).toBe(false);
+
+    finishGrant(localGrant);
+    await waitFor(() => expect(mocks.saveOfflineGrant).toHaveBeenCalledWith(expect.objectContaining({ token: localGrant.token })));
     await waitFor(() => expect(result.current.hydrated).toBe(true));
     expect(result.current.authState.status).toBe('authenticated-online');
     expect(result.current.profile?.email).toBe('offline@example.test');

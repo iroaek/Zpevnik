@@ -27,6 +27,8 @@ interface SetlistsProps {
   catalogVersion: string;
   secureProfile?: SecureProfile | null;
   online?: boolean;
+  followedLiveSetlistId?: string;
+  onFollowLiveSetlist?: (setlistId: string) => void;
 }
 
 export function Setlists({
@@ -39,6 +41,8 @@ export function Setlists({
   catalogVersion,
   secureProfile = null,
   online = true,
+  followedLiveSetlistId = '',
+  onFollowLiveSetlist = () => undefined,
 }: SetlistsProps) {
   const [name, setName] = useState("");
   const [selectedId, setSelectedId] = useState(userState.setlists[0]?.id ?? "");
@@ -333,6 +337,8 @@ export function Setlists({
             online={online}
             selectedLocal={selected}
             onOpenSong={onOpenSong}
+            followedLiveSetlistId={followedLiveSetlistId}
+            onFollowLive={onFollowLiveSetlist}
             onCopyToMySetlists={(sharedName, songIds) => {
               copySharedSetlist(sharedName, songIds);
               setCollection("mine");

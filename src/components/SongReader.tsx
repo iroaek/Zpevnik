@@ -27,6 +27,7 @@ interface SongReaderProps {
 
 export function SongReader({ song, userState, onUserStateChange, onBack, catalogVersion, previousSong, nextSong, onPreviousSong, onNextSong, secureProfile = null }: SongReaderProps) {
   const [source, setSource] = useState('');
+  const [savedSource, setSavedSource] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
   const [semitones, setSemitones] = useState(0);
   const [tab, setTab] = useState<'lyrics' | 'score'>('lyrics');
@@ -51,6 +52,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   const [sourceRevision, setSourceRevision] = useState(0);
   const [chordEditMode, setChordEditMode] = useState(false);
   const [chordEditMessage, setChordEditMessage] = useState('');
+  const [chordEditSaving, setChordEditSaving] = useState(false);
   const [capoFret, setCapoFret] = useState(0);
   const [capoPlayerLevel, setCapoPlayerLevel] = useState<CapoPlayerLevel>('beginner');
   const [editHistory, setEditHistory] = useState<{ past: string[]; future: string[] }>({ past: [], future: [] });
@@ -67,6 +69,8 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
     Promise.resolve().then(() => {
       setLoadError(null);
       setSource('');
+      setSavedSource('');
+      setEditableSource('');
       return getLocalSongOverride(song.id);
     })
       .then(async (override) => {
@@ -89,6 +93,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
       .then((text) => {
         const sanitized = sanitizeImportedText(text);
         setSource(sanitized);
+        setSavedSource(sanitized);
         setEditableSource(sanitized);
         setEditHistory({ past: [], future: [] });
       })
@@ -189,6 +194,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   const selectedSetlist = userState.setlists.find((setlist) => setlist.id === effectiveSetlistId);
   const alreadyInSetlist = Boolean(selectedSetlist?.songIds.includes(song.id));
   const readerFontSize = fireMode ? readerPreferences.stageFontSize : settings.fontSize;
+  const chordDraftDirty = source !== savedSource;
 
   const moveChord = (sourceIndex: number, delta: number) => {
     const next = moveChordInSource(source, sourceIndex, delta);
@@ -196,21 +202,36 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
     setEditHistory((current) => ({ past: [...current.past, source].slice(-50), future: [] }));
     setSource(next);
     setEditableSource(next);
-    setHasLocalOverride(true);
-    setChordEditMessage(delta < 0 ? 'Akord byl posunut doleva a uložen v zařízení.' : 'Akord byl posunut doprava a uložen v zařízení.');
-    void saveLocalSongOverride(song.id, next).catch((error) => {
-      setChordEditMessage(friendlyError(error, 'Novou polohu akordu se nepodařilo uložit.'));
-    });
+    setChordEditMessage(delta < 0 ? 'Náhled: akord byl posunut doleva.' : 'Náhled: akord byl posunut doprava.');
   };
 
   const persistEditedSource = (next: string, message: string) => {
     setSource(next);
     setEditableSource(next);
-    setHasLocalOverride(true);
     setChordEditMessage(message);
-    void saveLocalSongOverride(song.id, next).catch((error) => {
+  };
+
+  const saveChordDraft = async () => {
+    if (!chordDraftDirty) return;
+    setChordEditSaving(true);
+    try {
+      await saveLocalSongOverride(song.id, source);
+      setSavedSource(source);
+      setEditableSource(source);
+      setHasLocalOverride(true);
+      setChordEditMessage('Úpravy byly uloženy pouze do tohoto zařízení.');
+    } catch (error) {
       setChordEditMessage(friendlyError(error, 'Úpravu akordů se nepodařilo uložit.'));
-    });
+    } finally {
+      setChordEditSaving(false);
+    }
+  };
+
+  const discardChordDraft = () => {
+    setSource(savedSource);
+    setEditableSource(savedSource);
+    setEditHistory({ past: [], future: [] });
+    setChordEditMessage('Neuložený náhled byl zahozen.');
   };
 
   const undoChordEdit = () => {
@@ -346,6 +367,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
       const sanitized = sanitizeImportedText(editableSource);
       await saveLocalSongOverride(song.id, sanitized);
       setSource(sanitized);
+      setSavedSource(sanitized);
       setHasLocalOverride(true);
       setCorrectionMessage('Vaše lokální verze byla uložena pouze v tomto zařízení.');
     } catch (error) {
@@ -429,7 +451,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
             <div className="reader-guidance">
               {song.chordsVerified && <p className="verified-chords-note"><Icon name="check" size={18} /><span><strong>Akordy zkontrolovány</strong><small>Transpozice a kapodastr jsou aktivní.</small></span></p>}
               {hasLocalOverride && <p className="local-override-note"><Icon name="database" size={18} /><span><strong>Lokální oprava</strong><small>Používá se verze uložená jen v tomto zařízení.</small></span><button type="button" className="text-button" onClick={() => openCorrection()}>Upravit</button></p>}
-              {chordEditMode && <div className="chord-edit-console" role="region" aria-label="Nástroje ručního posunu akordů"><p className="chord-edit-note" role="status"><Icon name="edit" size={18} /><span><strong>Ruční posun akordů</strong><small>Akord přetáhněte prstem nad správnou slabiku nebo klepněte a použijte přesné šipky. Každý krok lze vrátit.</small></span></p><div className="chord-edit-actions"><button type="button" className="secondary-button" disabled={editHistory.past.length === 0} onClick={undoChordEdit}>↶ Zpět</button><button type="button" className="secondary-button" disabled={editHistory.future.length === 0} onClick={redoChordEdit}>↷ Znovu</button><button type="button" className="secondary-button" onClick={normalizeSongChords}>Převést „is“ na #</button></div>{chordSourceIssues.length > 0 && <details className="chord-source-audit"><summary>{chordSourceIssues.length} míst vyžaduje pozornost</summary><ul>{chordSourceIssues.slice(0, 12).map((issue, index) => <li key={`${issue.line}-${issue.kind}-${index}`}><strong>Řádek {issue.line}</strong> · {issue.message}</li>)}</ul></details>}</div>}
+              {chordEditMode && <div className={`chord-edit-console ${chordDraftDirty ? 'chord-edit-console--dirty' : ''}`} role="region" aria-label="Nástroje ručního posunu akordů"><p className="chord-edit-note" role="status"><Icon name="edit" size={18} /><span><strong>{chordDraftDirty ? 'Náhled neuložených úprav' : 'Ruční posun akordů'}</strong><small>Akord přetáhněte prstem nad správnou slabiku nebo klepněte a použijte přesné šipky. Změny se uloží až po vašem potvrzení.</small></span></p><div className="chord-edit-actions"><button type="button" className="secondary-button" disabled={editHistory.past.length === 0 || chordEditSaving} onClick={undoChordEdit}>↶ Zpět</button><button type="button" className="secondary-button" disabled={editHistory.future.length === 0 || chordEditSaving} onClick={redoChordEdit}>↷ Znovu</button><button type="button" className="secondary-button" disabled={chordEditSaving} onClick={normalizeSongChords}>Převést „is“ na #</button>{chordDraftDirty && <><button type="button" className="primary-button" disabled={chordEditSaving} onClick={() => void saveChordDraft()}>{chordEditSaving ? 'Ukládám…' : 'Uložit úpravy'}</button><button type="button" className="secondary-button" disabled={chordEditSaving} onClick={discardChordDraft}>Zahodit náhled</button></>}</div>{chordSourceIssues.length > 0 && <details className="chord-source-audit"><summary>{chordSourceIssues.length} míst vyžaduje pozornost</summary><ul>{chordSourceIssues.slice(0, 12).map((issue, index) => <li key={`${issue.line}-${issue.kind}-${index}`}><strong>Řádek {issue.line}</strong> · {issue.message}</li>)}</ul></details>}</div>}
               {chordEditMessage && <p className="info-message chord-edit-message" role="status">{chordEditMessage}</p>}
               {targetKey && capoOptions.length > 1 && <details className="capo-hint"><summary><Icon name="info" size={17} />Kapodastr a hmaty <span>{capoFret ? `${capoFret}. pražec` : 'bez'}</span></summary><div className="capo-planner"><header><span><small>Znějící tónina</small><strong>{targetKey}</strong></span><span><small>Hrané hmaty</small><strong>{activeCapo?.shapeKey ?? targetKey}</strong></span><span><small>Obtížné hmaty</small><strong>{activeCapo ? `${activeCapo.barreCount} barré · ${activeCapo.advancedCount} pokročilých` : '—'}</strong></span></header><p>Zvolte pražec. Akordy v textu se automaticky přepíšou na hmaty, ale znějící tónina zůstane stejná.{song.capo ? ` Původní podklad uvádí ${song.capo}. pražec.` : ''}</p><div className="capo-level-control" role="group" aria-label="Úroveň hráče">{([['beginner', 'Začátečník'], ['standard', 'Běžně'], ['all', 'Všechny možnosti']] as const).map(([value, label]) => <button type="button" className={capoPlayerLevel === value ? 'active' : ''} aria-pressed={capoPlayerLevel === value} onClick={() => setCapoPlayerLevel(value)} key={value}>{label}</button>)}</div><div className="capo-option-grid" role="radiogroup" aria-label="Vybrat polohu kapodastru">{capoOptions.map((option) => <button type="button" role="radio" aria-checked={capoFret === option.capo} className={`${capoFret === option.capo ? 'active' : ''} capo-option--${option.difficulty}`} onClick={() => { setCapoFret(option.capo); navigator.vibrate?.(6); }} key={option.capo}><small>{option.capo === 0 ? 'Bez' : `${option.capo}. pražec`}</small><strong>{option.shapeKey}</strong><span>{option.barreCount ? `${option.barreCount}× barré` : 'bez barré'}</span>{option.recommended && <em>Doporučeno</em>}</button>)}</div><button type="button" className="text-button" disabled={capoFret === 0} onClick={() => setCapoFret(0)}>Vrátit bez kapodastru</button></div></details>}
             </div>

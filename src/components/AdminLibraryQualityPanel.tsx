@@ -1,6 +1,10 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import { sanitizeImportedText } from '../domain/chordpro';
+import { inspectChordSource } from '../domain/chordEditor';
 import type { Song } from '../domain/song';
+import { getPersonalSongContent } from '../storage/database';
 import { Icon } from '../ui/Icon';
+import { ChordSheet } from './ChordSheet';
 
 type QualityFilter = 'all' | 'chords' | 'text' | 'duplicates' | 'rights';
 
@@ -46,6 +50,9 @@ export function AdminLibraryQualityPanel({ songs, onOpenSong }: { songs: Song[];
   const [filter, setFilter] = useState<QualityFilter>('all');
   const [query, setQuery] = useState('');
   const [compareKey, setCompareKey] = useState('');
+  const [selectedAuditId, setSelectedAuditId] = useState('');
+  const [previewSource, setPreviewSource] = useState('');
+  const [previewError, setPreviewError] = useState('');
   const deferredQuery = useDeferredValue(query);
 
   const duplicateKeys = useMemo(() => {
@@ -65,6 +72,8 @@ export function AdminLibraryQualityPanel({ songs, onOpenSong }: { songs: Song[];
     return groups;
   }, [duplicateKeys, songs]);
   const comparedSongs = duplicateGroups.get(compareKey) ?? [];
+  const selectedAudit = audited.find((entry) => entry.song.id === selectedAuditId);
+  const previewIssues = useMemo(() => previewSource ? inspectChordSource(previewSource) : [], [previewSource]);
   const counts = useMemo(() => ({
     all: audited.filter((entry) => entry.issues.length > 0).length,
     chords: audited.filter((entry) => entry.issues.some((issue) => issue.type === 'chords')).length,
@@ -88,6 +97,32 @@ export function AdminLibraryQualityPanel({ songs, onOpenSong }: { songs: Song[];
     ['rights', 'Práva a zdroje', counts.rights],
   ];
 
+  const selectAudit = (songId: string) => {
+    setPreviewSource('');
+    setPreviewError('');
+    setSelectedAuditId(songId);
+  };
+
+  useEffect(() => {
+    const song = selectedAudit?.song;
+    if (!song) return;
+    const controller = new AbortController();
+    const load = async () => {
+      if (song.chordProPath.startsWith('indexeddb:')) {
+        const local = await getPersonalSongContent(song.id);
+        if (local === null) throw new Error('Obsah této místní písně chybí.');
+        return local;
+      }
+      const response = await fetch(song.chordProPath, { cache: 'no-store', signal: controller.signal });
+      if (!response.ok) throw new Error(`Zdroj nelze načíst (${response.status}).`);
+      return response.text();
+    };
+    void load().then((source) => setPreviewSource(sanitizeImportedText(source))).catch((error: unknown) => {
+      if ((error as Error).name !== 'AbortError') setPreviewError(error instanceof Error ? error.message : 'Zdroj nelze načíst.');
+    });
+    return () => controller.abort();
+  }, [selectedAudit?.song]);
+
   return <section className="admin-quality" aria-labelledby="admin-quality-heading">
     <header className="admin-command-bar"><span><p className="eyebrow">Kontrola bez automatického slučování</p><h2 id="admin-quality-heading">Kvalita knihovny</h2><small>Nejasné záznamy zůstávají ve frontě, dokud je administrátor ručně neprověří.</small></span><span className="admin-quality-score"><strong>{qualityPercentage} %</strong><small>bez evidovaných problémů</small></span></header>
 
@@ -105,11 +140,12 @@ export function AdminLibraryQualityPanel({ songs, onOpenSong }: { songs: Song[];
     </div>
 
     <p className="admin-quality-note"><Icon name="info" size={18} />Duplicity se zde pouze označí. Aplikace nikdy sama nemaže ani neslučuje písně a záznamy s nejasnými právy zůstávají ve stavu ke kontrole.</p>
+    {selectedAudit && <section className="quality-workbench" aria-labelledby="quality-workbench-heading"><header><span><p className="eyebrow">Kontrolní pracoviště</p><h3 id="quality-workbench-heading">{selectedAudit.song.title}</h3><small>{selectedAudit.song.authors.join(', ') || 'Autor neuveden'}</small></span><button type="button" className="icon-button" aria-label="Zavřít kontrolní pracoviště" onClick={() => { setSelectedAuditId(''); setPreviewSource(''); setPreviewError(''); }}>×</button></header><div className="quality-workbench-meta"><dl><div><dt>Zdroj</dt><dd>{selectedAudit.song.source}</dd></div><div><dt>Identifikátor</dt><dd>{selectedAudit.song.sourceIdentifier}</dd></div><div><dt>Práva</dt><dd>{selectedAudit.song.rightsStatus}</dd></div><div><dt>Licence</dt><dd>{selectedAudit.song.license}</dd></div><div><dt>Uvedení autora</dt><dd>{selectedAudit.song.attribution}</dd></div></dl><ul>{selectedAudit.issues.map((issue) => <li key={`${issue.type}-${issue.label}`}>{issue.label}</li>)}{previewIssues.map((issue, index) => <li key={`${issue.kind}-${issue.line}-${index}`}>Řádek {issue.line}: {issue.message}</li>)}</ul></div>{previewError && <p className="global-warning" role="alert">{previewError}</p>}{!previewSource && !previewError && <p role="status">Načítám zdroj pro bezpečný náhled…</p>}{previewSource && <div className="quality-source-preview"><section><h4>Zdroj</h4><pre>{previewSource}</pre></section><section><h4>Náhled v aplikaci</h4>{selectedAudit.song.contentFormat === 'layout_text' ? <pre>{previewSource}</pre> : <ChordSheet source={previewSource} notation="czech" sourceNotation="czech" showChords collapseRepeatedChoruses={false} fontSize={17} />}</section></div>}<div className="button-row"><button type="button" className="primary-button" onClick={() => onOpenSong(selectedAudit.song.id)}>Otevřít plný editor</button><small>Změny se nepublikují automaticky; oprava zůstává lokální nebo jde do schvalovací fronty.</small></div></section>}
     {comparedSongs.length > 1 && <section className="duplicate-compare" aria-labelledby="duplicate-compare-heading"><header><span><p className="eyebrow">Ruční rozhodnutí</p><h3 id="duplicate-compare-heading">Porovnání {comparedSongs.length} verzí</h3></span><button type="button" className="icon-button" aria-label="Zavřít porovnání duplicit" onClick={() => setCompareKey('')}>×</button></header><div>{comparedSongs.map((song) => <article key={song.id}><span><strong>{song.title}</strong><small>{song.authors.join(', ') || 'Autor neuveden'}</small></span><dl><div><dt>Formát</dt><dd>{song.contentFormat === 'layout_text' ? 'PDF rozvržení' : 'ChordPro'}</dd></div><div><dt>Akordy</dt><dd>{song.chordsVerified ? 'ověřené' : 'ke kontrole'}</dd></div><div><dt>Práva</dt><dd>{song.rightsStatus}</dd></div><div><dt>Velikost</dt><dd>{song.contentBytes} B</dd></div></dl><p>{song.firstLine || 'První řádek není k dispozici.'}</p><button type="button" className="secondary-button" onClick={() => onOpenSong(song.id)}>Otevřít tuto verzi</button></article>)}</div><p>Vyberte věrohodnější verzi až po kontrole zdroje, práv, textu a poloh akordů. Automatické slučování je záměrně vypnuté.</p></section>}
     <div className="admin-quality-list" aria-busy={deferredQuery !== query}>
       {visible.map(({ song, issues }) => <article key={song.id}>
         <span className="admin-quality-song"><strong>{song.title}</strong><small>{song.authors.join(', ') || 'Autor neuveden'} · {song.contentFormat === 'layout_text' ? 'rozvržení z PDF' : 'ChordPro'}</small><span>{issues.map((issue) => <em className={`quality-badge quality-badge--${issue.type}`} key={`${issue.type}-${issue.label}`}>{issue.label}</em>)}</span></span>
-        <span className="admin-quality-actions">{issues.some((issue) => issue.type === 'duplicates') && <button type="button" className="secondary-button" onClick={() => setCompareKey(duplicateKey(song))}>Porovnat verze</button>}<button type="button" className="secondary-button" onClick={() => onOpenSong(song.id)}>Otevřít a prověřit<Icon name="chevronRight" /></button></span>
+        <span className="admin-quality-actions">{issues.some((issue) => issue.type === 'duplicates') && <button type="button" className="secondary-button" onClick={() => setCompareKey(duplicateKey(song))}>Porovnat verze</button>}<button type="button" className="secondary-button" onClick={() => selectAudit(song.id)}>Zdroj a náhled</button><button type="button" className="secondary-button" onClick={() => onOpenSong(song.id)}>Otevřít a prověřit<Icon name="chevronRight" /></button></span>
       </article>)}
       {visible.length === 0 && <p className="empty-state">V tomto filtru nejsou žádné položky k prověření.</p>}
     </div>
