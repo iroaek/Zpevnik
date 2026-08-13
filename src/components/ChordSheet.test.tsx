@@ -59,4 +59,13 @@ describe('sazba textu a akordů', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Nahlásit chybný akord nebo polohu' }));
     expect(onSuggestCorrection).toHaveBeenCalledWith('Am7');
   });
+
+  it('v režimu úprav předá přesný akord a směr ručního posunu', async () => {
+    const onMoveChord = vi.fn();
+    render(<ChordSheet editMode source={'[Fis]První [Gis]druhý úsek'} onMoveChord={onMoveChord} />);
+    await userEvent.click(screen.getByRole('button', { name: /Akord F#; upravit polohu/ }));
+    expect(screen.getByRole('dialog', { name: 'Úprava polohy akordu F#' })).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: 'Posunout o jeden znak doprava' }));
+    expect(onMoveChord).toHaveBeenCalledWith(0, 1);
+  });
 });

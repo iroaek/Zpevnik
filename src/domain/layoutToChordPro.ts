@@ -1,5 +1,5 @@
 import { sanitizeImportedText, stripChords } from './chordpro.js';
-import { isValidChordSymbol, normalizeCSharpSpelling, parseChord, renderPitch, type ChordNotation } from './chords.js';
+import { isValidChordSymbol, normalizeSharpSpelling, parseChord, renderPitch, type ChordNotation } from './chords.js';
 
 export interface LayoutConversionOptions {
   title: string;
@@ -39,7 +39,7 @@ export function recognizedChord(rawToken: string, notation: ChordNotation): stri
   token = token.replace(/^_+|[_*]+$/g, '').replace(/5-$/, 'b5');
   if (!token || token.length > 24) return null;
   if (!isValidChordSymbol(token, notation)) return null;
-  return normalizeCSharpSpelling(token, notation);
+  return normalizeSharpSpelling(token, notation);
 }
 
 export function chordMarkers(line: string, notation: ChordNotation): ChordMarker[] {

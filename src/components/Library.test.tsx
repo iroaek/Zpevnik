@@ -25,22 +25,35 @@ describe('Knihovna', () => {
     expect(onOpen).toHaveBeenCalledWith('synteticky-test');
   });
 
-  it('velký katalog vykreslí postupně a filtr zachová po návratu', async () => {
-    const songs = Array.from({ length: 75 }, (_, index) => ({
+  it('filtr zachová po návratu', () => {
+    const songs = Array.from({ length: 15 }, (_, index) => ({
       ...song,
       id: `synteticky-${index}`,
-      title: `${index < 65 ? 'A' : 'B'} syntetická ${index}`,
-      sortTitle: `${index < 65 ? 'A' : 'B'} syntetická ${index}`,
+      title: `${index < 10 ? 'A' : 'B'} syntetická ${index}`,
+      sortTitle: `${index < 10 ? 'A' : 'B'} syntetická ${index}`,
     }));
     const first = render(<Library songs={songs} favorites={[]} recent={[]} onOpenSong={vi.fn()} />);
-    expect(first.container.querySelectorAll('.song-card')).toHaveLength(60);
-    await userEvent.click(screen.getByRole('button', { name: 'B' }));
-    expect(first.container.querySelectorAll('.song-card')).toHaveLength(10);
+    expect(first.container.querySelectorAll('.song-card')).toHaveLength(15);
+    fireEvent.click(screen.getByRole('button', { name: 'B' }));
+    expect(first.container.querySelectorAll('.song-card')).toHaveLength(5);
     first.unmount();
 
     const second = render(<Library songs={songs} favorites={[]} recent={[]} onOpenSong={vi.fn()} />);
-    expect(second.container.querySelectorAll('.song-card')).toHaveLength(10);
+    expect(second.container.querySelectorAll('.song-card')).toHaveLength(5);
     expect(screen.getByRole('button', { name: 'B' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('u tisíců písní ponechá v DOM jen viditelné řádky', () => {
+    const songs = Array.from({ length: 1_000 }, (_, index) => ({
+      ...song,
+      id: `virtualni-${index}`,
+      title: `Virtuální syntetická ${index}`,
+      sortTitle: `Virtuální syntetická ${index.toString().padStart(4, '0')}`,
+    }));
+    const view = render(<Library songs={songs} favorites={[]} recent={[]} onOpenSong={vi.fn()} />);
+    expect(view.container.querySelector('.song-list--virtualized')).not.toBeNull();
+    expect(view.container.querySelectorAll('.song-card').length).toBeLessThan(100);
+    expect(view.container.querySelector('.virtual-song-spacer')).not.toBeNull();
   });
 
   it('přepíná mezi velkými kartami a kompaktním seznamem', async () => {
@@ -49,6 +62,12 @@ describe('Knihovna', () => {
     expect(view.container.querySelector('.song-list--compact')).not.toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Karty' }));
     expect(view.container.querySelector('.song-list--cards')).not.toBeNull();
+  });
+
+  it('zobrazí starší tóniny s is jednotně jako křížky', () => {
+    render(<Library songs={[{ ...song, originalKey: 'Fis' }]} favorites={[]} recent={[]} onOpenSong={vi.fn()} />);
+    expect(screen.getByLabelText('Tónina F#')).toBeVisible();
+    expect(screen.queryByText('Fis')).not.toBeInTheDocument();
   });
 
   it('přejetí doleva otevře rychlé akce i při okamžitém dokončení gesta', () => {

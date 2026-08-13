@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { submitSongCorrection, type SecureProfile } from '../auth/secureAccess';
 import { metadataValue, parseChordPro, sanitizeImportedText } from '../domain/chordpro';
+import { moveChordInSource } from '../domain/chordEditor';
 import { calculateCapoOptions, parseChord, renderPitch, transposeCanonicalChord } from '../domain/chords';
 import type { Song } from '../domain/song';
 import { fetchContent } from '../pwa/contentCache';
@@ -48,6 +49,9 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   const [correctionBusy, setCorrectionBusy] = useState(false);
   const [correctionMessage, setCorrectionMessage] = useState('');
   const [sourceRevision, setSourceRevision] = useState(0);
+  const [chordEditMode, setChordEditMode] = useState(false);
+  const [chordEditMessage, setChordEditMessage] = useState('');
+  const [capoFret, setCapoFret] = useState(0);
   const readerRef = useRef<HTMLElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const settings = userState.settings;
@@ -171,6 +175,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
     return parsed ? renderPitch(transposeCanonicalChord(parsed, semitones).root, settings.notation, parsed.root.accidental === 'flat' ? 'flat' : 'sharp') : song.originalKey;
   }, [song.originalKey, sourceNotation, semitones, settings.notation]);
   const capoOptions = targetKey ? calculateCapoOptions(targetKey, settings.notation) : [];
+  const activeCapo = capoOptions.find((option) => option.capo === capoFret) ?? capoOptions[0];
   const isFavorite = userState.favorites.includes(song.id);
   const effectiveSetlistId = userState.setlists.some((setlist) => setlist.id === setlistId)
     ? setlistId
@@ -178,6 +183,18 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   const selectedSetlist = userState.setlists.find((setlist) => setlist.id === effectiveSetlistId);
   const alreadyInSetlist = Boolean(selectedSetlist?.songIds.includes(song.id));
   const readerFontSize = fireMode ? readerPreferences.stageFontSize : settings.fontSize;
+
+  const moveChord = (sourceIndex: number, delta: number) => {
+    const next = moveChordInSource(source, sourceIndex, delta);
+    if (next === source) return;
+    setSource(next);
+    setEditableSource(next);
+    setHasLocalOverride(true);
+    setChordEditMessage(delta < 0 ? 'Akord byl posunut doleva a uložen v zařízení.' : 'Akord byl posunut doprava a uložen v zařízení.');
+    void saveLocalSongOverride(song.id, next).catch((error) => {
+      setChordEditMessage(friendlyError(error, 'Novou polohu akordu se nepodařilo uložit.'));
+    });
+  };
 
   const updateSettings = (change: Partial<UserState['settings']>) => {
     onUserStateChange((current) => ({ ...current, settings: { ...current.settings, ...change } }));
@@ -338,8 +355,9 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
         <button type="button" className="icon-button" aria-label={isFavorite ? 'Odebrat z oblíbených' : 'Přidat do oblíbených'} aria-pressed={isFavorite} onClick={() => onUserStateChange((current) => toggleFavorite(current, song.id))}><Icon name={isFavorite ? 'star' : 'heart'} /></button>
       </header>
 
-      <div className="song-facts" aria-label="Informace o písni">
+      <div className="song-facts song-facts--five" aria-label="Informace o písni">
         <span><small>Tónina</small><strong>{targetKey ?? '—'}</strong></span>
+        <span><small>Kapodastr</small><strong>{capoFret ? `${capoFret}. pražec` : 'Bez'}</strong></span>
         <span><small>Takt</small><strong>{song.timeSignature ?? '—'}</strong></span>
         <span><small>Tempo</small><strong>{song.tempo ? `${song.tempo} BPM` : '—'}</strong></span>
         <span><small>Obtížnost</small><strong>{{ easy: 'Snadná', medium: 'Střední', hard: 'Těžká', unknown: '—' }[song.difficulty]}</strong></span>
@@ -359,6 +377,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
             <div className="toolbar-actions">
               {isLayoutText && <button type="button" className="icon-button" aria-label={readerPreferences.wrapLayoutText ? 'Použít původní šířku řádků' : 'Zalomit dlouhé řádky'} aria-pressed={readerPreferences.wrapLayoutText} onClick={() => updateReaderPreferences({ wrapLayoutText: !readerPreferences.wrapLayoutText })}>↵</button>}
               <button type="button" className="icon-button reader-settings-button" aria-label="Otevřít nastavení zobrazení" onClick={() => setSettingsOpen(true)}>Aa</button>
+              {!isLayoutText && <button type="button" className={`icon-button chord-edit-toggle ${chordEditMode ? 'active' : ''}`} aria-label={chordEditMode ? 'Ukončit ruční posun akordů' : 'Ručně posunout akordy'} aria-pressed={chordEditMode} onClick={() => { setChordEditMode((value) => !value); setChordEditMessage(''); setAutoScroll(false); }}><Icon name="edit" /></button>}
               <button type="button" className="icon-button" aria-label="Nahlásit nebo lokálně opravit píseň" onClick={() => openCorrection()}><Icon name="flag" /></button>
               <button type="button" className="icon-button" aria-label="Celoobrazovkový režim" onClick={toggleFullscreen}><Icon name="expand" /></button>
               <button type="button" className="icon-button fire-button" aria-label="Pódiový režim" aria-pressed={fireMode} onClick={() => void toggleFireMode()}><Icon name="fire" /><span>Pódium</span></button>
@@ -369,14 +388,16 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
             <div className="reader-guidance">
               {song.chordsVerified && <p className="verified-chords-note"><Icon name="check" size={18} /><span><strong>Akordy zkontrolovány</strong><small>Transpozice a kapodastr jsou aktivní.</small></span></p>}
               {hasLocalOverride && <p className="local-override-note"><Icon name="database" size={18} /><span><strong>Lokální oprava</strong><small>Používá se verze uložená jen v tomto zařízení.</small></span><button type="button" className="text-button" onClick={() => openCorrection()}>Upravit</button></p>}
-              {targetKey && capoOptions.length > 1 && <details className="capo-hint"><summary><Icon name="info" size={17} />Možnosti kapodastru <span>{capoOptions.length}</span></summary><p>{capoOptions.map((option) => option.capo === 0 ? `Bez kapodastru: hraj ${option.shapeKey}` : `${option.capo}. pražec: hraj ${option.shapeKey}`).join(' · ')}</p></details>}
+              {chordEditMode && <p className="chord-edit-note" role="status"><Icon name="edit" size={18} /><span><strong>Ruční posun akordů</strong><small>Klepněte na modrý akord a posuňte jej šipkami. Změna se uloží pouze do tohoto zařízení.</small></span></p>}
+              {chordEditMessage && <p className="info-message chord-edit-message" role="status">{chordEditMessage}</p>}
+              {targetKey && capoOptions.length > 1 && <details className="capo-hint"><summary><Icon name="info" size={17} />Kapodastr a hmaty <span>{capoFret ? `${capoFret}. pražec` : 'bez'}</span></summary><div className="capo-planner"><header><span><small>Znějící tónina</small><strong>{targetKey}</strong></span><span><small>Hrané hmaty</small><strong>{activeCapo?.shapeKey ?? targetKey}</strong></span></header><p>Zvolte pražec. Akordy v textu se automaticky přepíšou na hmaty, ale znějící tónina zůstane stejná.{song.capo ? ` Původní podklad uvádí ${song.capo}. pražec.` : ''}</p><div className="capo-option-grid" role="radiogroup" aria-label="Vybrat polohu kapodastru">{capoOptions.map((option) => <button type="button" role="radio" aria-checked={capoFret === option.capo} className={`${capoFret === option.capo ? 'active' : ''} capo-option--${option.difficulty}`} onClick={() => setCapoFret(option.capo)} key={option.capo}><small>{option.capo === 0 ? 'Bez' : `${option.capo}. pražec`}</small><strong>{option.shapeKey}</strong>{option.recommended && <em>Doporučeno</em>}</button>)}</div><button type="button" className="text-button" disabled={capoFret === 0} onClick={() => setCapoFret(0)}>Vrátit bez kapodastru</button></div></details>}
             </div>
             {loadError && <p className="error-message" role="alert">{loadError}</p>}
             {!source && !loadError && <div className="reader-loading-skeleton" role="status" aria-label="Načítám píseň"><span /><span /><span /><span /><span /></div>}
             {source && <div className="fire-tap-zone">
               {isLayoutText
                 ? <pre className={readerPreferences.wrapLayoutText ? 'layout-song-sheet layout-song-sheet--wrap' : 'layout-song-sheet'} style={{ '--song-font-size': `${readerFontSize}px` } as React.CSSProperties}>{source}</pre>
-                : <ChordSheet source={source} semitones={semitones} notation={settings.notation} sourceNotation={sourceNotation} showChords={settings.showChords} collapseRepeatedChoruses={settings.collapseRepeatedChoruses} fontSize={readerFontSize} chordScale={readerPreferences.chordScale} lineHeight={readerPreferences.lineHeight} columnWidth={readerPreferences.columnWidth} focusSections={readerPreferences.focusSections} onSuggestCorrection={openCorrection} />}
+                : <ChordSheet source={source} semitones={semitones - capoFret} notation={settings.notation} sourceNotation={sourceNotation} showChords={settings.showChords} collapseRepeatedChoruses={settings.collapseRepeatedChoruses} fontSize={readerFontSize} chordScale={readerPreferences.chordScale} lineHeight={readerPreferences.lineHeight} columnWidth={readerPreferences.columnWidth} focusSections={readerPreferences.focusSections} editMode={chordEditMode} onMoveChord={moveChord} onSuggestCorrection={openCorrection} />}
             </div>}
           </section>
           <section className="field-actions" aria-label="Funkce pro zpívání">

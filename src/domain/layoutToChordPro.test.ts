@@ -4,7 +4,7 @@ import { convertLayoutTextToChordPro, findLikelyMalformedChordTokens, looksLikeC
 describe('převod rozvrženého textu na ChordPro', () => {
   it('pozná české akordy, přípony i lomený bas a odmítne běžná slova', () => {
     expect(recognizedChord('Hmi7', 'czech')).toBe('Hmi7');
-    expect(recognizedChord('Fis7/H', 'czech')).toBe('Fis7/H');
+    expect(recognizedChord('Fis7/H', 'czech')).toBe('F#7/H');
     expect(recognizedChord('Ahoj', 'czech')).toBeNull();
     expect(looksLikeChordLine('C   G7   Ami   F', 'czech')).toBe(true);
     expect(looksLikeChordLine('A tak jdeme dál', 'czech')).toBe(false);
@@ -51,9 +51,13 @@ describe('převod rozvrženého textu na ChordPro', () => {
     expect(result.chordCount).toBe(2);
   });
 
-  it('sjednotí český zápis Cis na C# včetně basového tónu', () => {
+  it('sjednotí všechny české křížkové zápisy včetně basového tónu', () => {
     expect(recognizedChord('Cismi7', 'czech')).toBe('C#mi7');
     expect(recognizedChord('G/Cis', 'czech')).toBe('G/C#');
+    expect(recognizedChord('Fis7', 'czech')).toBe('F#7');
+    expect(recognizedChord('Gismi7/Dis', 'czech')).toBe('G#mi7/D#');
+    expect(recognizedChord('Ais', 'czech')).toBe('A#');
+    expect(recognizedChord('Eismi7/His', 'czech')).toBe('E#mi7/H#');
   });
 
   it('spojí řádek akordů s textem i přes prázdný řádek z PDF', () => {

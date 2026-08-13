@@ -31,17 +31,17 @@ describe('migrace IndexedDB', () => {
     legacy.close();
   });
 
-  it('povýší databázi na verzi 7, převede stav na schéma 5 a zachová uživatelská data', async () => {
+  it('povýší databázi na verzi 8, převede stav na schéma 5 a zachová uživatelská data', async () => {
     const databaseModule = await import('./database');
     const loaded = await databaseModule.loadUserState();
-    expect(databaseModule.DATABASE_VERSION).toBe(7);
+    expect(databaseModule.DATABASE_VERSION).toBe(8);
     expect(loaded.schemaVersion).toBe(5);
     expect(loaded.settings.motion).toBe('gentle');
     expect(loaded.updatedAt).toBe('2026-08-05T00:00:00.000Z');
     expect(loaded.favorites).toEqual(legacyState.favorites);
     expect(loaded.setlists).toEqual(legacyState.setlists);
     expect(loaded.settings.autoScrollSpeed).toBe(31);
-    const upgraded = await openDB('cesky-zpevnik', 7);
+    const upgraded = await openDB('cesky-zpevnik', 8);
     expect([...upgraded.objectStoreNames]).toContain('metadata');
     expect([...upgraded.objectStoreNames]).toContain('personalSongs');
     expect([...upgraded.objectStoreNames]).toContain('personalSongContent');
@@ -52,7 +52,20 @@ describe('migrace IndexedDB', () => {
     expect([...upgraded.objectStoreNames]).toContain('contentPackages');
     expect([...upgraded.objectStoreNames]).toContain('pendingMutations');
     expect([...upgraded.objectStoreNames]).toContain('diagnostics');
+    expect([...upgraded.objectStoreNames]).toContain('contentPackageChunks');
     upgraded.close();
+  });
+
+  it('uchová ověřenou část knihovny podle hashe a umí odstranit staré části', async () => {
+    const databaseModule = await import('./database');
+    const keep = 'a'.repeat(64);
+    const remove = 'b'.repeat(64);
+    await databaseModule.saveCachedContentPackageChunk(keep, new Uint8Array([1, 2, 3]));
+    await databaseModule.saveCachedContentPackageChunk(remove, new Uint8Array([4, 5]));
+    expect([...await databaseModule.loadCachedContentPackageChunk(keep) ?? []]).toEqual([1, 2, 3]);
+    await databaseModule.pruneCachedContentPackageChunks([keep]);
+    expect(await databaseModule.loadCachedContentPackageChunk(keep)).not.toBeNull();
+    expect(await databaseModule.loadCachedContentPackageChunk(remove)).toBeNull();
   });
 
   it('uloží místní profil a návrh písně vždy označí ke kontrole', async () => {

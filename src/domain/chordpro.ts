@@ -3,6 +3,8 @@ import { isValidChordSymbol } from './chords.js';
 export interface ChordToken {
   chord: string | null;
   lyric: string;
+  /** Pořadí akordu v původním ChordPro zdroji pro bezpečnou lokální editaci. */
+  sourceIndex?: number;
 }
 
 export interface ChordProSection {
@@ -77,6 +79,7 @@ export function parseChordPro(source: string): ParsedChordPro {
   const sections: ChordProSection[] = [];
   let current: ChordProSection = { kind: 'verse', label: '', lines: [], repeated: false };
   let verseNumber = 1;
+  let chordIndex = 0;
 
   const pushCurrent = () => {
     if (current.lines.some((line) => line.some((token) => token.lyric || token.chord))) sections.push(current);
@@ -108,7 +111,9 @@ export function parseChordPro(source: string): ParsedChordPro {
       }
       continue;
     }
-    current.lines.push(parseChordLine(rawLine));
+    current.lines.push(parseChordLine(rawLine).map((token) => token.chord
+      ? { ...token, sourceIndex: chordIndex++ }
+      : token));
   }
   pushCurrent();
 

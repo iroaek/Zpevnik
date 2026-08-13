@@ -25,6 +25,8 @@ const CZECH_NOTES: Record<string, CanonicalPitch> = {
   Es: { pitchClass: 3, accidental: 'flat' },
   Eb: { pitchClass: 3, accidental: 'flat' },
   E: { pitchClass: 4, accidental: 'natural' },
+  Eis: { pitchClass: 5, accidental: 'sharp' },
+  'E#': { pitchClass: 5, accidental: 'sharp' },
   F: { pitchClass: 5, accidental: 'natural' },
   Fis: { pitchClass: 6, accidental: 'sharp' },
   'F#': { pitchClass: 6, accidental: 'sharp' },
@@ -41,6 +43,8 @@ const CZECH_NOTES: Record<string, CanonicalPitch> = {
   B: { pitchClass: 10, accidental: 'flat' },
   Bb: { pitchClass: 10, accidental: 'flat' },
   H: { pitchClass: 11, accidental: 'natural' },
+  His: { pitchClass: 0, accidental: 'sharp' },
+  'H#': { pitchClass: 0, accidental: 'sharp' },
 };
 
 const INTERNATIONAL_NOTES: Record<string, CanonicalPitch> = {
@@ -63,9 +67,9 @@ const INTERNATIONAL_NOTES: Record<string, CanonicalPitch> = {
   B: { pitchClass: 11, accidental: 'natural' },
 };
 
-// V českém značení zůstává H/B, ale zvýšené C zobrazujeme běžnějším a
-// jednoznačnějším zápisem C#. Parser nadále přijímá i starší vstup `Cis`.
-const CZECH_SHARPS = ['C', 'C#', 'D', 'Dis', 'E', 'F', 'Fis', 'G', 'Gis', 'A', 'Ais', 'H'];
+// V českém značení zůstává H/B, všechny zvýšené tóny ale zobrazujeme
+// jednoznačným křížkovým zápisem. Parser nadále přijímá starší `Cis`, `Fis`…
+const CZECH_SHARPS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'H'];
 const CZECH_FLATS = ['C', 'Des', 'D', 'Es', 'E', 'F', 'Ges', 'G', 'As', 'A', 'B', 'H'];
 const INTERNATIONAL_SHARPS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 const INTERNATIONAL_FLATS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
@@ -83,10 +87,24 @@ export function isValidChordSymbol(input: string, notation: ChordNotation): bool
   return Boolean(parsed && VALID_CHORD_SUFFIX_PATTERN.test(`${parsed.quality}${parsed.extension}`));
 }
 
-export function normalizeCSharpSpelling(input: string, notation: ChordNotation): string {
+const CZECH_SHARP_NAMES: Record<string, string> = {
+  Cis: 'C#',
+  Dis: 'D#',
+  Eis: 'E#',
+  Fis: 'F#',
+  Gis: 'G#',
+  Ais: 'A#',
+  His: 'H#',
+};
+
+export function normalizeSharpSpelling(input: string, notation: ChordNotation): string {
   if (notation !== 'czech') return input;
-  return input.replace(/^Cis/, 'C#').replace(/\/Cis$/, '/C#');
+  return input.replace(/^(Cis|Dis|Eis|Fis|Gis|Ais|His)/, (note) => CZECH_SHARP_NAMES[note] ?? note)
+    .replace(/\/(Cis|Dis|Eis|Fis|Gis|Ais|His)(?=$|[^A-Za-z])/g, (_match, note: string) => `/${CZECH_SHARP_NAMES[note] ?? note}`);
 }
+
+/** @deprecated Použijte obecnou normalizaci všech českých křížků. */
+export const normalizeCSharpSpelling = normalizeSharpSpelling;
 
 function matchNote(input: string, notation: ChordNotation): [CanonicalPitch, string] | null {
   const source = notation === 'czech' ? CZECH_NOTES : INTERNATIONAL_NOTES;
@@ -163,6 +181,9 @@ export function transposeChord(
 ): string {
   const parsed = parseChord(input, notation);
   if (!parsed) return input;
+  // Při nulové transpozici zachováme hudební pravopis uživatele; jen české
+  // přípony `is` převedeme na požadovaný jednoznačný zápis s `#`.
+  if (normalizePitchClass(semitones) === 0) return normalizeSharpSpelling(input.trim(), notation);
   const resolvedPreference = preference ?? (parsed.root.accidental === 'flat' ? 'flat' : 'sharp');
   return renderChord(transposeCanonicalChord(parsed, semitones), notation, resolvedPreference);
 }
@@ -176,14 +197,33 @@ export function convertChordNotation(
   return parsed ? renderChord(parsed, to, parsed.root.accidental === 'flat' ? 'flat' : 'sharp') : input;
 }
 
-export function calculateCapoOptions(targetKey: string, notation: ChordNotation): Array<{ capo: number; shapeKey: string }> {
+export interface CapoOption {
+  capo: number;
+  shapeKey: string;
+  difficulty: 'open' | 'barre' | 'advanced';
+  recommended: boolean;
+}
+
+export function calculateCapoOptions(targetKey: string, notation: ChordNotation): CapoOption[] {
   const parsed = parseChord(targetKey, notation);
   if (!parsed) return [];
   const easyPitchClasses = new Set([0, 2, 4, 7, 9]);
-  return Array.from({ length: 8 }, (_, capo) => {
+  const barrePitchClasses = new Set([5, 10]);
+  const options = Array.from({ length: 12 }, (_, capo) => {
     const shape = transposeCanonicalChord(parsed, -capo);
-    return { capo, shapeKey: renderPitch(shape.root, notation) };
-  })
-    .filter(({ capo, shapeKey }) => capo === 0 || easyPitchClasses.has(parseChord(shapeKey, notation)?.root.pitchClass ?? -1))
-    .slice(0, 4);
+    const shapeKey = renderPitch(shape.root, notation);
+    const pitchClass = shape.root.pitchClass;
+    const difficulty: CapoOption['difficulty'] = easyPitchClasses.has(pitchClass)
+      ? 'open'
+      : barrePitchClasses.has(pitchClass)
+        ? 'barre'
+        : 'advanced';
+    return { capo, shapeKey, difficulty, recommended: false };
+  });
+  const preferred = options
+    .filter((option) => option.capo <= 7 && option.difficulty === 'open')
+    .sort((left, right) => left.capo - right.capo)
+    .slice(0, 3)
+    .map((option) => option.capo);
+  return options.map((option) => ({ ...option, recommended: preferred.includes(option.capo) }));
 }

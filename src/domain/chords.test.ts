@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseChord, transposeChord } from './chords';
+import { calculateCapoOptions, normalizeSharpSpelling, parseChord, transposeChord } from './chords';
 
 describe('transpozice českých a mezinárodních akordů', () => {
   it('české H +1 je C', () => {
@@ -41,5 +41,25 @@ describe('transpozice českých a mezinárodních akordů', () => {
       extension: '7',
       bassNote: { pitchClass: 11, accidental: 'natural' },
     });
+  });
+
+  it.each([
+    ['Cismi7', 'C#mi7'],
+    ['Dis7', 'D#7'],
+    ['Eis7', 'E#7'],
+    ['Fis/H', 'F#/H'],
+    ['Gismi7/Cis', 'G#mi7/C#'],
+    ['Ais', 'A#'],
+    ['His/Eis', 'H#/E#'],
+  ])('sjednotí český křížkový zápis %s na %s', (source, expected) => {
+    expect(normalizeSharpSpelling(source, 'czech')).toBe(expected);
+    expect(transposeChord(source, 0, 'czech')).toBe(expected);
+  });
+
+  it('nabídne všechny polohy kapodastru a označí snadné otevřené hmaty', () => {
+    const options = calculateCapoOptions('H', 'czech');
+    expect(options).toHaveLength(12);
+    expect(options.find((option) => option.capo === 2)).toMatchObject({ shapeKey: 'A', difficulty: 'open', recommended: true });
+    expect(options.find((option) => option.shapeKey === 'F')).toMatchObject({ difficulty: 'barre' });
   });
 });

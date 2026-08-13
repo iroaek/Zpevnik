@@ -84,14 +84,25 @@ describe('Offline obsah', () => {
 
   it('nabídne schválenému členovi stažení knihovny a po importu obnoví seznam písní', async () => {
     const refreshLibrary = vi.fn().mockResolvedValue(undefined);
-    vi.mocked(downloadApprovedLibrary).mockResolvedValue({ count: 485, changed: true, manifest: null });
+    vi.mocked(downloadApprovedLibrary).mockResolvedValue({
+      count: 485,
+      changed: true,
+      manifest: null,
+      downloadedBytes: 1024,
+      reusedBytes: 2048,
+      downloadedChunks: 1,
+      reusedChunks: 2,
+    });
 
     render(<OfflineContent catalog={catalog} secureMode secureProfile={profile} downloadedLibrarySongs={[]} onPersonalLibraryChanged={refreshLibrary} onNavigate={vi.fn()} />);
     await userEvent.click(screen.getByRole('button', { name: 'Stáhnout knihovnu' }));
 
-    await waitFor(() => expect(downloadApprovedLibrary).toHaveBeenCalledWith(profile, { localSongCount: 0 }));
+    await waitFor(() => expect(downloadApprovedLibrary).toHaveBeenCalledWith(profile, expect.objectContaining({
+      localSongCount: 0,
+      onProgress: expect.any(Function),
+    })));
     expect(refreshLibrary).toHaveBeenCalledOnce();
-    expect(await screen.findByText('Hotovo: do tohoto zařízení bylo bezpečně uloženo 485 členských písní.')).toBeVisible();
+    expect(await screen.findByText('Hotovo: bezpečně uloženo 485 písní. Staženo 1.0 kB, z dříve ověřených částí znovu použito 2.0 kB.')).toBeVisible();
   });
 
   it('rozpozná novější verzovaný balíček a nabídne bezpečnou aktualizaci', async () => {

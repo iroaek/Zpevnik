@@ -84,6 +84,31 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await page.getByRole('button', { name: 'Ukončit pódiový režim' }).click();
 });
 
+test('kapodastr používá křížky a ruční posun akordu uloží přesnou lokální polohu', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-390x844', 'Dotykový editor stačí ověřit v reprezentativním mobilním viewportu.');
+  await page.goto('songs/synteticka-jiskra');
+  await expect(page.getByRole('heading', { name: 'Syntetická jiskra' })).toBeVisible();
+
+  await page.locator('details.capo-hint > summary').click();
+  const capoOne = page.getByRole('radio', { name: /1\. pražec F#/ });
+  await expect(capoOne).toBeVisible();
+  await expect(page.locator('.capo-option-grid')).not.toContainText(/Cis|Dis|Fis|Gis|Ais/);
+  await capoOne.click();
+  await expect(page.locator('.song-facts')).toContainText('1. pražec');
+  await expect(page.getByRole('button', { name: /Akord F#; zobrazit hmat/ }).first()).toBeVisible();
+
+  await page.getByRole('button', { name: 'Ručně posunout akordy' }).click();
+  await page.getByRole('button', { name: /Akord F#; upravit polohu/ }).first().click();
+  await page.getByRole('button', { name: 'Posunout o jeden znak doprava' }).click();
+  await expect(page.getByText('Akord byl posunut doprava a uložen v zařízení.')).toBeVisible();
+  await page.getByRole('button', { name: 'Zavřít', exact: true }).click();
+  await expectNoPageOverflow(page);
+
+  await page.getByRole('button', { name: 'Upravit', exact: true }).click();
+  await page.getByText('Upravit lokální ChordPro verzi').click();
+  await expect(page.getByRole('textbox', { name: 'Text a akordy' })).toHaveValue(/J\[G\]iskra kreslí/);
+});
+
 test('úvod obsahuje pouze šest hlavních voleb a knihovna drží hledání uvnitř panelu', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-390x844', 'Geometrii stačí ověřit jednou pro oba reprezentativní viewporty.');
   for (const viewport of [{ width: 390, height: 844 }, { width: 1300, height: 1000 }]) {

@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
+import { withDeadline } from '../domain/asyncDeadline';
 import { defaultUserState, loadUserState, saveUserState, type UserState } from '../storage/database';
+
+const LOCAL_HYDRATION_TIMEOUT_MS = 4_000;
 
 export function useUserState(): [UserState, React.Dispatch<React.SetStateAction<UserState>>, boolean, string | null] {
   const [state, setState] = useState<UserState>(defaultUserState);
@@ -7,7 +10,7 @@ export function useUserState(): [UserState, React.Dispatch<React.SetStateAction<
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    loadUserState()
+    withDeadline(loadUserState(), LOCAL_HYDRATION_TIMEOUT_MS, 'Místní stav neodpovídá.')
       .then((stored) => setState(stored))
       .catch(() => setError('Místní data se nepodařilo načíst; používá se dočasné výchozí nastavení.'))
       .finally(() => setHydrated(true));

@@ -1,4 +1,5 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { normalizeSharpSpelling } from '../domain/chords';
 import type { Song } from '../domain/song';
 import type { PersonalLibrarySummary } from '../personalLibrary';
 import type { CatalogDensity, Setlist } from '../storage/database';
@@ -38,7 +39,8 @@ interface LibraryViewState {
   sort: 'title' | 'author' | 'recent';
 }
 
-const PAGE_SIZE = 60;
+const VIRTUALIZE_AFTER = 160;
+const VIRTUAL_OVERSCAN_ROWS = 4;
 const VIEW_STORAGE_KEY = 'zpevnik-library-view-v1';
 const initialView: LibraryViewState = { query: '', mode: 'all', key: '', difficulty: '', language: '', category: '', scoreAvailability: '', instrument: '', letter: '', sort: 'title' };
 
@@ -69,6 +71,10 @@ function reviewCount(song: Song): number {
   return new Set([...(song.reviewFlags ?? []), ...song.tags.filter((tag) => tag.startsWith('review:'))]).size;
 }
 
+function displaySongKey(key: string | null): string {
+  return key ? normalizeSharpSpelling(key, 'czech') : '—';
+}
+
 export function Library({ songs, favorites, recent, setlists = [], onOpenSong, onToggleFavorite, onAddToSetlist, onAddToTonight, onDeleteSong, onNotify, personalSummary, deviceSongCount = 0, entry = 'all', density = 'standard', onDensityChange }: LibraryProps) {
   const [localDensity, setLocalDensity] = useState<CatalogDensity>(density);
   const effectiveDensity = onDensityChange ? density : localDensity;
@@ -78,12 +84,13 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
     if (entry === 'artists') return { ...saved, mode: 'all', sort: 'author' };
     return { ...saved, mode: 'all' };
   });
-  const [page, setPage] = useState({ signature: '', count: PAGE_SIZE });
   const [quickSongId, setQuickSongId] = useState<string | null>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [swipe, setSwipe] = useState<{ id: string; x: number } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const sentinelRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const virtualFrame = useRef<number | null>(null);
+  const [virtualViewport, setVirtualViewport] = useState({ listTop: 0, width: 0, scrollY: 0, height: 800, columns: 1 });
   const filtersRef = useRef<HTMLDetailsElement>(null);
   const swipeStart = useRef<{ id: string; x: number; y: number } | null>(null);
   const swipeOffset = useRef<{ id: string; x: number } | null>(null);
@@ -118,7 +125,7 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
   }, [quickSongId]);
 
   const options = useMemo(() => ({
-    keys: [...new Set(songs.map((song) => song.originalKey).filter(Boolean))] as string[],
+    keys: [...new Set(songs.map((song) => song.originalKey ? displaySongKey(song.originalKey) : null).filter(Boolean))] as string[],
     languages: [...new Set(songs.map((song) => song.language))],
     categories: [...new Set(songs.flatMap((song) => song.categories))],
     instruments: [...new Set(songs.flatMap((song) => song.scoreAssets.map((asset) => asset.instrument)))],
@@ -140,7 +147,7 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
       const haystack = searchIndex.get(song.id) ?? '';
       return (!needle || haystack.includes(needle))
         && (!view.letter || firstLetter(song) === view.letter)
-        && (!view.key || song.originalKey === view.key)
+        && (!view.key || displaySongKey(song.originalKey) === view.key)
         && (!view.difficulty || song.difficulty === view.difficulty)
         && (!view.language || song.language === view.language)
         && (!view.category || song.categories.includes(view.category))
@@ -155,9 +162,21 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
     });
   }, [deferredQuery, favoriteIds, recent, searchIndex, songById, songs, view]);
 
-  const filterSignature = JSON.stringify([deferredQuery, view.mode, view.letter, view.key, view.difficulty, view.language, view.category, view.scoreAvailability, view.instrument]);
-  const visibleCount = page.signature === filterSignature ? page.count : PAGE_SIZE;
-  const visibleSongs = filtered.slice(0, visibleCount);
+  const virtualized = filtered.length > VIRTUALIZE_AFTER;
+  const rowHeight = effectiveDensity === 'compact' ? 67 : effectiveDensity === 'stage' ? 147 : 95;
+  const rowGap = effectiveDensity === 'compact' ? 6 : 11;
+  const rowStride = rowHeight + rowGap;
+  const totalRows = Math.ceil(filtered.length / virtualViewport.columns);
+  const relativeTop = Math.max(0, virtualViewport.scrollY - virtualViewport.listTop);
+  const startRow = virtualized ? Math.max(0, Math.floor(relativeTop / rowStride) - VIRTUAL_OVERSCAN_ROWS) : 0;
+  const endRow = virtualized
+    ? Math.min(totalRows, Math.ceil((relativeTop + virtualViewport.height) / rowStride) + VIRTUAL_OVERSCAN_ROWS)
+    : totalRows;
+  const startIndex = startRow * virtualViewport.columns;
+  const endIndex = Math.min(filtered.length, endRow * virtualViewport.columns);
+  const visibleSongs = filtered.slice(startIndex, endIndex);
+  const topSpacer = virtualized ? startRow * rowStride : 0;
+  const bottomSpacer = virtualized ? Math.max(0, (totalRows - endRow) * rowStride) : 0;
   const activeFilterCount = [view.letter, view.key, view.difficulty, view.language, view.category, view.scoreAvailability, view.instrument].filter(Boolean).length;
   const quickSong = quickSongId ? songById.get(quickSongId) : undefined;
   const activeFilters = [
@@ -227,15 +246,35 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
     }
   };
 
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel || visibleCount >= filtered.length || typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) setPage({ signature: filterSignature, count: visibleCount + PAGE_SIZE });
-    }, { rootMargin: '500px 0px' });
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [filterSignature, filtered.length, visibleCount]);
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list) return;
+    const measure = () => {
+      if (virtualFrame.current !== null) cancelAnimationFrame(virtualFrame.current);
+      virtualFrame.current = requestAnimationFrame(() => {
+        const rect = list.getBoundingClientRect();
+        const template = getComputedStyle(list).gridTemplateColumns;
+        const columns = effectiveDensity === 'compact' || !template || template === 'none'
+          ? 1
+          : Math.max(1, template.split(/\s+/).filter(Boolean).length);
+        setVirtualViewport((current) => {
+          const next = { listTop: rect.top + window.scrollY, width: rect.width, scrollY: window.scrollY, height: window.innerHeight, columns };
+          return current.listTop === next.listTop && current.width === next.width && current.scrollY === next.scrollY && current.height === next.height && current.columns === next.columns ? current : next;
+        });
+      });
+    };
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observer?.observe(list);
+    window.addEventListener('scroll', measure, { passive: true });
+    window.addEventListener('resize', measure);
+    measure();
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('scroll', measure);
+      window.removeEventListener('resize', measure);
+      if (virtualFrame.current !== null) cancelAnimationFrame(virtualFrame.current);
+    };
+  }, [effectiveDensity, filtered.length]);
 
   return (
     <section className="library" aria-labelledby="library-heading">
@@ -274,14 +313,15 @@ export function Library({ songs, favorites, recent, setlists = [], onOpenSong, o
         </div>
       </details>
 
-      <div className="catalog-heading"><div className="results-heading"><h2>Písně</h2><span>{filtered.length} výsledků · zobrazeno {visibleSongs.length}</span></div><div className="library-view-controls"><label><span className="visually-hidden">Řazení písní</span><select value={view.sort} onChange={(event) => updateView('sort', event.target.value as LibraryViewState['sort'])}><option value="title">Podle názvu</option><option value="author">Podle autora</option><option value="recent">Naposledy otevřené</option></select></label><div role="group" aria-label="Hustota zobrazení katalogu"><button type="button" className={effectiveDensity === 'stage' ? 'active' : ''} aria-pressed={effectiveDensity === 'stage'} aria-label="Karty" title="Velké karty pro pódium" onClick={() => { setLocalDensity('stage'); onDensityChange?.('stage'); }}><Icon name="grid" /></button><button type="button" className={effectiveDensity === 'standard' ? 'active' : ''} aria-pressed={effectiveDensity === 'standard'} aria-label="Běžné zobrazení" title="Běžné zobrazení" onClick={() => { setLocalDensity('standard'); onDensityChange?.('standard'); }}><Icon name="music" /></button><button type="button" className={effectiveDensity === 'compact' ? 'active' : ''} aria-pressed={effectiveDensity === 'compact'} aria-label="Kompaktní seznam" title="Kompaktní seznam pro rychlé hledání" onClick={() => { setLocalDensity('compact'); onDensityChange?.('compact'); }}><Icon name="list" /></button></div></div></div>
+      <div className="catalog-heading"><div className="results-heading"><h2>Písně</h2><span>{filtered.length} výsledků{virtualized && visibleSongs.length ? ` · na obrazovce ${startIndex + 1}–${endIndex}` : ''}</span></div><div className="library-view-controls"><label><span className="visually-hidden">Řazení písní</span><select value={view.sort} onChange={(event) => updateView('sort', event.target.value as LibraryViewState['sort'])}><option value="title">Podle názvu</option><option value="author">Podle autora</option><option value="recent">Naposledy otevřené</option></select></label><div role="group" aria-label="Hustota zobrazení katalogu"><button type="button" className={effectiveDensity === 'stage' ? 'active' : ''} aria-pressed={effectiveDensity === 'stage'} aria-label="Karty" title="Velké karty pro pódium" onClick={() => { setLocalDensity('stage'); onDensityChange?.('stage'); }}><Icon name="grid" /></button><button type="button" className={effectiveDensity === 'standard' ? 'active' : ''} aria-pressed={effectiveDensity === 'standard'} aria-label="Běžné zobrazení" title="Běžné zobrazení" onClick={() => { setLocalDensity('standard'); onDensityChange?.('standard'); }}><Icon name="music" /></button><button type="button" className={effectiveDensity === 'compact' ? 'active' : ''} aria-pressed={effectiveDensity === 'compact'} aria-label="Kompaktní seznam" title="Kompaktní seznam pro rychlé hledání" onClick={() => { setLocalDensity('compact'); onDensityChange?.('compact'); }}><Icon name="list" /></button></div></div></div>
       <aside className="library-gesture-guide" aria-label="Význam ikon a gest"><span><Icon name="star" size={16} />Oblíbená</span><span><Icon name="download" size={16} />Uložená offline</span><span><Icon name="music" size={16} />Obsahuje noty</span><small>Na telefonu přejeďte doprava pro dnešní setlist, doleva pro další akce.</small></aside>
       {deferredQuery !== view.query && <div className="catalog-skeleton" role="status" aria-label="Hledám v katalogu"><span /><span /><span /></div>}
-      <div className={`song-list song-list--${effectiveDensity}${effectiveDensity === 'stage' ? ' song-list--cards' : ''}`} aria-busy={deferredQuery !== view.query}>
-        {visibleSongs.map((song) => <article className={`song-card-shell ${swipe?.id === song.id ? 'song-card-shell--swiping' : ''}`} key={song.id} onPointerDown={(event) => { if (event.pointerType === 'touch') startSwipe(song.id, event.clientX, event.clientY); else startLongPress(song.id); }} onPointerUp={() => finishSwipe(song.id)} onPointerCancel={() => { cancelLongPress(); swipeStart.current = null; swipeOffset.current = null; setSwipe(null); }} onPointerMove={(event) => { if (event.pointerType === 'touch') moveSwipe(song.id, event.clientX, event.clientY); else cancelLongPress(); }} onContextMenu={(event) => { event.preventDefault(); setQuickSongId(song.id); }}><span className="swipe-action swipe-action--right" aria-hidden="true"><Icon name="plus" size={18} />Dnešní setlist</span><span className="swipe-action swipe-action--left" aria-hidden="true"><Icon name="menu" size={18} />Akce</span><div className="song-card-motion" style={{ transform: swipe?.id === song.id ? `translate3d(${swipe.x}px, 0, 0)` : undefined }}><button type="button" className="song-card song-card__open" onClick={() => openFromCard(song.id)}><span className="song-card__main"><strong>{song.title}</strong><span>{song.authors.join(', ') || 'Autor neuveden'}</span>{song.personalOnly && reviewCount(song) > 0 && <span className="song-card__labels"><span>Ke kontrole · {reviewCount(song)}</span></span>}</span><span className="song-card__meta"><strong className="song-key" aria-label={`Tónina ${song.originalKey ?? 'neuvedena'}`}>{song.originalKey ?? '—'}</strong>{song.chordProPath.startsWith('indexeddb:') && <Icon name="download" size={17} className="offline-song-badge" />}{song.scoreAssets.length > 0 && <Icon name="music" size={17} />}{favoriteIds.has(song.id) && <Icon name="star" size={17} />}<Icon name="chevronRight" size={18} /></span></button><button type="button" className="song-quick-button" aria-label="Rychlé akce" title={`Rychlé akce pro ${song.title}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => setQuickSongId(song.id)}><Icon name="menu" size={19} /></button></div></article>)}
+      <div ref={listRef} className={`song-list song-list--${effectiveDensity}${effectiveDensity === 'stage' ? ' song-list--cards' : ''}${virtualized ? ' song-list--virtualized' : ''}`} aria-busy={deferredQuery !== view.query}>
+        {topSpacer > 0 && <div className="virtual-song-spacer" aria-hidden="true" style={{ height: topSpacer }} />}
+        {visibleSongs.map((song) => <article className={`song-card-shell ${swipe?.id === song.id ? 'song-card-shell--swiping' : ''}`} key={song.id} onPointerDown={(event) => { if (event.pointerType === 'touch') startSwipe(song.id, event.clientX, event.clientY); else startLongPress(song.id); }} onPointerUp={() => finishSwipe(song.id)} onPointerCancel={() => { cancelLongPress(); swipeStart.current = null; swipeOffset.current = null; setSwipe(null); }} onPointerMove={(event) => { if (event.pointerType === 'touch') moveSwipe(song.id, event.clientX, event.clientY); else cancelLongPress(); }} onContextMenu={(event) => { event.preventDefault(); setQuickSongId(song.id); }}><span className="swipe-action swipe-action--right" aria-hidden="true"><Icon name="plus" size={18} />Dnešní setlist</span><span className="swipe-action swipe-action--left" aria-hidden="true"><Icon name="menu" size={18} />Akce</span><div className="song-card-motion" style={{ transform: swipe?.id === song.id ? `translate3d(${swipe.x}px, 0, 0)` : undefined }}><button type="button" className="song-card song-card__open" onClick={() => openFromCard(song.id)}><span className="song-card__main"><strong>{song.title}</strong><span>{song.authors.join(', ') || 'Autor neuveden'}</span>{song.personalOnly && reviewCount(song) > 0 && <span className="song-card__labels"><span>Ke kontrole · {reviewCount(song)}</span></span>}</span><span className="song-card__meta"><strong className="song-key" aria-label={`Tónina ${song.originalKey ? displaySongKey(song.originalKey) : 'neuvedena'}`}>{displaySongKey(song.originalKey)}</strong>{song.chordProPath.startsWith('indexeddb:') && <Icon name="download" size={17} className="offline-song-badge" />}{song.scoreAssets.length > 0 && <Icon name="music" size={17} />}{favoriteIds.has(song.id) && <Icon name="star" size={17} />}<Icon name="chevronRight" size={18} /></span></button><button type="button" className="song-quick-button" aria-label="Rychlé akce" title={`Rychlé akce pro ${song.title}`} onPointerDown={(event) => event.stopPropagation()} onClick={() => setQuickSongId(song.id)}><Icon name="menu" size={19} /></button></div></article>)}
         {filtered.length === 0 && <p className="empty-state">Tomuto hledání neodpovídá žádná píseň. <button type="button" className="text-button" onClick={() => setView(initialView)}>Zrušit hledání a filtry</button></p>}
+        {bottomSpacer > 0 && <div className="virtual-song-spacer" aria-hidden="true" style={{ height: bottomSpacer }} />}
       </div>
-      {visibleCount < filtered.length && <div ref={sentinelRef} className="load-more"><button type="button" className="secondary-button" onClick={() => setPage({ signature: filterSignature, count: visibleCount + PAGE_SIZE })}>Zobrazit dalších {Math.min(PAGE_SIZE, filtered.length - visibleCount)} písní</button></div>}
       {showBackToTop && <button type="button" className="back-to-top" aria-label="Zpět nahoru" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>↑</button>}
       {quickSong && <div className="quick-action-backdrop" role="presentation" onClick={() => { setQuickSongId(null); setConfirmDelete(false); }}><section className="quick-action-sheet" role="dialog" aria-modal="true" aria-labelledby="quick-action-heading" onClick={(event) => event.stopPropagation()}><div><span><small>Rychlé akce</small><h2 id="quick-action-heading">{quickSong.title}</h2></span><button type="button" className="icon-button" aria-label="Zavřít" onClick={() => { setQuickSongId(null); setConfirmDelete(false); }}>×</button></div>{confirmDelete ? <div className="quick-delete-confirm"><p>Odstranit tuto uloženou píseň z tohoto zařízení?</p><button type="button" className="danger-button" onClick={() => void onDeleteSong?.(quickSong.id).then(() => { onNotify?.('Píseň byla odstraněna z tohoto zařízení.'); setQuickSongId(null); setConfirmDelete(false); })}>Ano, odstranit</button><button type="button" className="secondary-button" onClick={() => setConfirmDelete(false)}>Zrušit</button></div> : <><button type="button" className="secondary-button" onClick={() => { onToggleFavorite?.(quickSong.id); onNotify?.(favoriteIds.has(quickSong.id) ? 'Píseň byla odebrána z oblíbených.' : 'Píseň byla přidána do oblíbených.'); setQuickSongId(null); }}>{favoriteIds.has(quickSong.id) ? '☆ Odebrat z oblíbených' : '★ Přidat do oblíbených'}</button>{setlists.length > 0 && <label>Přidat do setlistu<select defaultValue="" onChange={(event) => { if (!event.target.value) return; onAddToSetlist?.(quickSong.id, event.target.value); onNotify?.('Píseň byla přidána do setlistu.'); setQuickSongId(null); }}><option value="" disabled>Vyberte setlist…</option>{setlists.map((setlist) => <option key={setlist.id} value={setlist.id} disabled={setlist.songIds.includes(quickSong.id)}>{setlist.name}{setlist.songIds.includes(quickSong.id) ? ' · již obsahuje' : ''}</option>)}</select></label>}<button type="button" className="primary-button" onClick={() => onOpenSong(quickSong.id)}>Otevřít píseň</button>{quickSong.chordProPath.startsWith('indexeddb:') && onDeleteSong && <button type="button" className="danger-button" onClick={() => setConfirmDelete(true)}>Odstranit z tohoto zařízení</button>}<small>{quickSong.chordProPath.startsWith('indexeddb:') ? 'Píseň je uložená offline v tomto zařízení.' : 'Offline dostupnost lze spravovat v části Offline.'}</small></>}</section></div>}
     </section>

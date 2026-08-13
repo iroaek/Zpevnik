@@ -4,8 +4,11 @@ import {
   clearSecureAuthorizationData,
   importFullBackup,
   libraryManifestSchema,
+  loadCachedContentPackageChunk,
   loadDownloadedLibraryMetadata,
   migrateUserState,
+  pruneCachedContentPackageChunks,
+  saveCachedContentPackageChunk,
   type LibraryManifest,
   type UserState,
 } from '../storage/database';
@@ -118,6 +121,7 @@ const contentPackageChunkSchema = z.object({
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
   data_base64: z.string().min(1),
 });
+const contentPackageChunkMetadataSchema = contentPackageChunkSchema.omit({ data_base64: true });
 
 export type SecureProfile = z.infer<typeof secureProfileSchema>;
 export type RemoteSongSubmission = z.infer<typeof remoteSubmissionSchema>;
@@ -142,6 +146,10 @@ export interface ApprovedLibraryDownloadResult {
   count: number;
   changed: boolean;
   manifest: LibraryManifest | null;
+  downloadedBytes: number;
+  reusedBytes: number;
+  downloadedChunks: number;
+  reusedChunks: number;
 }
 
 export const offlineGrantIssuer = neonAuthIssuer;
@@ -737,32 +745,62 @@ export async function loadApprovedLibraryManifest(profile: SecureProfile): Promi
 
 export async function downloadApprovedLibrary(
   profile: SecureProfile,
-  options: { force?: boolean; localSongCount?: number } = {},
+  options: {
+    force?: boolean;
+    localSongCount?: number;
+    onProgress?: (progress: { completed: number; total: number; downloadedBytes: number; reusedBytes: number }) => void;
+  } = {},
 ): Promise<ApprovedLibraryDownloadResult> {
   const packageRow = await loadContentPackageRow(profile);
   if (!packageRow) throw new Error(profile.role === 'admin' ? 'Soukromá správcovská knihovna zatím není v Neonu připravená.' : 'Soukromá členská knihovna zatím není v Neonu připravená.');
   const localMetadata = await loadDownloadedLibraryMetadata();
   if (!options.force && localMetadata?.version === packageRow.manifest.version && options.localSongCount === packageRow.manifest.songCount) {
-    return { count: packageRow.manifest.songCount, changed: false, manifest: packageRow.manifest };
+    return { count: packageRow.manifest.songCount, changed: false, manifest: packageRow.manifest, downloadedBytes: 0, reusedBytes: packageRow.package_bytes, downloadedChunks: 0, reusedChunks: packageRow.chunk_count };
   }
   const scope = libraryScope(profile);
-  const rawChunks = await neonSelect<unknown>('content_package_chunks', await requireSecureAccessToken(), {
-    select: 'chunk_index,byte_size,sha256,data_base64',
+  const token = await requireSecureAccessToken();
+  const rawChunkMetadata = await neonSelect<unknown>('content_package_chunks', token, {
+    select: 'chunk_index,byte_size,sha256',
     scope: `eq.${scope}`,
     version: `eq.${packageRow.version}`,
     order: 'chunk_index.asc',
   });
-  const chunks = z.array(contentPackageChunkSchema).parse(rawChunks);
-  if (chunks.length !== packageRow.chunk_count) throw new Error('Balíček v Neonu není úplný. Původní knihovna zůstala zachovaná.');
+  const metadata = z.array(contentPackageChunkMetadataSchema).parse(rawChunkMetadata);
+  if (metadata.length !== packageRow.chunk_count) throw new Error('Balíček v Neonu není úplný. Původní knihovna zůstala zachovaná.');
   const verifiedChunks: Uint8Array[] = [];
   let totalBytes = 0;
-  for (let index = 0; index < chunks.length; index += 1) {
-    const chunk = chunks[index];
+  let downloadedBytes = 0;
+  let reusedBytes = 0;
+  let downloadedChunks = 0;
+  let reusedChunks = 0;
+  for (let index = 0; index < metadata.length; index += 1) {
+    const chunk = metadata[index];
     if (chunk.chunk_index !== index) throw new Error('Pořadí částí knihovny je poškozené.');
-    const bytes = decodeBase64(chunk.data_base64);
-    if (bytes.length !== chunk.byte_size || await sha256Bytes(bytes) !== chunk.sha256) throw new Error('Kontrolní součet části knihovny nesouhlasí.');
+    let bytes = await loadCachedContentPackageChunk(chunk.sha256);
+    if (bytes && (bytes.length !== chunk.byte_size || await sha256Bytes(bytes) !== chunk.sha256)) bytes = null;
+    if (bytes) {
+      reusedBytes += bytes.length;
+      reusedChunks += 1;
+    } else {
+      const rows = await neonSelect<unknown>('content_package_chunks', token, {
+        select: 'chunk_index,byte_size,sha256,data_base64',
+        scope: `eq.${scope}`,
+        version: `eq.${packageRow.version}`,
+        chunk_index: `eq.${index}`,
+        limit: '1',
+      });
+      const downloaded = contentPackageChunkSchema.parse(rows[0]);
+      bytes = decodeBase64(downloaded.data_base64);
+      if (downloaded.chunk_index !== index || downloaded.sha256 !== chunk.sha256 || bytes.length !== chunk.byte_size || await sha256Bytes(bytes) !== chunk.sha256) {
+        throw new Error('Kontrolní součet části knihovny nesouhlasí. Původní knihovna zůstala zachovaná.');
+      }
+      await saveCachedContentPackageChunk(chunk.sha256, bytes);
+      downloadedBytes += bytes.length;
+      downloadedChunks += 1;
+    }
     verifiedChunks.push(bytes);
     totalBytes += bytes.length;
+    options.onProgress?.({ completed: index + 1, total: metadata.length, downloadedBytes, reusedBytes });
   }
   if (totalBytes !== packageRow.package_bytes) throw new Error('Stažený balíček nemá očekávanou velikost. Původní knihovna zůstala zachovaná.');
   const combined = new Uint8Array(totalBytes);
@@ -775,7 +813,8 @@ export async function downloadApprovedLibrary(
     ownerUserId: profile.id,
     verifiedManifest: packageRow.manifest,
   });
-  return { count: imported.personalSongCount, changed: true, manifest: packageRow.manifest };
+  await pruneCachedContentPackageChunks(metadata.map((chunk) => chunk.sha256));
+  return { count: imported.personalSongCount, changed: true, manifest: packageRow.manifest, downloadedBytes, reusedBytes, downloadedChunks, reusedChunks };
 }
 
 export async function loadCloudUserState(): Promise<UserState | null> {

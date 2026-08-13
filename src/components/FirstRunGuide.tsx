@@ -18,7 +18,7 @@ const STEPS = [
   {
     eyebrow: '2 · Přístup',
     title: 'Přihlášení zůstává v zařízení',
-    body: 'Po online ověření se bezpečné oprávnění uloží do telefonu. Při dalším otevření vás aplikace neodhlásí jen proto, že jste bez signálu.',
+    body: 'Po online ověření se bezpečné oprávnění uloží do telefonu. Při dalším otevření vás aplikace neodhlásí jen proto, že jste bez signálu. Neodstraňujte ale data webu nebo aplikace — tím by se smazal i bezpečný offline klíč.',
     icon: '✓',
   },
   {

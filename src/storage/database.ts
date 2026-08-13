@@ -1,6 +1,6 @@
 import { openDB } from 'idb';
 import { z } from 'zod';
-import { normalizeCSharpSpelling, type ChordNotation } from '../domain/chords';
+import { normalizeSharpSpelling, type ChordNotation } from '../domain/chords';
 import { sanitizeImportedText } from '../domain/chordpro';
 import { createUuid } from '../domain/browserCompatibility';
 import { readBlobText } from '../domain/readBlobBytes';
@@ -98,6 +98,13 @@ export interface ContentPackageIntegrity {
   availableBytes: number;
   expectedBytes: number;
   healthy: boolean;
+}
+
+interface CachedContentPackageChunk {
+  schemaVersion: 1;
+  sha256: string;
+  bytes: ArrayBuffer;
+  storedAt: string;
 }
 
 export interface PendingMutation {
@@ -332,7 +339,7 @@ const personalSongEntrySchema = z.object({
 
 const personalSongBackupSchema = z.array(personalSongEntrySchema).max(5_000);
 
-export const DATABASE_VERSION = 7;
+export const DATABASE_VERSION = 8;
 
 const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
   async upgrade(database, oldVersion, _newVersion, transaction) {
@@ -364,6 +371,24 @@ const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
       const migrated = migrateUserState(stored);
       if (migrated) await stateStore.put(migrated, 'current');
     }
+    if (oldVersion < 8) {
+      // Obsahově adresované části členské knihovny umožní při další verzi
+      // stáhnout jen změněné bloky. Aktivní knihovna zůstává v původních
+      // storech a je přepnuta až po ověření celého výsledku.
+      database.createObjectStore('contentPackageChunks');
+    }
+  },
+  blocked() {
+    window.dispatchEvent(new CustomEvent('zpevnik:database-blocked'));
+  },
+  blocking(_currentVersion, _blockedVersion, event) {
+    // Novější verze aplikace může provést bezpečnou migraci až po uzavření
+    // starého spojení v tomto okně. Samotná data se tím nemažou.
+    (event.target as IDBDatabase | null)?.close();
+    window.dispatchEvent(new CustomEvent('zpevnik:database-upgrade-requested'));
+  },
+  terminated() {
+    window.dispatchEvent(new CustomEvent('zpevnik:database-terminated'));
   },
 });
 
@@ -550,6 +575,38 @@ export async function saveOfflineGrantRecord(record: StoredOfflineGrantRecord): 
 export async function clearOfflineGrantRecord(): Promise<void> {
   const database = await databasePromise;
   await database.delete('offlineAuth', 'current');
+}
+
+export async function loadCachedContentPackageChunk(sha256: string): Promise<Uint8Array | null> {
+  if (!/^[a-f0-9]{64}$/.test(sha256)) return null;
+  const database = await databasePromise;
+  const stored = await database.get('contentPackageChunks', sha256) as Partial<CachedContentPackageChunk> | undefined;
+  if (!stored || stored.schemaVersion !== 1 || stored.sha256 !== sha256 || !(stored.bytes instanceof ArrayBuffer)) return null;
+  return new Uint8Array(stored.bytes.slice(0));
+}
+
+export async function saveCachedContentPackageChunk(sha256: string, bytes: Uint8Array): Promise<void> {
+  if (!/^[a-f0-9]{64}$/.test(sha256) || bytes.byteLength === 0) throw new Error('Část knihovny má neplatný lokální formát.');
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  const record: CachedContentPackageChunk = {
+    schemaVersion: 1,
+    sha256,
+    bytes: copy.buffer,
+    storedAt: new Date().toISOString(),
+  };
+  const database = await databasePromise;
+  await database.put('contentPackageChunks', record, sha256);
+}
+
+export async function pruneCachedContentPackageChunks(keepSha256: string[]): Promise<void> {
+  const keep = new Set(keepSha256);
+  const database = await databasePromise;
+  const transaction = database.transaction('contentPackageChunks', 'readwrite');
+  for (const key of await transaction.store.getAllKeys()) {
+    if (typeof key === 'string' && !keep.has(key)) await transaction.store.delete(key);
+  }
+  await transaction.done;
 }
 
 export async function loadContentPackage(userId: string): Promise<ContentPackageRecord | null> {
@@ -854,8 +911,9 @@ export async function loadPersonalSongs(userId?: string): Promise<Song[]> {
   return stored.flatMap((value) => {
     const parsed = songSchema.safeParse(value);
     if (!parsed.success || !parsed.data.personalOnly) return [];
-    const normalizedSong = parsed.data.originalKey?.startsWith('Cis')
-      ? { ...parsed.data, originalKey: normalizeCSharpSpelling(parsed.data.originalKey, 'czech') }
+    const normalizedKey = parsed.data.originalKey ? normalizeSharpSpelling(parsed.data.originalKey, 'czech') : null;
+    const normalizedSong = normalizedKey !== parsed.data.originalKey
+      ? { ...parsed.data, originalKey: normalizedKey }
       : parsed.data;
     if (!isDownloadedLibrarySong(normalizedSong)) return [normalizedSong];
     const owner = protectedOwners.get(normalizedSong.id);
