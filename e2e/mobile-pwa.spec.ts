@@ -48,7 +48,8 @@ test.beforeEach(async ({ page }) => {
   }
 });
 
-test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun', async ({ page }) => {
+test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'desktop-1440x900', 'Desktopové skládání akordů ověřuje samostatná regrese.');
   await page.goto('./');
   await expect(page.getByRole('heading', { name: 'Český zpěvník', exact: true })).toBeVisible();
   await expectNoPageOverflow(page);
