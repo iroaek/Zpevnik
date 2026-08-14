@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { parseChordPro } from '../domain/chordpro';
 import { parseChord, renderChord, transposeCanonicalChord, type ChordNotation } from '../domain/chords';
+import { mobileColumnPercent } from '../ui/readerLayout';
 
 interface ChordSheetProps {
   source: string;
@@ -106,6 +107,7 @@ export function ChordSheet({
   onSuggestCorrection,
 }: ChordSheetProps) {
   const parsed = useMemo(() => parseChordPro(source), [source]);
+  const mobileColumnWidth = mobileColumnPercent(columnWidth);
   const performanceSectionIndexes = useMemo(() => parsed.sections.flatMap((section, index) => section.kind === 'comment' || (section.kind === 'chorus' && section.repeated && collapseRepeatedChoruses) ? [] : [index]), [collapseRepeatedChoruses, parsed.sections]);
   const performanceSection = performanceProgress === null || performanceSectionIndexes.length === 0
     ? null
@@ -121,7 +123,7 @@ export function ChordSheet({
     return () => window.removeEventListener('keydown', close);
   }, [popover]);
   return (
-    <div className={`chord-sheet ${focusSections && activeSection !== null ? 'chord-sheet--focus-active' : ''} ${performanceSection !== null ? 'chord-sheet--performance' : ''} ${editMode ? 'chord-sheet--editing' : ''}`} style={{ '--song-font-size': `${fontSize}px`, '--chord-scale': chordScale, '--song-line-height': lineHeight, '--song-column-width': `${columnWidth}px` } as React.CSSProperties}>
+    <div className={`chord-sheet ${focusSections && activeSection !== null ? 'chord-sheet--focus-active' : ''} ${performanceSection !== null ? 'chord-sheet--performance' : ''} ${editMode ? 'chord-sheet--editing' : ''}`} style={{ '--song-font-size': `${fontSize}px`, '--chord-scale': chordScale, '--song-line-height': lineHeight, '--song-column-width': `${columnWidth}px`, '--mobile-song-column-width': `${mobileColumnWidth}%` } as React.CSSProperties}>
       {parsed.sections.map((section, sectionIndex) => {
         if (section.kind === 'comment') {
           return <p className="song-comment" key={`comment-${sectionIndex}`}>{section.label}</p>;

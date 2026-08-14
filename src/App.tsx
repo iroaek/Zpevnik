@@ -233,11 +233,6 @@ export default function App() {
   );
   const selectedSong = useMemo(() => route.name === 'song' ? allSongs.find((song) => song.id === route.id) : undefined, [allSongs, route]);
   const selectedPublicSetlist = useMemo(() => route.name === 'public-setlist' ? catalog.publicSetlists.find((setlist) => setlist.id === route.id) : undefined, [catalog, route]);
-  const lastOpenedSong = useMemo(() => {
-    const byId = new Map(allSongs.map((song) => [song.id, song]));
-    return userState.recentSongIds.map((id) => byId.get(id)).find((song): song is Catalog['songs'][number] => Boolean(song));
-  }, [allSongs, userState.recentSongIds]);
-
   useEffect(() => {
     const popstate = () => {
       const target = parseRoute();
@@ -480,8 +475,6 @@ export default function App() {
   };
 
   const navScreen = route.name === 'library' || route.name === 'setlists' || route.name === 'import' || route.name === 'settings' || route.name === 'offline' ? route.name : null;
-  const showMiniPlayer = Boolean(navScreen && lastOpenedSong);
-
   if (!hydrated || !profileHydrated || (secureAccount.enabled && !secureAccount.hydrated)) return <GuitarNeckLoader message="Otevírám zpěvník…" />;
 
   if (secureAccount.required && !secureAccount.enabled) return <main className="app-main"><section className="registration-page"><div className="registration-card"><p className="eyebrow">Soukromý režim</p><h1>Server není připojený</h1><p className="lead">{friendlyError(secureAccount.error, 'Připojení soukromého serveru není dokončené.')}</p><small>Žádné soukromé písně nebyly načteny. Tuto konfiguraci musí dokončit administrátor.</small></div></section></main>;
@@ -501,7 +494,7 @@ export default function App() {
   if (accountReady && welcomeCompleteFor !== userProfile.id) return <GuitarNeckLoader message={`Vítejte, ${userProfile.displayName}`} />;
 
   return (
-    <div className={`app-shell ${route.name === 'home' ? 'app-shell--home' : ''}${showMiniPlayer ? ' app-shell--mini-player' : ''}`}>
+    <div className={`app-shell ${route.name === 'home' ? 'app-shell--home' : ''}`}>
       <div className={`navigation-progress${navigationPending ? ' navigation-progress--active' : ''}`} role="status" aria-live="polite" aria-label={navigationPending ? 'Načítám další obrazovku' : undefined}><span aria-hidden="true" /></div>
       {route.name !== 'home' && <header className="app-header">
         <button className="brand" type="button" onClick={() => navigate('')} aria-label="Přejít na úvodní stránku"><span className="brand-mark" aria-hidden="true"><img src={`${import.meta.env.BASE_URL}icons/icon-lazec-192.png`} alt="" /></span><span><strong>Český zpěvník</strong><small>odkaz · PWA · offline</small></span></button>
@@ -528,7 +521,6 @@ export default function App() {
         {((route.name === 'song' && !selectedSong) || (route.name === 'public-setlist' && !selectedPublicSetlist) || (route.name === 'admin' && (!secureAccount.enabled || secureAccount.profile?.role !== 'admin')) || route.name === 'not-found') && <section className="info-page not-found"><p className="eyebrow">404</p><h1>Tato stránka ve zpěvníku není</h1><p>Odkaz může být starý nebo chybný.</p><button type="button" className="primary-button" onClick={() => navigate('')}>Přejít na písně</button></section>}
         </Suspense></div>
       </main>
-      {showMiniPlayer && lastOpenedSong && <aside className="now-playing-bar" aria-label="Rozehraná píseň"><button type="button" onPointerDown={() => void loadSongReader()} onClick={(event) => { haptic('selection'); openSong(lastOpenedSong.id, [], event.currentTarget.querySelector<HTMLElement>('strong')); }}><span className="now-playing-bar__icon" aria-hidden="true"><Icon name="play" size={18} /></span><span><small>Pokračovat v písni</small><strong>{lastOpenedSong.title}</strong><em>{lastOpenedSong.authors.join(', ') || 'Autor neuveden'}</em></span><Icon name="chevronRight" size={19} /></button></aside>}
       {route.name !== 'song' && route.name !== 'home' && <nav className="bottom-nav bottom-nav--five" aria-label="Hlavní navigace">
         <button type="button" className={navScreen === 'library' ? 'active' : ''} aria-current={navScreen === 'library' ? 'page' : undefined} onClick={() => { haptic(); navigate('songs'); }}><Icon name="search" />Písně</button>
         <button type="button" className={navScreen === 'setlists' ? 'active' : ''} aria-current={navScreen === 'setlists' ? 'page' : undefined} onPointerDown={() => void loadSetlists()} onPointerEnter={() => void loadSetlists()} onFocus={() => void loadSetlists()} onClick={() => { haptic(); navigate('setlists'); }}><Icon name="list" />Setlisty</button>

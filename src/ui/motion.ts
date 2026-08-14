@@ -100,17 +100,17 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
     return;
   }
 
-  const magnitude = preference === 'full' ? 6 : 3;
+  const magnitude = preference === 'full' ? 8 : 5;
   const travel = direction === 'lateral' ? 0 : direction === 'forward' ? magnitude : -magnitude;
-  const enterDuration = preference === 'full' ? 240 : 165;
-  const leaveDuration = preference === 'full' ? 110 : 75;
+  const enterDuration = preference === 'full' ? 270 : 220;
+  const leaveDuration = preference === 'full' ? 125 : 90;
   root.dataset.transitionPhase = 'preparing';
   requestAnimationFrame(() => {
     if (transitionId !== transitionSequence) return;
     root.dataset.transitionPhase = 'leaving';
     const leaving = currentStage.animate([
       { opacity: 1, transform: 'translate3d(0, 0, 0)' },
-      { opacity: 0.58, transform: `translate3d(${-travel}px, 0, 0)` },
+      { opacity: 0.82, transform: `translate3d(${-travel}px, 0, 0)` },
     ], {
       duration: leaveDuration,
       easing: 'cubic-bezier(.4, 0, 1, 1)',
@@ -133,7 +133,7 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
         return;
       }
       const entering = nextStage.animate([
-        { opacity: 0.58, transform: `translate3d(${travel}px, 0, 0)` },
+        { opacity: 0.82, transform: `translate3d(${travel}px, 0, 0)` },
         { opacity: 1, transform: 'translate3d(0, 0, 0)' },
       ], {
         duration: enterDuration,

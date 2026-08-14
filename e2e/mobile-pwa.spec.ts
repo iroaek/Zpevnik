@@ -64,7 +64,19 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
       sheetWidth: sheet.getBoundingClientRect().width,
     };
   });
-  expect(readerGeometry.sheetWidth / readerGeometry.tapWidth).toBeGreaterThanOrEqual(.98);
+  expect(readerGeometry.sheetWidth / readerGeometry.tapWidth).toBeGreaterThanOrEqual(.93);
+  const mobileChordFlow = await page.locator('.chord-line--with-chords').first().evaluate((line) => {
+    const token = line.querySelector<HTMLElement>('.chord-token')!;
+    const lyric = line.querySelector<HTMLElement>('.lyric')!;
+    const chord = line.querySelector<HTMLElement>('.chord:not(.chord--empty)')!;
+    return {
+      line: getComputedStyle(line).display,
+      token: getComputedStyle(token).display,
+      lyric: getComputedStyle(lyric).display,
+      chord: getComputedStyle(chord).display,
+    };
+  });
+  expect(mobileChordFlow).toEqual({ line: 'block', token: 'inline', lyric: 'inline', chord: 'inline-flex' });
   const readerButtons = await page.locator('.toolbar-actions > .icon-button').evaluateAll((buttons) => buttons.map((button) => {
     const box = button.getBoundingClientRect();
     return { width: box.width, height: box.height };
@@ -82,6 +94,13 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   const initialSize = await page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
   await page.getByRole('button', { name: 'Otevřít nastavení zobrazení' }).click();
   await page.getByLabel('Nastavit velikost textu').fill(String(initialSize + 2));
+  const widthControl = page.getByLabel('Šířka textu');
+  await widthControl.fill('320');
+  await expect(page.locator('.reader-width-mobile')).toHaveText('84 %');
+  const compactReaderWidth = await page.locator('.chord-sheet').evaluate((element) => element.getBoundingClientRect().width);
+  await widthControl.fill('980');
+  await expect(page.locator('.reader-width-mobile')).toHaveText('100 %');
+  await expect.poll(() => page.locator('.chord-sheet').evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(compactReaderWidth + 30);
   await page.getByRole('button', { name: 'Hotovo' }).click();
   await expect.poll(() => page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThan(initialSize);
 
@@ -115,7 +134,7 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await page.getByRole('button', { name: 'Ukončit pódiový režim' }).click();
   await page.getByRole('button', { name: 'Zpět do seznamu' }).click();
   await expect(page.getByRole('heading', { name: 'Písně', exact: true, level: 1 })).toBeVisible();
-  await expect(page.locator('.now-playing-bar')).toBeHidden();
+  await expect(page.locator('.now-playing-bar')).toHaveCount(0);
   await page.getByRole('button', { name: 'Rychlé akce' }).click();
   await expect(page.getByRole('dialog', { name: /Syntetická jiskra/ })).toBeVisible();
   const quickActionOverlap = await page.evaluate(() => {
@@ -124,6 +143,22 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
     return sheet && navigation ? Math.max(0, sheet.bottom - navigation.top) : 0;
   });
   expect(quickActionOverlap).toBeLessThanOrEqual(1);
+});
+
+test('desktopové nastavení neobsahuje překrývající lištu poslední písně', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-390x844', 'Desktopovou regresi stačí ověřit jednou.');
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto('./');
+  await page.getByRole('button', { name: /^Akordy/ }).click();
+  await page.getByRole('button', { name: /Syntetická jiskra/ }).click();
+  await expect(page.getByText('Jiskra kreslí')).toBeVisible();
+  await page.getByRole('button', { name: 'Zpět do seznamu' }).click();
+  await page.getByRole('button', { name: 'Nastavení' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Nastavení', exact: true })).toBeVisible();
+  await expect(page.locator('.now-playing-bar')).toHaveCount(0);
+  await expect(page.locator('.app-shell')).not.toHaveClass(/app-shell--mini-player/);
+  await expectNoPageOverflow(page);
 });
 
 test('tisk písně obsahuje pouze záhlaví a text s akordy bez prázdné úvodní stránky', async ({ page }, testInfo) => {

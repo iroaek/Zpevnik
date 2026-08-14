@@ -135,10 +135,10 @@ describe('směr navigačního pohybu', () => {
     expect(animate).toHaveBeenCalledTimes(2);
     expect(animate.mock.calls[0]?.[0]).toEqual([
       { opacity: 1, transform: 'translate3d(0, 0, 0)' },
-      { opacity: 0.58, transform: 'translate3d(-3px, 0, 0)' },
+      { opacity: 0.82, transform: 'translate3d(-5px, 0, 0)' },
     ]);
     expect(animate.mock.calls[1]?.[0]).toEqual([
-      { opacity: 0.58, transform: 'translate3d(3px, 0, 0)' },
+      { opacity: 0.82, transform: 'translate3d(5px, 0, 0)' },
       { opacity: 1, transform: 'translate3d(0, 0, 0)' },
     ]);
     expect(document.documentElement.dataset.viewTransition).toBe('active');

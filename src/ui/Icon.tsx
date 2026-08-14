@@ -19,6 +19,7 @@ export type IconName =
   | "home"
   | "info"
   | "list"
+  | "lock"
   | "menu"
   | "music"
   | "pause"
@@ -32,6 +33,7 @@ export type IconName =
   | "sync"
   | "trash"
   | "upload"
+  | "unlock"
   | "users"
   | "wifi";
 
@@ -139,6 +141,13 @@ const paths: Record<IconName, ReactNode> = {
       <path d="M4 18h.01" />
     </>
   ),
+  lock: (
+    <>
+      <rect x="5" y="10" width="14" height="11" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      <path d="M12 14v3" />
+    </>
+  ),
   menu: (
     <>
       <circle cx="5" cy="12" r="1" />
@@ -216,6 +225,13 @@ const paths: Record<IconName, ReactNode> = {
       <path d="M12 21V9" />
       <path d="m7 14 5-5 5 5" />
       <path d="M5 3h14" />
+    </>
+  ),
+  unlock: (
+    <>
+      <rect x="5" y="10" width="14" height="11" rx="2" />
+      <path d="M8 10V7a4 4 0 0 1 7.6-1.7" />
+      <path d="M12 14v3" />
     </>
   ),
   users: (
