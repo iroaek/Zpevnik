@@ -342,6 +342,9 @@ select:focus, input:not([type="range"]):not([type="checkbox"]):focus { border-co
 .song-section--chorus { padding: 0.85em 0.75em; border-left: 5px solid var(--accent); border-radius: 0 12px 12px 0; background: color-mix(in srgb, var(--accent) 9%, transparent); }
 .chord-line { display: block; width: 100%; min-height: 1.35em; white-space: normal; }
 .chord-line--with-chords { margin-top: 0.1em; }
+.chord-word { display: inline-flex; align-items: flex-end; max-width: 100%; vertical-align: top; white-space: nowrap; }
+.chord-space { white-space: pre-wrap; }
+.chord-line-plain { display: block; width: 100%; }
 .chord-token { display: inline-grid; grid-template-rows: auto auto; min-width: 0; max-width: 100%; vertical-align: top; break-inside: avoid; }
 .chord-line:not(.chord-line--with-chords) .chord-token { display: block; width: 100%; }
 .chord { display: block; max-width: 100%; min-height: 1.18em; padding: 0 .12em 0 0; overflow: hidden; color: var(--chord); font-size: 0.72em; font-weight: 900; line-height: 1.05; white-space: nowrap; text-overflow: clip; text-shadow: 0 0 0 currentColor; border: 0; background: transparent; }
@@ -1727,11 +1730,12 @@ html[data-controls='large'] .bottom-nav button { min-height: 64px; }
   .fire-tap-zone, :root[data-fire-mode="true"] .fire-tap-zone, :root[data-performance-mode="stage"] .fire-tap-zone { width: 100%; max-width: none; }
   .chord-sheet, :root[data-fire-mode="true"] .chord-sheet, :root[data-performance-mode="stage"] .chord-sheet { width: var(--mobile-song-column-width, 100%) !important; max-width: none; padding-right: 0; padding-left: 0; overflow: visible; }
   .song-section, .chord-line { width: 100%; max-width: none; }
-  .chord-line--with-chords { display: block; margin-block: .25em .45em; line-height: calc(var(--song-line-height, 1.3) + .22); }
-  .chord-line--with-chords .chord-token { display: inline; position: static; width: auto; min-width: 0; max-width: none; break-inside: auto; }
-  .chord-line--with-chords .chord { display: inline-flex; align-items: center; min-height: 1.65em; margin: 0 .24em .08em .04em; padding: .08em .3em; overflow: visible; vertical-align: .06em; border: 1px solid color-mix(in srgb, var(--chord) 28%, transparent); border-radius: .35em; background: color-mix(in srgb, var(--chord) 9%, transparent); }
-  .chord-line--with-chords .chord--empty { display: none; }
-  .chord-line--with-chords .lyric { display: inline; min-height: 0; white-space: pre-wrap; }
+  .chord-line--with-chords { display: block; margin-block: .2em .5em; line-height: var(--song-line-height, 1.3); }
+  .chord-line--with-chords .chord-word { display: inline-flex; max-width: 100%; white-space: nowrap; }
+  .chord-line--with-chords .chord-token { display: inline-grid; grid-template-rows: 1.2em auto; position: static; width: auto; min-width: 0; max-width: none; break-inside: avoid; }
+  .chord-line--with-chords .chord { display: block; min-height: 1.2em; margin: 0; padding: 0 .12em 0 0; overflow: visible; border: 0; background: transparent; }
+  .chord-line--with-chords .chord--empty { display: block; }
+  .chord-line--with-chords .lyric { display: block; min-height: 1.2em; white-space: pre-wrap; }
   .chord-line:not(.chord-line--with-chords) .chord-token { width: 100%; }
   .lyric, .chord-token .lyric { max-width: 100%; overflow-wrap: normal; word-break: normal; hyphens: none; }
   .layout-song-sheet { width: 100%; max-width: none; }

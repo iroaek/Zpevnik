@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { parseChordPro } from '../domain/chordpro';
 import { parseChord, renderChord, transposeCanonicalChord, type ChordNotation } from '../domain/chords';
-import { mobileColumnPercent } from '../ui/readerLayout';
+import { groupChordTokensIntoWords, mobileColumnPercent } from '../ui/readerLayout';
 
 interface ChordSheetProps {
   source: string;
@@ -136,9 +136,14 @@ export function ChordSheet({
             {section.label && <h3>{section.label}</h3>}
             {section.lines.map((line, lineIndex) => {
               const lineHasChords = showChords && line.some((token) => Boolean(token.chord));
+              const lineParts = lineHasChords
+                ? groupChordTokensIntoWords(line)
+                : [{ kind: 'plain' as const, tokens: line }];
               return <div className={lineHasChords ? 'chord-line chord-line--with-chords' : 'chord-line'} key={`line-${lineIndex}`}>
-                {line.map((token, tokenIndex) => (
-                  <span className="chord-token" data-has-chord={Boolean(token.chord)} key={`token-${tokenIndex}`}>
+                {lineParts.map((part, partIndex) => part.kind === 'space'
+                  ? <span className="chord-space" key={`space-${partIndex}`}>{part.text}</span>
+                  : <span className={part.kind === 'word' ? 'chord-word' : 'chord-line-plain'} key={`${part.kind}-${partIndex}`}>{part.tokens.map((token, tokenIndex) => (
+                  <span className="chord-token" data-has-chord={Boolean(token.chord)} key={`token-${partIndex}-${tokenIndex}`}>
                     {lineHasChords && (token.chord
                       ? <button type="button" className={`chord ${editMode ? 'chord--draggable' : ''}`} aria-label={`Akord ${displayedChord(token.chord, semitones, sourceNotation, notation)}; ${editMode ? 'upravit polohu' : 'zobrazit hmat'}`} aria-haspopup="dialog" onPointerDown={(event) => {
                         if (!editMode || token.sourceIndex === undefined || !onMoveChord) return;
@@ -171,7 +176,7 @@ export function ChordSheet({
                       : <span className="chord chord--empty" aria-hidden="true">{'\u00a0'}</span>)}
                     <span className="lyric">{token.lyric || '\u00a0'}</span>
                   </span>
-                ))}
+                ))}</span>)}
               </div>;
             })}
           </section>

@@ -66,17 +66,19 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   });
   expect(readerGeometry.sheetWidth / readerGeometry.tapWidth).toBeGreaterThanOrEqual(.93);
   const mobileChordFlow = await page.locator('.chord-line--with-chords').first().evaluate((line) => {
+    const word = line.querySelector<HTMLElement>('.chord-word')!;
     const token = line.querySelector<HTMLElement>('.chord-token')!;
     const lyric = line.querySelector<HTMLElement>('.lyric')!;
     const chord = line.querySelector<HTMLElement>('.chord:not(.chord--empty)')!;
     return {
       line: getComputedStyle(line).display,
+      word: getComputedStyle(word).whiteSpace,
       token: getComputedStyle(token).display,
       lyric: getComputedStyle(lyric).display,
       chord: getComputedStyle(chord).display,
     };
   });
-  expect(mobileChordFlow).toEqual({ line: 'block', token: 'inline', lyric: 'inline', chord: 'inline-flex' });
+  expect(mobileChordFlow).toEqual({ line: 'block', word: 'nowrap', token: 'grid', lyric: 'block', chord: 'block' });
   const readerButtons = await page.locator('.toolbar-actions > .icon-button').evaluateAll((buttons) => buttons.map((button) => {
     const box = button.getBoundingClientRect();
     return { width: box.width, height: box.height };
