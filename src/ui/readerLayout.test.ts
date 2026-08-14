@@ -40,4 +40,14 @@ describe('groupChordTokensIntoWords', () => {
       { kind: 'word', tokens: [{ chord: 'G', lyric: 'refrén', sourceIndex: 3 }] },
     ]);
   });
+
+  it('z PDF odsazení nevytváří na desktopu falešné sloupce', () => {
+    expect(groupChordTokensIntoWords([
+      { chord: 'G', lyric: 'Syntetický     text', sourceIndex: 1 },
+    ])).toEqual([
+      { kind: 'word', tokens: [{ chord: 'G', lyric: 'Syntetický', sourceIndex: 1 }] },
+      { kind: 'space', text: ' ' },
+      { kind: 'word', tokens: [{ chord: null, lyric: 'text', sourceIndex: undefined }] },
+    ]);
+  });
 });

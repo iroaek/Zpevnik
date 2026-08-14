@@ -20,10 +20,16 @@ export default defineConfig({
     serviceWorkers: 'allow',
   },
   outputDir: 'test-results/playwright',
-  projects: viewports.map(([name, width, height]) => ({
-    name,
-    use: { viewport: { width, height }, isMobile: true, hasTouch: true },
-  })),
+  projects: [
+    ...viewports.map(([name, width, height]) => ({
+      name,
+      use: { viewport: { width, height }, isMobile: true, hasTouch: true },
+    })),
+    {
+      name: 'desktop-1440x900',
+      use: { viewport: { width: 1440, height: 900 }, isMobile: false, hasTouch: false },
+    },
+  ],
   webServer: {
     command: 'npm run preview -- --host 127.0.0.1',
     url: 'http://127.0.0.1:4173/Zpevnik/',

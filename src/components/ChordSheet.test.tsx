@@ -43,6 +43,38 @@ describe('sazba textu a akordů', () => {
     expect(screen.getByText(/barré/)).toBeVisible();
   });
 
+  it('zobrazí septakord jako septakord, ne jako zjednodušený mollový hmat', async () => {
+    render(<ChordSheet source={'[Ami7]Syntetický text'} />);
+    await userEvent.click(screen.getByRole('button', { name: /Akord Ami7; zobrazit hmat/ }));
+    expect(screen.getByRole('img', { name: 'Kytarový hmat Ami7' })).toBeVisible();
+    expect(document.querySelector('.chord-diagrams circle[data-string="3"][data-fret="0"]')).not.toBeNull();
+    expect(document.querySelector('.chord-diagrams circle[data-string="3"][data-fret="2"]')).toBeNull();
+  });
+
+  it('nevydává zjednodušený hmat za přesný diagram rozšířeného akordu', async () => {
+    render(<ChordSheet source={'[Cadd9]Syntetický text'} />);
+    await userEvent.click(screen.getByRole('button', { name: /Akord Cadd9; zobrazit hmat/ }));
+    expect(screen.queryByRole('img', { name: 'Kytarový hmat Cadd9' })).not.toBeInTheDocument();
+    expect(screen.getByText(/více běžných hmatů/)).toBeVisible();
+    expect(screen.getByRole('img', { name: 'Klavírní tóny akordu Cadd9' })).toBeVisible();
+  });
+
+  it('u lomeného akordu zahrne do klavíru i basový tón a nevymýšlí kytarový hmat', async () => {
+    render(<ChordSheet source={'[C/D]Syntetický text'} />);
+    await userEvent.click(screen.getByRole('button', { name: /Akord C\/D; zobrazit hmat/ }));
+    expect(screen.queryByRole('img', { name: 'Kytarový hmat C/D' })).not.toBeInTheDocument();
+    expect(document.querySelectorAll('.piano-key.active')).toHaveLength(4);
+  });
+
+  it('oddělí samostatný akordový mezitakt od toku zpívaného textu', () => {
+    const view = render(<ChordSheet source={'[Am7]       [C]   [E7]\n[Am7]Syntetický [C]text'} />);
+    const instrumental = view.container.querySelector('.chord-line--instrumental');
+    expect(instrumental).not.toBeNull();
+    expect(instrumental?.querySelectorAll('.chord-token')).toHaveLength(3);
+    expect(instrumental?.querySelector('.lyric')).toBeNull();
+    expect(view.container.querySelectorAll('.chord-line--with-chords:not(.chord-line--instrumental)')).toHaveLength(1);
+  });
+
   it('umožní soustředit se na jednu sloku bez změny zdrojového textu', async () => {
     const view = render(<ChordSheet focusSections source={'{soc}\n[C]První syntetická věta\n{eoc}\n[G]Druhá syntetická věta'} />);
     const sections = view.container.querySelectorAll('.song-section');

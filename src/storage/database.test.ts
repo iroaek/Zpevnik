@@ -124,6 +124,27 @@ describe('migrace IndexedDB', () => {
     expect(await databaseModule.loadOfflineGrantRecord()).toEqual(record);
   });
 
+  it('uchová obnovovací relaci Neonu bez ukládání hesla', async () => {
+    const databaseModule = await import('./database');
+    const record = {
+      schemaVersion: 1 as const,
+      provider: 'neon-auth' as const,
+      sessionToken: 'synthetic-opaque-session-token',
+      user: {
+        id: '22222222-2222-4222-8222-222222222222',
+        email: 'obnova@example.test',
+        emailVerified: true,
+        displayName: 'Obnovený člen',
+      },
+      savedAt: '2026-08-14T08:00:00.000Z',
+    };
+
+    await databaseModule.saveNeonSessionCredential(record);
+    expect(await databaseModule.loadNeonSessionCredential()).toEqual(record);
+    await databaseModule.clearNeonSessionCredential();
+    expect(await databaseModule.loadNeonSessionCredential()).toBeNull();
+  });
+
   it('uloží osobní píseň i její ChordPro obsah odděleně', async () => {
     const databaseModule = await import('./database');
     const song = personalSongFixture('personal-upload-synteticka', 'Syntetický import');

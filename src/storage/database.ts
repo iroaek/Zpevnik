@@ -85,6 +85,32 @@ export interface StoredOfflineGrantRecord {
   keySet?: NeonOfflineKeySet;
 }
 
+export interface StoredNeonSessionCredential {
+  schemaVersion: 1;
+  provider: 'neon-auth';
+  sessionToken: string;
+  user: {
+    id: string;
+    email: string;
+    emailVerified: boolean;
+    displayName: string;
+  };
+  savedAt: string;
+}
+
+const storedNeonSessionCredentialSchema = z.object({
+  schemaVersion: z.literal(1),
+  provider: z.literal('neon-auth'),
+  sessionToken: z.string().min(16).max(16_384),
+  user: z.object({
+    id: z.string().uuid(),
+    email: z.string().email(),
+    emailVerified: z.boolean(),
+    displayName: z.string().trim().min(1).max(120),
+  }),
+  savedAt: z.string().datetime({ offset: true }),
+});
+
 export interface ContentPackageRecord {
   schemaVersion: 1;
   packageId: string;
@@ -670,6 +696,23 @@ export async function clearOfflineGrantRecord(): Promise<void> {
   await database.delete('offlineAuth', 'current');
 }
 
+export async function loadNeonSessionCredential(): Promise<StoredNeonSessionCredential | null> {
+  const database = await databasePromise;
+  const parsed = storedNeonSessionCredentialSchema.safeParse(await database.get('account', 'neonSession'));
+  return parsed.success ? parsed.data : null;
+}
+
+export async function saveNeonSessionCredential(record: StoredNeonSessionCredential): Promise<void> {
+  const validated = storedNeonSessionCredentialSchema.parse(record);
+  const database = await databasePromise;
+  await database.put('account', validated, 'neonSession');
+}
+
+export async function clearNeonSessionCredential(): Promise<void> {
+  const database = await databasePromise;
+  await database.delete('account', 'neonSession');
+}
+
 export async function loadCachedContentPackageChunk(sha256: string): Promise<Uint8Array | null> {
   if (!/^[a-f0-9]{64}$/.test(sha256)) return null;
   const database = await databasePromise;
@@ -1175,6 +1218,7 @@ export async function clearSecureAuthorizationData(userId?: string): Promise<voi
   const transaction = database.transaction(['offlineAuth', 'account', 'pendingMutations'], 'readwrite');
   await transaction.objectStore('offlineAuth').delete('current');
   await transaction.objectStore('account').delete('profile');
+  await transaction.objectStore('account').delete('neonSession');
   const pending = await transaction.objectStore('pendingMutations').getAll() as unknown[];
   for (const value of pending) {
     const parsed = pendingMutationSchema.safeParse(value);

@@ -157,9 +157,50 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   expect(quickActionOverlap).toBeLessThanOrEqual(1);
 });
 
+test('desktopová čtečka skládá akordy nad souvislý text bez falešných sloupců', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-1440x900', 'Desktopovou regresi ověřuje projekt bez dotykových media queries.');
+  await page.goto('songs/synteticka-jiskra');
+  await expect(page.getByText('Jiskra kreslí')).toBeVisible();
+
+  const chordFlow = await page.locator('.chord-line--with-chords:not(.chord-line--instrumental)').first().evaluate((line) => {
+    const token = line.querySelector<HTMLElement>('.chord-token[data-has-chord="true"]')!;
+    const word = token.closest<HTMLElement>('.chord-word')!;
+    const chord = token.querySelector<HTMLElement>('.chord')!;
+    const lyric = token.querySelector<HTMLElement>('.lyric')!;
+    const lineBox = line.getBoundingClientRect();
+    const sheetBox = line.closest('.chord-sheet')!.getBoundingClientRect();
+    const words = [...line.querySelectorAll<HTMLElement>('.chord-word')].map((element) => element.getBoundingClientRect());
+    const firstRowTop = Math.min(...words.map((box) => box.top));
+    const firstRow = words.filter((box) => Math.abs(box.top - firstRowTop) < 2).sort((a, b) => a.left - b.left);
+    const gaps = firstRow.slice(1).map((box, index) => box.left - firstRow[index].right);
+    return {
+      wordDisplay: getComputedStyle(word).display,
+      tokenPosition: getComputedStyle(token).position,
+      chordPosition: getComputedStyle(chord).position,
+      chordOverflow: getComputedStyle(chord).overflow,
+      lyricDisplay: getComputedStyle(lyric).display,
+      lineWidth: lineBox.width,
+      sheetWidth: sheetBox.width,
+      firstRowWordCount: firstRow.length,
+      maxFirstRowGap: gaps.length ? Math.max(...gaps) : 0,
+    };
+  });
+
+  expect(chordFlow).toMatchObject({
+    wordDisplay: 'inline-flex',
+    tokenPosition: 'relative',
+    chordPosition: 'absolute',
+    chordOverflow: 'visible',
+    lyricDisplay: 'inline',
+  });
+  expect(chordFlow.lineWidth).toBeGreaterThan(chordFlow.sheetWidth * .9);
+  expect(chordFlow.firstRowWordCount).toBeGreaterThan(1);
+  expect(chordFlow.maxFirstRowGap).toBeLessThanOrEqual(24);
+  await expectNoPageOverflow(page);
+});
+
 test('desktopové nastavení neobsahuje překrývající lištu poslední písně', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'mobile-390x844', 'Desktopovou regresi stačí ověřit jednou.');
-  await page.setViewportSize({ width: 1440, height: 900 });
+  test.skip(testInfo.project.name !== 'desktop-1440x900', 'Desktopovou regresi ověřuje projekt bez dotykových media queries.');
   await page.goto('./');
   await page.getByRole('button', { name: /^Akordy/ }).click();
   await page.getByRole('button', { name: /Syntetická jiskra/ }).click();

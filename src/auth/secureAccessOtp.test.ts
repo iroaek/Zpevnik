@@ -44,6 +44,7 @@ import {
   signOutSecureAccount,
   subscribeToSecureSession,
 } from './secureAccess';
+import { loadNeonSessionCredential, saveNeonSessionCredential } from '../storage/database';
 
 function testJwt(): string {
   const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1_000) + 600 }))
@@ -85,6 +86,47 @@ describe('Neon OTP relace', () => {
       headers: expect.objectContaining({ Authorization: 'Bearer opaque-restart-token' }),
     }));
     expect(session).toMatchObject({ access_token: jwt, user: { id: user.id } });
+  });
+
+  it('po zavření PWA obnoví relaci i bez cross-site cookie', async () => {
+    const user = {
+      id: '33333333-3333-4333-8333-333333333333',
+      email: 'pwa-restart@example.test',
+      emailVerified: true,
+      name: 'Trvalý člen',
+    };
+    await saveNeonSessionCredential({
+      schemaVersion: 1,
+      provider: 'neon-auth',
+      sessionToken: 'opaque-persisted-session-token',
+      user: {
+        id: user.id,
+        email: user.email,
+        emailVerified: user.emailVerified,
+        displayName: user.name,
+      },
+      savedAt: '2026-08-14T08:00:00.000Z',
+    });
+    auth.getSession.mockResolvedValue({ data: null, error: null });
+    const jwt = testJwt();
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token: jwt }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const session = await getSecureSession();
+
+    expect(auth.getSession).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledWith('https://auth.example.test/token', expect.objectContaining({
+      credentials: 'omit',
+      headers: expect.objectContaining({ Authorization: 'Bearer opaque-persisted-session-token' }),
+    }));
+    expect(session).toMatchObject({
+      access_token: jwt,
+      user: { id: user.id, email: user.email, user_metadata: { display_name: user.name } },
+    });
+    expect(await loadNeonSessionCredential()).toMatchObject({ sessionToken: 'opaque-persisted-session-token' });
   });
 
   it('použije JWT z úspěšné OTP odpovědi i když Safari neuloží cross-site cookie', async () => {
@@ -148,6 +190,10 @@ describe('Neon OTP relace', () => {
       access_token: jwt,
       user: expect.objectContaining({ email: 'clen@example.test' }),
     }));
+    expect(await loadNeonSessionCredential()).toMatchObject({
+      sessionToken: 'new-password-session-token',
+      user: { email: 'clen@example.test', emailVerified: true },
+    });
 
     unsubscribe();
   });

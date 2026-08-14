@@ -8,7 +8,9 @@ const repository = readFileSync('src/repositories/neonAuthRepository.ts', 'utf8'
 describe('Neon offline oprávnění', () => {
   it('stahuje krátký Neon JWT pouze online a offline ověřuje jeho Ed25519 podpis', () => {
     expect(client).toContain('`${neonAuthUrl}/token`');
-    expect(client).toContain("credentials: 'include'");
+    expect(client).toContain("credentials: 'omit'");
+    expect(client).toContain('Authorization: `Bearer ${sessionToken}`');
+    expect(client).toContain('loadNeonSessionCredential()');
     expect(verifier).toContain("alg: z.literal('EdDSA')");
     expect(verifier).toContain("crv: z.literal('Ed25519')");
     expect(verifier).toContain("crypto.subtle.verify(\n    'Ed25519'");

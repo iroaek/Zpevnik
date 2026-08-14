@@ -39,7 +39,10 @@ export function groupChordTokensIntoWords(tokens: readonly ChordToken[]): ChordL
     for (const text of token.lyric.match(/\s+|[^\s]+/g) ?? []) {
       if (/^\s+$/.test(text)) {
         flushWord();
-        parts.push({ kind: 'space', text });
+        // ChordPro je responzivní formát. Vícenásobné mezery z PDF
+        // rozvržení nesmí na široké obrazovce znovu vytvářet falešné
+        // sloupce; přesnou pozici akordu už nese samotná značka.
+        parts.push({ kind: 'space', text: ' ' });
         continue;
       }
       word.push({

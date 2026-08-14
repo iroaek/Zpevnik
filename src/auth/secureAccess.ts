@@ -2,12 +2,15 @@ import { z } from 'zod';
 import {
   clearSecureAccountLocalData,
   clearSecureAuthorizationData,
+  clearNeonSessionCredential,
   importFullBackup,
   libraryManifestSchema,
+  loadNeonSessionCredential,
   loadCachedContentPackageChunk,
   loadDownloadedLibraryMetadata,
   migrateUserState,
   pruneCachedContentPackageChunks,
+  saveNeonSessionCredential,
   saveCachedContentPackageChunk,
   type LibraryManifest,
   type UserState,
@@ -271,6 +274,58 @@ async function sessionFromSignInResponse(
   };
 }
 
+async function persistSessionCredential(
+  data: { token: string; user: { id: string; email: string; emailVerified: boolean; name: string } } | null,
+): Promise<void> {
+  if (!data?.token || !data.user.emailVerified) return;
+  // Podepsaný JWT je krátkodobý autorizační doklad, nikoli obnovovací relace.
+  // Trvale proto ukládáme jen neprůhledný serverový session token a nikdy heslo.
+  if (jwtExpiry(data.token)) {
+    await clearNeonSessionCredential();
+    return;
+  }
+  await saveNeonSessionCredential({
+    schemaVersion: 1,
+    provider: 'neon-auth',
+    sessionToken: data.token,
+    user: {
+      id: data.user.id,
+      email: data.user.email,
+      emailVerified: data.user.emailVerified,
+      displayName: data.user.name || data.user.email.split('@')[0] || 'Člen',
+    },
+    savedAt: new Date().toISOString(),
+  });
+}
+
+async function restorePersistedSession(): Promise<SecureSession | null> {
+  const stored = await loadNeonSessionCredential();
+  if (!stored) return null;
+  if (!stored.user.emailVerified) {
+    await clearNeonSessionCredential();
+    return null;
+  }
+  // Endpoint /token ověří, že serverová relace stále existuje a nebyla
+  // odvolána. Při výpadku sítě token nemažeme; useSecureAccount použije
+  // podepsané offline oprávnění uložené pro toto zařízení.
+  const jwt = await jwtFromSessionToken(stored.sessionToken);
+  const expiresAt = jwt ? jwtExpiry(jwt) : null;
+  if (!jwt || !expiresAt) {
+    await clearNeonSessionCredential();
+    return null;
+  }
+  return {
+    access_token: jwt,
+    expires_at: expiresAt,
+    user: {
+      id: stored.user.id,
+      email: stored.user.email,
+      emailVerified: stored.user.emailVerified,
+      user_metadata: { display_name: stored.user.displayName },
+    },
+  };
+}
+
 export function subscribeToSecureSession(callback: (event: SecureAuthChangeEvent, session: SecureSession | null) => void): () => void {
   sessionListeners.add(callback);
   // Úvodní relaci načítá jediný koordinovaný refresh v useSecureAccount.
@@ -288,16 +343,50 @@ export function subscribeToSecureSession(callback: (event: SecureAuthChangeEvent
 export async function getSecureSession(): Promise<SecureSession | null> {
   if (sessionIsUsable(bootstrapSession)) return bootstrapSession;
   bootstrapSession = null;
-  const { data, error } = await requireNeonClient().auth.getSession({
-    fetchOptions: { headers: { 'X-Force-Fetch': 'true' } },
-  });
-  if (error) throw readableError(error, 'Přihlášení se nepodařilo načíst z Neon Auth.');
+  let result: Awaited<ReturnType<ReturnType<typeof requireNeonClient>['auth']['getSession']>>;
+  try {
+    result = await requireNeonClient().auth.getSession({
+      fetchOptions: { headers: { 'X-Force-Fetch': 'true' } },
+    });
+  } catch (error) {
+    const restored = await restorePersistedSession();
+    if (restored) {
+      bootstrapSession = restored;
+      return restored;
+    }
+    throw error;
+  }
+  const { data, error } = result;
+  if (error) {
+    const restored = await restorePersistedSession();
+    if (restored) {
+      bootstrapSession = restored;
+      return restored;
+    }
+    throw readableError(error, 'Přihlášení se nepodařilo načíst z Neon Auth.');
+  }
   const session = normalizeSession(data);
-  if (!sessionIsUsable(session)) return null;
+  if (!sessionIsUsable(session)) {
+    const restored = await restorePersistedSession();
+    bootstrapSession = restored;
+    return restored;
+  }
   // Better Auth může po restartu PWA vrátit neprůhledný session token, nikoli
   // JWT použitelné pro Data API a podepsané offline oprávnění. Vyměníme jej
   // proto hned při obnově relace; další vrstvy už vždy dostanou skutečný JWT.
   if (!jwtExpiry(session.access_token)) {
+    await saveNeonSessionCredential({
+      schemaVersion: 1,
+      provider: 'neon-auth',
+      sessionToken: session.access_token,
+      user: {
+        id: session.user.id,
+        email: session.user.email,
+        emailVerified: session.user.emailVerified,
+        displayName: session.user.user_metadata.display_name,
+      },
+      savedAt: new Date().toISOString(),
+    }).catch(() => undefined);
     const jwt = await jwtFromSessionToken(session.access_token);
     const expiresAt = jwt ? jwtExpiry(jwt) : null;
     if (!jwt || !expiresAt) throw new SecureAccessError('Neon Auth neobnovil autorizační token po otevření aplikace.', 401, 'neon_session_jwt_failed');
@@ -322,8 +411,14 @@ export async function registerSecureAccount(input: { displayName: string; email:
   if (needsEmailConfirmation) {
     await requireNeonClient().auth.signOut().catch(() => undefined);
   } else {
-    const session = await getSecureSession().catch(() => null);
-    if (session) emitSession('SIGNED_IN', session);
+    const signUpSessionData = data && typeof data.token === 'string' ? data : null;
+    const directSession = await sessionFromSignInResponse(signUpSessionData);
+    if (directSession) bootstrapSession = directSession;
+    const session = directSession ?? await getSecureSession().catch(() => null);
+    if (session) {
+      await persistSessionCredential(signUpSessionData);
+      emitSession('SIGNED_IN', session);
+    }
   }
   return { needsEmailConfirmation };
 }
@@ -394,6 +489,7 @@ export async function verifyEmailVerificationCode(email: string, otp: string, pa
     if (signInError) throw readableError(signInError, 'E-mail je ověřený, ale přihlášení se nepodařilo dokončit.');
     directSession = await sessionFromSignInResponse(signInData);
     if (directSession) bootstrapSession = directSession;
+    if (directSession?.user.emailVerified) await persistSessionCredential(signInData);
   }
   const session = directSession ?? await getSecureSession();
   if (!session?.user.emailVerified) throw new SecureAccessError('E-mail se nepodařilo bezpečně ověřit. Vyžádejte si nový kód.');
@@ -416,6 +512,7 @@ export async function signInSecureAccount(email: string, password: string): Prom
     await requireNeonClient().auth.signOut().catch(() => undefined);
     throw new SecureAccessError('Tento Neon účet ještě nemá ověřený e-mail. Na přihlašovací stránce zvolte „Aktivovat původní účet“ a dokončete ověření kódem.');
   }
+  await persistSessionCredential(data);
   emitSession('SIGNED_IN', session);
 }
 
@@ -463,17 +560,9 @@ export async function beginMigratedAccountActivation(): Promise<void> {
 export async function requestNeonSessionJwt(): Promise<string> {
   if (!neonAuthUrl) throw new SecureAccessError('Neon Auth není nakonfigurovaný.', 503, 'neon_auth_not_configured');
   if (sessionIsUsable(bootstrapSession)) return bootstrapSession.access_token;
-  const response = await fetch(`${neonAuthUrl}/token`, {
-    credentials: 'include',
-    headers: { Accept: 'application/json' },
-  });
-  let data: unknown = null;
-  try { data = await response.json(); } catch { /* Zpracuje se níže. */ }
-  const token = data && typeof data === 'object' && typeof (data as { token?: unknown }).token === 'string'
-    ? (data as { token: string }).token
-    : '';
-  if (!response.ok || !token) throw new SecureAccessError('Neon Auth nevydal autorizační token.', response.status, 'neon_token_failed');
-  return token;
+  const restored = await getSecureSession();
+  if (!restored) throw new SecureAccessError('Neon Auth nevydal autorizační token.', 401, 'neon_token_failed');
+  return restored.access_token;
 }
 
 export async function loadNeonPublicJwks(): Promise<unknown> {
