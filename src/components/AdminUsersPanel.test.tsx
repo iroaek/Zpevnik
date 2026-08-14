@@ -57,6 +57,31 @@ describe('administrátorský přehled uživatelů', () => {
     expect(screen.queryByText('Online člen')).not.toBeInTheDocument();
   });
 
+  it('udrží dlouhou identitu oddělenou od stavů a rozbalí zařízení', async () => {
+    vi.mocked(loadAllProfiles).mockResolvedValue([
+      profile({
+        id: '66666666-6666-4666-8666-666666666666',
+        display_name: 'Administrátor s delším jménem',
+        email: 'velmi.dlouhy.administratorsky.ucet@example.test',
+        role: 'admin',
+        status: 'approved',
+      }),
+    ]);
+    vi.mocked(loadAllSecureDevices).mockResolvedValue([{ user_id: '66666666-6666-4666-8666-666666666666', device_id: '77777777-7777-4777-8777-777777777777', label: 'Telefon', platform: 'iOS PWA', created_at: '2026-08-13T10:00:00.000Z', last_seen_at: '2026-08-14T10:00:00.000Z', revoked_at: null, revoked_by: null }]);
+
+    const { container } = render(<AdminUsersPanel />);
+    const deviceButton = await screen.findByRole('button', { name: '1 zařízení' });
+
+    expect(container.querySelector('.admin-user-primary')).toHaveTextContent('velmi.dlouhy.administratorsky.ucet@example.test');
+    expect(container.querySelector('.admin-user-badges')).toHaveTextContent('SchválenýAdministrátor1 zařízení');
+    expect(deviceButton).toHaveAttribute('aria-expanded', 'false');
+
+    await userEvent.click(deviceButton);
+
+    expect(deviceButton).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText('Telefon')).toBeVisible();
+  });
+
   it('považuje za online pouze aktivitu z posledních dvou minut', () => {
     const now = Date.parse('2026-08-06T12:00:00.000Z');
     expect(isProfileOnline(profile({ id: '44444444-4444-4444-8444-444444444444', display_name: 'Aktivní', email: 'aktivni@example.test', last_seen_at: '2026-08-06T11:58:01.000Z' }), now)).toBe(true);

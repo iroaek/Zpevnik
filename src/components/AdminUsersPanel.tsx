@@ -110,11 +110,22 @@ export function AdminUsersPanel() {
           const online = isProfileOnline(profile, observedAt);
           const profileDevices = devices.filter((device) => device.user_id === profile.id);
           return <article key={profile.id} className="admin-user-row">
-            <input type="checkbox" aria-label={`Vybrat uživatele ${profile.display_name}`} checked={selected.includes(profile.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...new Set([...current, profile.id])] : current.filter((id) => id !== profile.id))} />
-            <span className={`admin-user-presence ${online ? 'online' : 'offline'}`} aria-label={online ? 'Online' : 'Offline'} aria-hidden="true" />
-            <span className="admin-user-identity"><strong>{profile.display_name}</strong><small>{profile.email}</small><small>{lastActivity(profile, online)}</small></span>
-            <span className="admin-user-badges"><span className={`status-badge status-badge--${profile.status}`}>{statusLabels[profile.status]}</span>{profile.role === 'admin' && <span className="status-badge">Administrátor</span>}<button type="button" className="text-button" onClick={() => setExpandedId(expandedId === profile.id ? '' : profile.id)}>{profileDevices.length} zařízení</button></span>
-            {expandedId === profile.id && <div className="admin-device-list">{profileDevices.length === 0 ? <p>Žádné zařízení zatím nebylo registrováno.</p> : profileDevices.map((device) => <div key={device.device_id}><span><strong>{device.label}</strong><small>Naposledy {new Date(device.last_seen_at).toLocaleString('cs-CZ')}</small><small>{device.revoked_at ? `Odvoláno ${new Date(device.revoked_at).toLocaleString('cs-CZ')}` : 'Aktivní offline přístup'}</small></span>{!device.revoked_at && <button type="button" className="danger-button" disabled={loading} onClick={() => void revokeDevice(device)}>Odvolat</button>}</div>)}</div>}
+            <div className="admin-user-primary">
+              <label className="admin-user-select" title={`Vybrat uživatele ${profile.display_name}`}>
+                <input type="checkbox" aria-label={`Vybrat uživatele ${profile.display_name}`} checked={selected.includes(profile.id)} onChange={(event) => setSelected((current) => event.target.checked ? [...new Set([...current, profile.id])] : current.filter((id) => id !== profile.id))} />
+              </label>
+              <span className="admin-user-avatar" aria-hidden="true">
+                {profile.display_name.trim().charAt(0).toLocaleUpperCase('cs') || '?'}
+                <i className={`admin-user-presence ${online ? 'online' : 'offline'}`} />
+              </span>
+              <span className="admin-user-identity"><strong>{profile.display_name}</strong><small className="admin-user-email">{profile.email}</small><small>{lastActivity(profile, online)}</small></span>
+            </div>
+            <div className="admin-user-badges">
+              <span className={`status-badge status-badge--${profile.status}`}>{statusLabels[profile.status]}</span>
+              {profile.role === 'admin' && <span className="status-badge status-badge--admin">Administrátor</span>}
+              <button type="button" className="admin-user-device-button" aria-expanded={expandedId === profile.id} aria-controls={`admin-devices-${profile.id}`} onClick={() => setExpandedId(expandedId === profile.id ? '' : profile.id)}><span>{profileDevices.length} zařízení</span><i aria-hidden="true">⌄</i></button>
+            </div>
+            {expandedId === profile.id && <div className="admin-device-list" id={`admin-devices-${profile.id}`}>{profileDevices.length === 0 ? <p>Žádné zařízení zatím nebylo registrováno.</p> : profileDevices.map((device) => <div key={device.device_id}><span><strong>{device.label}</strong><small>Naposledy {new Date(device.last_seen_at).toLocaleString('cs-CZ')}</small><small>{device.revoked_at ? `Odvoláno ${new Date(device.revoked_at).toLocaleString('cs-CZ')}` : 'Aktivní offline přístup'}</small></span>{!device.revoked_at && <button type="button" className="danger-button" disabled={loading} onClick={() => void revokeDevice(device)}>Odvolat</button>}</div>)}</div>}
           </article>;
         })}
       </div>
