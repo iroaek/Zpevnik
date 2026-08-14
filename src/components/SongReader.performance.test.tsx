@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useState } from 'react';
@@ -61,17 +61,35 @@ describe('Režimy pro živé hraní', () => {
   it('odděluje režim u ohně a pódium a ponechá text v hlavní vrstvě', async () => {
     const user = userEvent.setup();
     const view = render(<Subject />);
-    expect(await screen.findByText('Čistě vymyšlený řádek')).toBeVisible();
+    const performanceSurface = view.container.querySelector<HTMLElement>('.reader-performance-surface')!;
+    expect(await within(performanceSurface).findByText('Čistě vymyšlený řádek')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: 'Režim u ohně' }));
     await waitFor(() => expect(view.container.querySelector('.song-reader--fire')).not.toBeNull());
     expect(screen.getByRole('navigation', { name: 'Hlavní ovládání hraní' })).toBeVisible();
-    expect(screen.getByText('Čistě vymyšlený řádek')).toBeVisible();
+    expect(within(performanceSurface).getByText('Čistě vymyšlený řádek')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: 'Ukončit režim u ohně' }));
     await waitFor(() => expect(view.container.querySelector('.song-reader--off')).not.toBeNull());
     await user.click(screen.getByRole('button', { name: 'Pódiový režim' }));
     await waitFor(() => expect(view.container.querySelector('.song-reader--stage')).not.toBeNull());
     expect(document.documentElement.dataset.performanceMode).toBe('stage');
+  });
+
+  it('připraví pro tisk pouze název, interpreta a text s akordy', async () => {
+    const view = render(<Subject />);
+    await waitFor(() => expect(view.container.querySelector('.reader-performance-surface .chord-sheet')).not.toBeNull());
+    act(() => window.dispatchEvent(new Event('beforeprint')));
+    const printDocument = view.container.querySelector<HTMLElement>('.print-song-document')!;
+
+    expect(printDocument).not.toBeNull();
+    expect(within(printDocument).getByRole('heading', { name: 'Syntetická píseň', hidden: true })).toBeInTheDocument();
+    expect(within(printDocument).getByText('Test')).toBeInTheDocument();
+    expect(await within(printDocument).findByText('Čistě vymyšlený řádek')).toBeInTheDocument();
+    expect(within(printDocument).getByText('C')).toBeInTheDocument();
+    expect(printDocument.querySelector('.reader-toolbar')).toBeNull();
+    expect(printDocument.querySelector('.capo-hint')).toBeNull();
+    act(() => window.dispatchEvent(new Event('afterprint')));
+    expect(view.container.querySelector('.print-song-document')).toBeNull();
   });
 });

@@ -56,6 +56,26 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await page.getByRole('button', { name: /Syntetická jiskra/ }).click();
   await expect(page.getByText('Jiskra kreslí')).toBeVisible();
   await expectNoPageOverflow(page);
+  const readerGeometry = await page.locator('.reader-performance-surface').evaluate((surface) => {
+    const tapZone = surface.querySelector<HTMLElement>('.fire-tap-zone')!;
+    const sheet = surface.querySelector<HTMLElement>('.chord-sheet')!;
+    return {
+      tapWidth: tapZone.getBoundingClientRect().width,
+      sheetWidth: sheet.getBoundingClientRect().width,
+    };
+  });
+  expect(readerGeometry.sheetWidth / readerGeometry.tapWidth).toBeGreaterThanOrEqual(.98);
+  const readerButtons = await page.locator('.toolbar-actions > .icon-button').evaluateAll((buttons) => buttons.map((button) => {
+    const box = button.getBoundingClientRect();
+    return { width: box.width, height: box.height };
+  }));
+  expect(readerButtons.every(({ width, height }) => width >= 44 && height >= 44 && Math.abs(width - height) <= 12)).toBe(true);
+  const performanceButtons = await page.locator('.performance-entry .icon-button').evaluateAll((buttons) => buttons.map((button) => {
+    const box = button.getBoundingClientRect();
+    return { width: box.width, height: box.height };
+  }));
+  const isCompactPortrait = (page.viewportSize()?.width ?? 0) <= 704;
+  expect(performanceButtons.every(({ width, height }) => height >= 44 && width >= (isCompactPortrait ? 100 : 44))).toBe(true);
 
   await page.getByRole('button', { name: 'Zvýšit o půltón' }).click();
   await expect(page.getByLabel('Posun v půltónech')).toHaveText('+1');
@@ -93,6 +113,40 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
     await page.getByRole('button', { name: 'Zobrazit pódiové ovládání' }).click();
   }
   await page.getByRole('button', { name: 'Ukončit pódiový režim' }).click();
+  await page.getByRole('button', { name: 'Zpět do seznamu' }).click();
+  await expect(page.getByRole('heading', { name: 'Písně', exact: true, level: 1 })).toBeVisible();
+  await expect(page.locator('.now-playing-bar')).toBeHidden();
+  await page.getByRole('button', { name: 'Rychlé akce' }).click();
+  await expect(page.getByRole('dialog', { name: /Syntetická jiskra/ })).toBeVisible();
+  const quickActionOverlap = await page.evaluate(() => {
+    const sheet = document.querySelector('.quick-action-sheet')?.getBoundingClientRect();
+    const navigation = document.querySelector('.bottom-nav')?.getBoundingClientRect();
+    return sheet && navigation ? Math.max(0, sheet.bottom - navigation.top) : 0;
+  });
+  expect(quickActionOverlap).toBeLessThanOrEqual(1);
+});
+
+test('tisk písně obsahuje pouze záhlaví a text s akordy bez prázdné úvodní stránky', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-390x844', 'Tiskové médium stačí ověřit v reprezentativním viewportu.');
+  await page.goto('songs/synteticka-jiskra');
+  await expect(page.getByText('Jiskra kreslí')).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event('beforeprint')));
+  await page.emulateMedia({ media: 'print' });
+
+  const printDocument = page.locator('.print-song-document');
+  await expect(printDocument).toBeVisible();
+  await expect(printDocument.locator('h1')).toHaveText('Syntetická jiskra');
+  await expect(printDocument.getByText('Vývojový tým projektu')).toBeVisible();
+  await expect(printDocument.getByText('Jiskra kreslí')).toBeVisible();
+  await expect(page.locator('.reader-toolbar')).toBeHidden();
+  await expect(page.locator('.capo-hint')).toBeHidden();
+  await expect(page.locator('.skip-link')).toBeHidden();
+  const firstContentTop = await printDocument.evaluate((element) => element.getBoundingClientRect().top);
+  expect(firstContentTop).toBeLessThanOrEqual(12);
+  const visibleReaderChildren = await page.locator('.song-reader > *').evaluateAll((elements) => elements
+    .filter((element) => getComputedStyle(element).display !== 'none')
+    .map((element) => element.className));
+  expect(visibleReaderChildren).toEqual(['print-song-document']);
 });
 
 test('kapodastr používá křížky a ruční posun akordu uloží potvrzenou lokální polohu', async ({ page }, testInfo) => {

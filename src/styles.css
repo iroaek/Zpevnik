@@ -29,8 +29,8 @@
   --panel-border: 1px solid var(--border);
   --motion-instant: 90ms;
   --motion-fast: 140ms;
-  --motion-component: 220ms;
-  --motion-page: 300ms;
+  --motion-component: 180ms;
+  --motion-page: 230ms;
   --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --motion-exit: cubic-bezier(.4, 0, 1, 1);
   --space-1: 0.25rem;
@@ -177,20 +177,20 @@ h3 { font-size: 1.08rem; line-height: 1.25; }
 ::view-transition-new(root) { animation: none; }
 ::view-transition-group(route-content) { overflow: clip; animation-duration: var(--motion-page); animation-timing-function: var(--motion-ease); }
 ::view-transition-old(route-content), ::view-transition-new(route-content) { mix-blend-mode: normal; }
-:root[data-navigation-direction="forward"]::view-transition-old(route-content) { animation: route-content-out-forward 130ms var(--motion-exit) both; }
+:root[data-navigation-direction="forward"]::view-transition-old(route-content) { animation: route-content-out-forward 95ms var(--motion-exit) both; }
 :root[data-navigation-direction="forward"]::view-transition-new(route-content) { animation: route-content-in-forward var(--motion-page) var(--motion-ease) both; }
-:root[data-navigation-direction="back"]::view-transition-old(route-content) { animation: route-content-out-back 130ms var(--motion-exit) both; }
+:root[data-navigation-direction="back"]::view-transition-old(route-content) { animation: route-content-out-back 95ms var(--motion-exit) both; }
 :root[data-navigation-direction="back"]::view-transition-new(route-content) { animation: route-content-in-back var(--motion-page) var(--motion-ease) both; }
-:root[data-navigation-direction="lateral"]::view-transition-old(route-content) { animation: route-content-fade-out 120ms ease both; }
-:root[data-navigation-direction="lateral"]::view-transition-new(route-content) { animation: route-content-fade-in 240ms ease both; }
+:root[data-navigation-direction="lateral"]::view-transition-old(route-content) { animation: route-content-fade-out 90ms var(--motion-exit) both; }
+:root[data-navigation-direction="lateral"]::view-transition-new(route-content) { animation: route-content-fade-in 190ms var(--motion-ease) both; }
 ::view-transition-group(shared-song-title), ::view-transition-group(shared-setlist-title) { z-index: 10; animation-duration: calc(var(--motion-page) + 40ms); animation-timing-function: var(--motion-ease); }
 ::view-transition-old(shared-song-title), ::view-transition-new(shared-song-title), ::view-transition-old(shared-setlist-title), ::view-transition-new(shared-setlist-title) { height: 100%; mix-blend-mode: normal; }
-@keyframes route-content-out-forward { to { opacity: .18; transform: translate3d(-5px, 0, 0) scale(.997); } }
-@keyframes route-content-in-forward { from { opacity: .18; transform: translate3d(7px, 0, 0) scale(.997); } }
-@keyframes route-content-out-back { to { opacity: .18; transform: translate3d(5px, 0, 0) scale(.997); } }
-@keyframes route-content-in-back { from { opacity: .18; transform: translate3d(-7px, 0, 0) scale(.997); } }
-@keyframes route-content-fade-out { to { opacity: .2; } }
-@keyframes route-content-fade-in { from { opacity: .2; } }
+@keyframes route-content-out-forward { to { opacity: .45; transform: translate3d(-3px, 0, 0); } }
+@keyframes route-content-in-forward { from { opacity: .45; transform: translate3d(4px, 0, 0); } }
+@keyframes route-content-out-back { to { opacity: .45; transform: translate3d(3px, 0, 0); } }
+@keyframes route-content-in-back { from { opacity: .45; transform: translate3d(-4px, 0, 0); } }
+@keyframes route-content-fade-out { to { opacity: .45; } }
+@keyframes route-content-fade-in { from { opacity: .45; } }
 .global-warning, .error-message { padding: 0.9rem 1rem; color: #7c1d18; background: #ffe5df; border-left: 5px solid #b52e25; }
 .success-message { padding: 0.9rem 1rem; color: #144d34; background: #dff4e8; border-left: 5px solid #32865b; }
 .info-message { padding: 0.9rem 1rem; color: var(--text); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); border-left: 5px solid var(--accent); }
@@ -438,6 +438,7 @@ select:focus, input:not([type="range"]):not([type="checkbox"]):focus { border-co
 .order-number { display: grid; place-items: center; width: 2rem; height: 2rem; color: var(--on-primary); font-weight: 800; border-radius: 50%; background: var(--primary); }
 .setlist-song { min-height: 2.8rem; color: var(--text); text-align: left; font-weight: 750; border: 0; background: transparent; }
 .setlist-print { margin-top: 1.5rem; padding: 1rem; border: 2px solid var(--primary); border-radius: 15px; background: var(--surface); }
+.print-song-document { display: none; }
 .print-song { padding-block: 1rem; border-bottom: 1px solid var(--border); }
 .print-song h1 { font-size: 2rem; }
 .print-preview-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
@@ -1287,8 +1288,8 @@ select:focus, input:not([type="range"]):not([type="checkbox"]):focus { border-co
 .route-loading__compact-bar { display: block; width: 100%; height: 4.75rem; border-radius: 16px; background: linear-gradient(90deg, var(--surface) 20%, color-mix(in srgb, var(--surface) 55%, var(--border)) 50%, var(--surface) 80%); background-size: 220% 100%; animation: skeleton-pulse 1.15s ease-in-out infinite; }
 @keyframes loading-mark { to { transform: translateY(-.2rem) scale(1.03); } }
 
-:root[data-motion="gentle"] { --motion-component: 180ms; --motion-page: 215ms; }
-:root[data-motion="full"] { --motion-component: 220ms; --motion-page: 300ms; }
+:root[data-motion="gentle"] { --motion-component: 145ms; --motion-page: 185ms; }
+:root[data-motion="full"] { --motion-component: 180ms; --motion-page: 230ms; }
 :root[data-motion="off"] { --motion-page: .01ms; }
 :root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 :root[data-motion="off"] button:not(:disabled):active { filter: none; scale: none; }
@@ -1726,6 +1727,50 @@ html[data-controls='large'] .bottom-nav button { min-height: 64px; }
   :root[data-fire-mode="true"] .app-main, :root[data-fire-mode="true"] .reader-performance-surface { padding-bottom: 18rem; }
 }
 
+/* Mobilní čtečka: plná šířka textu, stabilní ikony a nepřekrývající se vrstvy. */
+@media (max-width: 43.99rem) {
+  .app-shell--mini-player { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+  .now-playing-bar { display: none; }
+  .quick-action-backdrop { padding: var(--space-3) max(var(--space-3), env(safe-area-inset-right)) calc(5.25rem + env(safe-area-inset-bottom)) max(var(--space-3), env(safe-area-inset-left)); }
+  .quick-action-sheet { max-height: calc(100svh - 7rem - env(safe-area-inset-bottom)); padding: var(--space-4); overflow-y: auto; overscroll-behavior: contain; }
+
+  .reader-header h1 { overflow-wrap: normal; word-break: normal; hyphens: none; }
+  .reader-performance-surface { width: calc(100% + (2 * var(--space-2))); max-width: none; padding-right: var(--space-3); padding-bottom: 5.75rem; padding-left: var(--space-3); overflow: visible; }
+  .fire-tap-zone, :root[data-fire-mode="true"] .fire-tap-zone, :root[data-performance-mode="stage"] .fire-tap-zone { width: 100%; max-width: none; }
+  .chord-sheet, :root[data-fire-mode="true"] .chord-sheet, :root[data-performance-mode="stage"] .chord-sheet { width: 100% !important; max-width: none; padding-right: 0; padding-left: 0; overflow: visible; }
+  .song-section, .chord-line { width: 100%; max-width: none; }
+  .chord-line--with-chords { display: flex; flex-wrap: wrap; align-items: flex-start; }
+  .chord-token { width: auto; min-width: 0; max-width: 100%; flex: 0 1 auto; }
+  .chord-line:not(.chord-line--with-chords) .chord-token { width: 100%; }
+  .lyric, .chord-token .lyric { max-width: 100%; overflow-wrap: normal; word-break: normal; hyphens: none; }
+  .layout-song-sheet { width: 100%; max-width: none; }
+
+  .reader-toolbar { grid-template-columns: minmax(0, 1fr); gap: var(--space-3); padding: var(--space-3); }
+  .transpose-control { display: grid; grid-template-columns: 2.75rem 2.25rem 2.75rem minmax(0, 1fr); gap: var(--space-2); width: 100%; }
+  .transpose-control > span { grid-column: 1 / -1; }
+  .transpose-control .text-button { justify-self: start; min-width: 0; padding-inline: var(--space-2); }
+  .toolbar-actions { display: grid; grid-template-columns: repeat(5, minmax(2.75rem, 1fr)); gap: var(--space-2); width: 100%; }
+  .toolbar-actions > .icon-button { width: 100%; min-width: 0; min-height: 3rem; padding: var(--space-2); aspect-ratio: 1; }
+  .toolbar-actions > .icon-button .app-icon { width: 1.25rem; height: 1.25rem; }
+  .performance-entry { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1); width: 100%; padding: var(--space-1); border-radius: 14px; }
+  .performance-entry .icon-button { display: flex; width: 100%; min-width: 0; min-height: 3rem; padding: var(--space-2) var(--space-3); gap: var(--space-2); border-color: transparent; background: transparent; }
+  .performance-entry .icon-button span { font-size: .72rem; line-height: 1.1; white-space: nowrap; overflow-wrap: normal; }
+  .performance-entry .icon-button .app-icon { width: 1.2rem; height: 1.2rem; }
+  .performance-entry .active { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary) 42%, transparent); }
+  .performance-fab { right: max(.8rem, env(safe-area-inset-right)); bottom: max(.8rem, env(safe-area-inset-bottom)); width: 3.35rem; height: 3.35rem; box-shadow: 0 11px 28px color-mix(in srgb, var(--primary) 32%, rgba(0,0,0,.24)); }
+  .performance-fab > span { font-size: 1rem; line-height: 0; }
+  .performance-fab .app-icon { width: 1.25rem; height: 1.25rem; }
+  .performance-fab small { display: none; }
+}
+
+/* Telefon zůstává mobilní i po otočení naležato. */
+@media (hover: none) and (pointer: coarse) {
+  .app-shell--mini-player { padding-bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+  .now-playing-bar { display: none; }
+  .quick-action-backdrop { padding-bottom: calc(5.25rem + env(safe-area-inset-bottom)); }
+  .quick-action-sheet { max-height: calc(100svh - 6.5rem - env(safe-area-inset-bottom)); overflow-y: auto; overscroll-behavior: contain; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .guitar-loader__halo, .guitar-neck::after, .guitar-neck__note, .guitar-loader__progress span, .home-ambient i, .home-ready-pill span, .library-dashboard--home .dashboard-orbit { animation: none !important; }
   .guitar-neck__note { opacity: 1; transform: none; }.guitar-neck__note--one { left: 27%; }.guitar-neck__note--two { left: 50%; }.guitar-neck__note--three { left: 73%; }
@@ -1738,19 +1783,27 @@ body[data-print-size="A5"] .song-reader, body[data-print-size="A5"] .setlist-pri
 
 @media print {
   :root { --text: #000; --muted: #333; --primary: #000; --border: #bbb; --surface: #fff; --bg: #fff; }
-  body { background: #fff; }
-  .app-shell { padding: 0; }
-  .app-header, .bottom-nav, .now-playing-bar, .reader-mobile-facts, .reader-toolbar, .reader-tabs, .reader-segmented, .song-progress-track, .performance-fab, .reader-sheet-backdrop, .chord-popover, .chord-popover-scrim, .field-actions, .setlist-add, .print-preview-actions, .score-controls, .score-note, .global-warning, .update-banner, .system-message, .fire-dock, .performance-song-bar, .performance-countdown, .guitar-loader { display: none !important; }
+  html, body { min-height: 0; overflow: visible; background: #fff; scrollbar-gutter: auto; }
+  body { margin: 0; }
+  .app-shell { min-height: 0; padding: 0; }
+  .skip-link, .app-header, .bottom-nav, .now-playing-bar, .offline-auth-banner, .navigation-progress, .reader-mobile-facts, .reader-toolbar, .reader-tabs, .reader-segmented, .song-progress-track, .performance-fab, .reader-sheet-backdrop, .chord-popover, .chord-popover-scrim, .field-actions, .setlist-add, .print-preview-actions, .score-controls, .score-note, .global-warning, .update-banner, .system-message, .fire-dock, .performance-song-bar, .performance-countdown, .guitar-loader { display: none !important; }
   .app-main { width: 100%; max-width: none; padding: 0; }
-  .reader-header { margin: 0 0 5mm; padding: 0 0 4mm; color: #000; border-bottom: 2px solid #000; background: none; }
-  .reader-header .icon-button, .reader-header .eyebrow { display: none; }
-  .reader-header p:last-child { color: #333; }
-  .song-facts { margin: 0 0 5mm; box-shadow: none; }
-  .chord-sheet { padding: 0; color: #000; font-size: 11pt !important; }
-  .layout-song-sheet { padding: 0; overflow: visible; color: #000; font-size: 10pt !important; white-space: pre-wrap; }
+  .route-stage { view-transition-name: none; }
+  .song-reader { margin: 0; padding: 0; color: #000; background: #fff; }
+  .song-reader > :not(.print-song-document) { display: none !important; }
+  .print-song-document { display: block !important; width: 100%; color: #000; }
+  .print-song-document__header { margin: 0 0 5mm; padding: 0 0 3mm; border-bottom: 1.5pt solid #000; break-after: avoid; }
+  .print-song-document__header h1 { margin: 0 0 1.5mm; color: #000; font-size: 20pt; line-height: 1.05; }
+  .print-song-document__header p { margin: 0; color: #333; font-size: 10.5pt; }
+  .print-song-document .chord-sheet { width: 100% !important; max-width: none; margin: 0; padding: 0; overflow: visible; color: #000; font-size: 11pt !important; line-height: 1.25 !important; }
+  .print-song-document .chord-line--with-chords { display: flex; flex-wrap: wrap; }
+  .print-song-document .chord-token { max-width: 100%; }
+  .print-song-document .lyric { overflow-wrap: normal; word-break: normal; }
+  .print-layout-song { margin: 0; overflow: visible; color: #000; font: 10pt/1.3 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre-wrap; overflow-wrap: normal; word-break: normal; }
   .chord { color: #000; }
+  .print-song-document .chord { min-height: 1em; padding: 0 .1em 0 0; color: #000; font-size: .78em; background: transparent; }
+  .print-song-document button { appearance: none; pointer-events: none; }
   .song-section--chorus { background: none; border-color: #000; }
-  .rights-card { margin-top: 6mm; break-inside: avoid; }
   .setlists-page:has(.setlist-print) > :not(.setlist-print) { display: none !important; }
   .setlist-print { margin: 0; padding: 0; border: 0; }
   .print-song { min-height: 90vh; break-after: page; border: 0; }

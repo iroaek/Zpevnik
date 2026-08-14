@@ -68,6 +68,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   const [capoFret, setCapoFret] = useState(() => userState.songReaderPreferences[song.id]?.capoFret ?? 0);
   const [capoPlayerLevel, setCapoPlayerLevel] = useState<CapoPlayerLevel>('beginner');
   const [readerSurface, setReaderSurface] = useState<ReaderSurface>(loadReaderSurface);
+  const [printing, setPrinting] = useState(false);
   const [editHistory, setEditHistory] = useState<{ past: string[]; future: string[] }>({ past: [], future: [] });
   const readerRef = useRef<HTMLElement>(null);
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
@@ -154,6 +155,17 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
     try { localStorage.setItem(READER_SURFACE_STORAGE_KEY, readerSurface); }
     catch { /* V soukromém režimu může úložiště zůstat jen po dobu návštěvy. */ }
   }, [readerSurface]);
+
+  useEffect(() => {
+    const preparePrint = () => flushSync(() => setPrinting(true));
+    const finishPrint = () => setPrinting(false);
+    window.addEventListener('beforeprint', preparePrint);
+    window.addEventListener('afterprint', finishPrint);
+    return () => {
+      window.removeEventListener('beforeprint', preparePrint);
+      window.removeEventListener('afterprint', finishPrint);
+    };
+  }, []);
 
   useEffect(() => {
     if (!performanceActive || settingsOpen || stageLocked || !stageControlsVisible) return;
@@ -487,6 +499,15 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
   return (
     <article ref={readerRef} className={`song-reader song-reader--${readerSurface} song-reader--${performanceMode}`} onPointerDown={(event) => { revealStageControls(); if (event.pointerType === 'touch') swipeStart.current = { x: event.clientX, y: event.clientY }; }} onPointerUp={(event) => { const start = swipeStart.current; swipeStart.current = null; if (!start || event.pointerType !== 'touch' || stageLocked) return; const x = event.clientX - start.x; const y = event.clientY - start.y; if (Math.abs(x) < 70 || Math.abs(x) < Math.abs(y) * 1.5) return; haptic('selection'); if (x < 0) onNextSong?.(); else onPreviousSong?.(); }} onPointerCancel={() => { swipeStart.current = null; }}>
       <div className="song-progress-track" role="progressbar" aria-label="Postup písně" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(readerProgress * 100)}><span style={{ transform: `scaleX(${readerProgress})` }} /></div>
+      {printing && <section className="print-song-document">
+        <header className="print-song-document__header">
+          <h1>{song.title}</h1>
+          <p>{song.authors.join(', ') || 'Autor neuveden'}</p>
+        </header>
+        {source && (isLayoutText
+          ? <pre className="print-layout-song">{source}</pre>
+          : <ChordSheet source={source} semitones={semitones - capoFret} notation={settings.notation} sourceNotation={sourceNotation} showChords collapseRepeatedChoruses={settings.collapseRepeatedChoruses} fontSize={16} chordScale={1} lineHeight={1.25} columnWidth={760} />)}
+      </section>}
       <header className="reader-header">
         <button type="button" className="icon-button" aria-label="Zpět do seznamu" onClick={onBack}><Icon name="back" /></button>
         <div><p className="eyebrow">{song.categories.join(' · ')}</p><h1 data-view-transition-target="song-title">{song.title}</h1><p>{song.authors.join(', ') || 'Autor neuveden'}</p></div>
@@ -556,7 +577,7 @@ export function SongReader({ song, userState, onUserStateChange, onBack, catalog
           <section className="field-actions" aria-label="Funkce pro zpívání">
             <label><span><Icon name="play" size={18} />Rychlost posunu</span><output>{readerScrollSpeed}</output><input type="range" min="5" max="100" value={readerScrollSpeed} onChange={(event) => setReaderScrollSpeed(Number(event.target.value))} /></label>
             {navigator.wakeLock && <button type="button" className="secondary-button" aria-pressed={Boolean(wakeLock)} onClick={toggleWakeLock}>{wakeLock ? 'Povolit zhasnutí' : 'Nezhasínat displej'}</button>}
-            <button type="button" className="secondary-button" onClick={() => window.print()}><Icon name="printer" size={18} />Tisk písně</button>
+            <button type="button" className="secondary-button" onClick={() => { flushSync(() => setPrinting(true)); window.print(); }}><Icon name="printer" size={18} />Tisk písně</button>
           </section>
           <section className="setlist-add" aria-label="Přidat do setlistu">
             {userState.setlists.length > 0 ? <><label>Vybrat setlist<select value={effectiveSetlistId} onChange={(event) => { setSetlistId(event.target.value); setSetlistMessage(''); }}>{userState.setlists.map((setlist) => <option value={setlist.id} key={setlist.id}>{setlist.name} ({setlist.songIds.length})</option>)}</select></label><button type="button" className="primary-button" disabled={alreadyInSetlist} onClick={addToSetlist}><Icon name={alreadyInSetlist ? 'check' : 'plus'} size={18} />{alreadyInSetlist ? 'Již přidáno' : 'Přidat do setlistu'}</button>{setlistMessage && <p className="setlist-add-message" role="status">{setlistMessage}</p>}</> : <p>Nejdřív vytvořte setlist v části <strong>Setlisty</strong>, potom se sem vraťte.</p>}
