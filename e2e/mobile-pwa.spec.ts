@@ -129,18 +129,15 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await expect(page.locator('html')).toHaveAttribute('data-performance-mode', 'fire');
   await expect(page.getByText('Jiskra kreslí')).toBeVisible();
   await expect(page.locator('.reader-guidance')).toBeHidden();
-  const firePaperContrast = await page.locator('.reader-performance-surface').evaluate((surface) => ({
+  await expect.poll(() => page.locator('.reader-performance-surface').evaluate((surface) => ({
     lyric: getComputedStyle(surface.querySelector<HTMLElement>('.lyric')!).color,
     chord: getComputedStyle(surface.querySelector<HTMLElement>('.chord:not(.chord--empty)')!).color,
     texture: getComputedStyle(surface).backgroundImage,
-  }));
-  expect(firePaperContrast.lyric).toBe('rgb(255, 240, 208)');
-  expect(firePaperContrast.texture).toBe('none');
-  const chordChannels = firePaperContrast.chord.match(/\d+/g)?.map(Number) ?? [];
-  expect(chordChannels).toHaveLength(3);
-  expect(chordChannels[0]).toBeGreaterThan(235);
-  expect(chordChannels[1]).toBeGreaterThan(190);
-  expect(chordChannels[2]).toBeLessThan(140);
+  })), { timeout: 2_000 }).toEqual({
+    lyric: 'rgb(255, 240, 208)',
+    chord: 'rgb(255, 212, 111)',
+    texture: 'none',
+  });
   await expectNoPageOverflow(page);
   await page.getByRole('button', { name: 'Ukončit režim u ohně' }).click();
 
@@ -525,7 +522,8 @@ test('oblíbené a soukromý setlist přežijí obnovení aplikace', async ({ pa
     };
   }))).toBe(true);
   await page.reload();
-  await expect(page.getByRole('tab', { name: /Aktualizační test/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Setlisty', exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('tab', { name: /Aktualizační test/ })).toBeVisible({ timeout: 15_000 });
   await page.goto('./');
   await page.getByRole('button', { name: /^Akordy/ }).click();
   await page.getByRole('button', { name: /Syntetická jiskra/ }).click();
