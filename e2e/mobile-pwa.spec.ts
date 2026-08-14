@@ -309,10 +309,7 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
   test.skip(testInfo.project.name !== 'mobile-390x844', 'Pohybový systém stačí ověřit v reprezentativním mobilním viewportu.');
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.goto('./');
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'startViewTransition', { configurable: true, value: undefined });
-  });
-  const transitionFinished = page.evaluate(() => new Promise<{ duration: number; frames: number; blankFrames: number; overlapFrames: number; maxFrameGap: number; longFrameCount: number; scrollRange: number; layoutShiftScore: number; phases: string[] }>((resolve) => {
+  const transitionFinished = page.evaluate(() => new Promise<{ duration: number; frames: number; blankFrames: number; overlapFrames: number; maxFrameGap: number; longFrameCount: number; scrollRange: number; layoutShiftScore: number; phases: string[]; driver: string }>((resolve) => {
     let start = 0;
     let previousFrame = 0;
     let started = false;
@@ -324,6 +321,7 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
     let minScrollY = window.scrollY;
     let maxScrollY = window.scrollY;
     let layoutShiftScore = 0;
+    let driver = '';
     const phases = new Set<string>();
     const layoutShiftObserver = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
@@ -341,6 +339,7 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
       if (!started) {
         started = true;
         start = performance.now();
+        driver = document.documentElement.dataset.transitionDriver ?? '';
       }
       const now = performance.now();
       if (previousFrame > 0) {
@@ -360,7 +359,7 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
       if (active) requestAnimationFrame(sample);
       else {
         layoutShiftObserver.disconnect();
-        resolve({ duration: performance.now() - start, frames, blankFrames, overlapFrames, maxFrameGap, longFrameCount, scrollRange: maxScrollY - minScrollY, layoutShiftScore, phases: [...phases] });
+        resolve({ duration: performance.now() - start, frames, blankFrames, overlapFrames, maxFrameGap, longFrameCount, scrollRange: maxScrollY - minScrollY, layoutShiftScore, phases: [...phases], driver });
       }
     };
     requestAnimationFrame(sample);
@@ -380,6 +379,7 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
   expect(transitionMetrics.scrollRange).toBe(0);
   expect(transitionMetrics.layoutShiftScore).toBeLessThanOrEqual(0.05);
   expect(transitionMetrics.phases).toEqual(expect.arrayContaining(['leaving', 'entering']));
+  expect(transitionMetrics.driver).toBe('compositor');
   await expectNoPageOverflow(page);
 
   await page.emulateMedia({ reducedMotion: 'reduce' });

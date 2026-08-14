@@ -11,7 +11,7 @@ function reducedMotion(matches: boolean): void {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
-  document.querySelectorAll('.route-stage').forEach((stage) => stage.remove());
+  document.querySelectorAll('.route-stage, .route-transition-veil').forEach((stage) => stage.remove());
   delete (document as unknown as { startViewTransition?: unknown }).startViewTransition;
   delete document.documentElement.dataset.navigationDirection;
   delete document.documentElement.dataset.viewTransition;
@@ -54,20 +54,29 @@ describe('směr navigačního pohybu', () => {
     expect(start).not.toHaveBeenCalled();
   });
 
-  it('použije nativní View Transition pouze nad stabilním obsahem', async () => {
+  it('vynechá nativní snapshot celé stránky a použije lehkou kompozitní vrstvu', async () => {
     reducedMotion(false);
     let finish!: () => void;
     const finished = new Promise<void>((resolve) => { finish = resolve; });
-    const start = vi.fn((callback: () => void) => {
-      callback();
-      return { finished };
-    });
+    const start = vi.fn();
     Object.defineProperty(document, 'startViewTransition', { configurable: true, value: start });
+    const veil = document.createElement('div');
+    veil.className = 'route-transition-veil';
+    const veilAnimation = { finished, cancel: vi.fn() } as unknown as Animation;
+    const animate = vi.fn(() => veilAnimation);
+    Object.defineProperty(veil, 'animate', { configurable: true, value: animate });
+    document.body.append(veil);
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
     const update = vi.fn();
     runRouteTransition(update, 'back');
     expect(update).toHaveBeenCalledOnce();
-    expect(start).toHaveBeenCalledOnce();
-    expect(document.documentElement.dataset.transitionDriver).toBe('native');
+    expect(start).not.toHaveBeenCalled();
+    expect(animate).toHaveBeenCalledOnce();
+    expect(document.documentElement.dataset.transitionDriver).toBe('compositor');
+    expect(document.documentElement.dataset.transitionPhase).toBe('entering');
     expect(document.documentElement.dataset.viewTransition).toBe('active');
     finish();
     await finished;
@@ -75,52 +84,25 @@ describe('směr navigačního pohybu', () => {
     expect(document.documentElement.dataset.viewTransition).toBeUndefined();
   });
 
-  it('přenese pojmenovaný prvek ze zdroje do cílové obrazovky', async () => {
-    reducedMotion(false);
-    const source = document.createElement('strong');
-    source.textContent = 'Zdroj';
-    document.body.append(source);
-    let finish!: () => void;
-    const finished = new Promise<void>((resolve) => { finish = resolve; });
-    const start = vi.fn((callback: () => void) => {
-      callback();
-      return { finished };
-    });
-    Object.defineProperty(document, 'startViewTransition', { configurable: true, value: start });
-    const update = vi.fn(() => {
-      const target = document.createElement('h1');
-      target.dataset.viewTransitionTarget = 'song-title';
-      document.body.append(target);
-    });
-
-    runRouteTransition(update, 'forward', { source, targetSelector: '[data-view-transition-target="song-title"]', name: 'shared-song-title' });
-    const target = document.querySelector<HTMLElement>('[data-view-transition-target="song-title"]');
-    expect(source.style.getPropertyValue('view-transition-name')).toBe('shared-song-title');
-    expect(target?.style.getPropertyValue('view-transition-name')).toBe('shared-song-title');
-    finish();
-    await finished;
-    await Promise.resolve();
-    expect(source.style.getPropertyValue('view-transition-name')).toBe('');
-    expect(target?.style.getPropertyValue('view-transition-name')).toBe('');
-    source.remove();
-    target?.remove();
-  });
-
-  it('ve fallbacku plynule propojí starou a novou obrazovku změnou polohy i opacity', async () => {
+  it('animuje pouze závoj a malé záhlaví, nikoli celý dlouhý obsah', async () => {
     reducedMotion(false);
     const stage = document.createElement('div');
     stage.className = 'route-stage';
-    let finishLeaving!: () => void;
-    let finishEntering!: () => void;
-    const leavingFinished = new Promise<void>((resolve) => { finishLeaving = resolve; });
-    const enteringFinished = new Promise<void>((resolve) => { finishEntering = resolve; });
-    let animationIndex = 0;
-    const animate = vi.fn((keyframes: Keyframe[]) => {
-      void keyframes;
-      return { finished: animationIndex++ === 0 ? leavingFinished : enteringFinished, cancel: vi.fn() };
-    });
-    Object.defineProperty(stage, 'animate', { configurable: true, value: animate });
-    document.body.append(stage);
+    const heading = document.createElement('h1');
+    stage.append(heading);
+    const stageAnimate = vi.fn();
+    Object.defineProperty(stage, 'animate', { configurable: true, value: stageAnimate });
+    let finishHeading!: () => void;
+    const headingFinished = new Promise<void>((resolve) => { finishHeading = resolve; });
+    const headingAnimate = vi.fn(() => ({ finished: headingFinished, cancel: vi.fn() }));
+    Object.defineProperty(heading, 'animate', { configurable: true, value: headingAnimate });
+    const veil = document.createElement('div');
+    veil.className = 'route-transition-veil';
+    let finishVeil!: () => void;
+    const veilFinished = new Promise<void>((resolve) => { finishVeil = resolve; });
+    const veilAnimate = vi.fn(() => ({ finished: veilFinished, cancel: vi.fn() }));
+    Object.defineProperty(veil, 'animate', { configurable: true, value: veilAnimate });
+    document.body.append(stage, veil);
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
       callback(0);
       return 1;
@@ -128,27 +110,19 @@ describe('směr navigačního pohybu', () => {
     const update = vi.fn();
 
     runRouteTransition(update, 'forward');
-    expect(update).not.toHaveBeenCalled();
-    finishLeaving();
-    await leavingFinished;
-    await Promise.resolve();
     expect(update).toHaveBeenCalledOnce();
-    expect(animate).toHaveBeenCalledTimes(2);
-    expect(animate.mock.calls[0]?.[0]).toEqual([
-      { opacity: 1, transform: 'translate3d(0, 0, 0)' },
-      { opacity: 0.82, transform: 'translate3d(-5px, 0, 0)' },
-    ]);
-    expect(animate.mock.calls[1]?.[0]).toEqual([
-      { opacity: 0.82, transform: 'translate3d(5px, 0, 0)' },
-      { opacity: 1, transform: 'translate3d(0, 0, 0)' },
-    ]);
+    expect(stageAnimate).not.toHaveBeenCalled();
+    expect(veilAnimate).toHaveBeenCalledOnce();
+    expect(headingAnimate).toHaveBeenCalledOnce();
     expect(document.documentElement.dataset.viewTransition).toBe('active');
-    finishEntering();
-    await enteringFinished;
+    finishVeil();
+    finishHeading();
+    await Promise.all([veilFinished, headingFinished]);
     await Promise.resolve();
 
     expect(document.documentElement.dataset.viewTransition).toBeUndefined();
     stage.remove();
+    veil.remove();
   });
 
   it('změní režim uvnitř komponenty bez animování celé stránky', async () => {
@@ -172,6 +146,25 @@ describe('směr navigačního pohybu', () => {
     finish();
     await finished;
     await Promise.resolve();
+    expect(document.documentElement.dataset.componentTransition).toBeUndefined();
+    container.remove();
+  });
+
+  it('u velmi dlouhého obsahu nepořizuje ani neanimuje obří kompoziční vrstvu', () => {
+    reducedMotion(false);
+    const container = document.createElement('section');
+    const surface = document.createElement('div');
+    surface.className = 'surface';
+    Object.defineProperty(surface, 'scrollHeight', { configurable: true, value: window.innerHeight * 4 });
+    const animate = vi.fn();
+    Object.defineProperty(surface, 'animate', { configurable: true, value: animate });
+    container.append(surface);
+    document.body.append(container);
+    const update = vi.fn();
+
+    runElementTransition(container, update, { name: 'long-reader', targetSelector: '.surface' });
+    expect(update).toHaveBeenCalledOnce();
+    expect(animate).not.toHaveBeenCalled();
     expect(document.documentElement.dataset.componentTransition).toBeUndefined();
     container.remove();
   });

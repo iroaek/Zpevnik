@@ -7,25 +7,11 @@ export interface SharedElementTransition {
   name?: string;
 }
 
-interface ViewTransitionLike {
-  finished: Promise<unknown>;
-  ready?: Promise<unknown>;
-  skipTransition?: () => void;
-}
-
-type ViewTransitionElement = HTMLElement & {
-  startViewTransition?: (update: () => void | Promise<void>) => ViewTransitionLike;
-};
-
 export interface ElementTransitionOptions {
   name?: string;
   targetSelector?: string;
   duration?: number;
 }
-
-type ViewTransitionDocument = Document & {
-  startViewTransition?: (update: () => void | Promise<void>) => ViewTransitionLike;
-};
 
 const PRIMARY_ROUTE_ORDER = ['home', 'library', 'setlists', 'import', 'offline', 'settings'];
 let transitionSequence = 0;
@@ -56,7 +42,8 @@ export function scrollWindowInstantly(top: number): void {
   else root.style.removeProperty('scroll-behavior');
 }
 
-export function runRouteTransition(update: () => void, direction: MotionDirection, shared?: SharedElementTransition): void {
+export function runRouteTransition(update: () => void, direction: MotionDirection, _shared?: SharedElementTransition): void {
+  void _shared;
   const transitionId = ++transitionSequence;
   fallbackAnimations.forEach((animation) => animation.cancel());
   fallbackAnimations = [];
@@ -68,97 +55,62 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
   const root = document.documentElement;
   root.dataset.navigationDirection = direction;
   root.dataset.viewTransition = 'active';
-  const sharedName = shared?.name ?? 'shared-route-title';
-  const sharedSource = shared?.source?.isConnected ? shared.source : null;
-  let sharedTarget: HTMLElement | null = null;
-  const clearSharedNames = () => {
-    sharedSource?.style.removeProperty('view-transition-name');
-    sharedTarget?.style.removeProperty('view-transition-name');
-  };
   const cleanup = () => {
     if (transitionId !== transitionSequence) return;
     fallbackAnimations.forEach((animation) => animation.cancel());
     fallbackAnimations = [];
-    clearSharedNames();
     delete root.dataset.viewTransition;
     delete root.dataset.transitionDriver;
     delete root.dataset.navigationDirection;
     delete root.dataset.transitionPhase;
   };
-
-  const startViewTransition = (document as ViewTransitionDocument).startViewTransition;
-  if (typeof startViewTransition === 'function') {
-    root.dataset.transitionDriver = 'native';
-    root.dataset.transitionPhase = 'preparing';
-    if (sharedSource) sharedSource.style.setProperty('view-transition-name', sharedName);
-    try {
-      const transition = startViewTransition.call(document, () => {
-        update();
-        if (shared?.targetSelector) {
-          sharedTarget = document.querySelector<HTMLElement>(shared.targetSelector);
-          sharedTarget?.style.setProperty('view-transition-name', sharedName);
-        }
-        root.dataset.transitionPhase = 'entering';
-      });
-      void transition.finished.then(cleanup, cleanup);
-      return;
-    } catch {
-      clearSharedNames();
-      delete root.dataset.transitionDriver;
-    }
-  }
-
-  const currentStage = document.querySelector<HTMLElement>('.route-stage');
-  if (!currentStage || typeof currentStage.animate !== 'function') {
-    update();
-    cleanup();
-    return;
-  }
-
-  const magnitude = preference === 'full' ? 8 : 5;
-  const travel = direction === 'lateral' ? 0 : direction === 'forward' ? magnitude : -magnitude;
-  const enterDuration = preference === 'full' ? 270 : 220;
-  const leaveDuration = preference === 'full' ? 125 : 90;
-  root.dataset.transitionPhase = 'preparing';
+  root.dataset.transitionDriver = 'compositor';
+  root.dataset.transitionPhase = 'leaving';
   requestAnimationFrame(() => {
     if (transitionId !== transitionSequence) return;
-    root.dataset.transitionPhase = 'leaving';
-    const leaving = currentStage.animate([
-      { opacity: 1, transform: 'translate3d(0, 0, 0)' },
-      { opacity: 0.82, transform: `translate3d(${-travel}px, 0, 0)` },
-    ], {
-      duration: leaveDuration,
-      easing: 'cubic-bezier(.4, 0, 1, 1)',
-      fill: 'both',
-    });
-    fallbackAnimations = [leaving];
-    const enter = () => {
-      if (transitionId !== transitionSequence) return;
-      try {
-        update();
-      } catch (error) {
-        cleanup();
-        queueMicrotask(() => { throw error; });
-        return;
-      }
-      root.dataset.transitionPhase = 'entering';
-      const nextStage = document.querySelector<HTMLElement>('.route-stage');
-      if (!nextStage || typeof nextStage.animate !== 'function') {
-        cleanup();
-        return;
-      }
-      const entering = nextStage.animate([
-        { opacity: 0.82, transform: `translate3d(${travel}px, 0, 0)` },
+    try {
+      update();
+    } catch (error) {
+      cleanup();
+      queueMicrotask(() => { throw error; });
+      return;
+    }
+    root.dataset.transitionPhase = 'entering';
+
+    const duration = preference === 'full' ? 230 : 185;
+    const travel = direction === 'lateral' ? 8 : direction === 'forward' ? 22 : -22;
+    const animations: Animation[] = [];
+    const veil = document.querySelector<HTMLElement>('.route-transition-veil');
+    if (veil && typeof veil.animate === 'function') {
+      animations.push(veil.animate([
+        { opacity: 0, transform: `translate3d(${-travel}px, 0, 0)` },
+        { opacity: 0.28, transform: 'translate3d(0, 0, 0)', offset: 0.38 },
+        { opacity: 0, transform: `translate3d(${travel}px, 0, 0)` },
+      ], {
+        duration,
+        easing: 'cubic-bezier(.22, 1, .36, 1)',
+      }));
+    }
+
+    const nextStage = document.querySelector<HTMLElement>('.route-stage');
+    const heading = nextStage?.querySelector<HTMLElement>('h1');
+    const accent = heading?.closest<HTMLElement>('.reader-header, .library-dashboard__heading, .catalog-page-heading, .admin-page-hero') ?? heading;
+    if (accent && typeof accent.animate === 'function') {
+      animations.push(accent.animate([
+        { opacity: 0.72, transform: `translate3d(${travel * 0.3}px, 3px, 0)` },
         { opacity: 1, transform: 'translate3d(0, 0, 0)' },
       ], {
-        duration: enterDuration,
-        easing: 'cubic-bezier(.22, 1, .36, 1)',
-        fill: 'both',
-      });
-      fallbackAnimations = [entering];
-      void entering.finished.then(cleanup, cleanup);
-    };
-    void leaving.finished.then(enter, cleanup);
+        duration,
+        easing: 'cubic-bezier(.16, 1, .3, 1)',
+      }));
+    }
+
+    fallbackAnimations = animations;
+    if (animations.length === 0) {
+      window.setTimeout(cleanup, duration);
+      return;
+    }
+    void Promise.allSettled(animations.map((animation) => animation.finished)).then(cleanup);
   });
 }
 
@@ -170,7 +122,6 @@ export function runElementTransition(container: HTMLElement | null, update: () =
   }
   const root = document.documentElement;
   const name = options.name ?? 'component';
-  const scopedTransition = (container as ViewTransitionElement).startViewTransition;
   root.dataset.componentTransition = name;
 
   const cleanup = () => {
@@ -178,20 +129,16 @@ export function runElementTransition(container: HTMLElement | null, update: () =
     delete container.dataset.motionTransition;
   };
 
-  if (typeof scopedTransition === 'function') {
-    try {
-      const transition = scopedTransition.call(container, update);
-      void transition.finished.then(cleanup, cleanup);
-      return;
-    } catch {
-      // Older engines can expose the draft method but reject scoped transitions.
-    }
-  }
-
   update();
   const target = options.targetSelector
     ? container.querySelector<HTMLElement>(options.targetSelector) ?? container
     : container;
+  const targetIsOversized = target.scrollHeight > window.innerHeight * 1.75
+    || target.scrollWidth > window.innerWidth * 1.5;
+  if (targetIsOversized) {
+    cleanup();
+    return;
+  }
   elementAnimations.get(target)?.cancel();
   container.dataset.motionTransition = name;
   if (typeof target.animate !== 'function') {
