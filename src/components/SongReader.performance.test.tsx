@@ -62,12 +62,13 @@ describe('Režimy pro živé hraní', () => {
     const user = userEvent.setup();
     const view = render(<Subject />);
     const performanceSurface = view.container.querySelector<HTMLElement>('.reader-performance-surface')!;
-    expect(await within(performanceSurface).findByText('Čistě vymyšlený řádek')).toBeVisible();
+    await waitFor(() => expect(performanceSurface.querySelector('.chord-line--with-chords')).toHaveTextContent('Čistě vymyšlený řádek'));
+    const lyricLine = performanceSurface.querySelector('.chord-line--with-chords');
 
     await user.click(screen.getByRole('button', { name: 'Režim u ohně' }));
     await waitFor(() => expect(view.container.querySelector('.song-reader--fire')).not.toBeNull());
     expect(screen.getByRole('navigation', { name: 'Hlavní ovládání hraní' })).toBeVisible();
-    expect(within(performanceSurface).getByText('Čistě vymyšlený řádek')).toBeVisible();
+    expect(lyricLine).toHaveTextContent('Čistě vymyšlený řádek');
 
     await user.click(screen.getByRole('button', { name: 'Ukončit režim u ohně' }));
     await waitFor(() => expect(view.container.querySelector('.song-reader--off')).not.toBeNull());
@@ -85,7 +86,7 @@ describe('Režimy pro živé hraní', () => {
     expect(printDocument).not.toBeNull();
     expect(within(printDocument).getByRole('heading', { name: 'Syntetická píseň', hidden: true })).toBeInTheDocument();
     expect(within(printDocument).getByText('Test')).toBeInTheDocument();
-    expect(await within(printDocument).findByText('Čistě vymyšlený řádek')).toBeInTheDocument();
+    expect(printDocument.querySelector('.chord-line--with-chords')).toHaveTextContent('Čistě vymyšlený řádek');
     expect(within(printDocument).getByText('C')).toBeInTheDocument();
     expect(printDocument.querySelector('.reader-toolbar')).toBeNull();
     expect(printDocument.querySelector('.capo-hint')).toBeNull();

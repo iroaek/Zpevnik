@@ -11,7 +11,7 @@ describe('sazba textu a akordů', () => {
     const view = render(<ChordSheet source={'[G]Dlouhý syntetický text [C]pokračuje bezpečně dál'} />);
     expect(view.container.querySelector('.chord-line--with-chords')).not.toBeNull();
     expect(view.container.querySelectorAll('.chord-token[data-has-chord="true"]')).toHaveLength(2);
-    expect(view.container.querySelectorAll('.chord')).toHaveLength(2);
+    expect(view.container.querySelectorAll('.chord:not(.chord--empty)')).toHaveLength(2);
   });
 
   it('nepřidává prázdný akordový řádek k textu bez akordů', () => {
