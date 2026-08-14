@@ -548,6 +548,17 @@ test('offline cold start zachová staženou píseň, transpozici, oblíbené a s
   await page.goto('setlists');
   await page.getByLabel('Název nového setlistu').fill('Offline cold start');
   await page.getByRole('button', { name: 'Vytvořit' }).click();
+  await expect(page.getByRole('tab', { name: /Offline cold start/ })).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => page.evaluate((setlistName) => new Promise<boolean>((resolve) => {
+    const openRequest = indexedDB.open('cesky-zpevnik');
+    openRequest.onerror = () => resolve(false);
+    openRequest.onsuccess = () => {
+      const transaction = openRequest.result.transaction('state', 'readonly');
+      const readRequest = transaction.objectStore('state').get('current');
+      readRequest.onerror = () => resolve(false);
+      readRequest.onsuccess = () => resolve(Boolean(readRequest.result?.setlists?.some((setlist: { name?: string }) => setlist.name === setlistName)));
+    };
+  }), 'Offline cold start'), { timeout: 15_000 }).toBe(true);
 
   const appBaseUrl = page.url().replace(/setlists$/, '');
   const songUrl = new URL('songs/synteticka-jiskra', appBaseUrl).toString();
@@ -560,6 +571,6 @@ test('offline cold start zachová staženou píseň, transpozici, oblíbené a s
   await coldPage.getByRole('button', { name: 'Zvýšit o půltón' }).click();
   await expect(coldPage.getByLabel('Posun v půltónech')).toHaveText('+1');
   await coldPage.goto(new URL('setlists', appBaseUrl).toString());
-  await expect(coldPage.getByRole('tab', { name: /Offline cold start/ })).toBeVisible();
+  await expect(coldPage.getByRole('tab', { name: /Offline cold start/ })).toBeVisible({ timeout: 15_000 });
   await context.setOffline(false);
 });
