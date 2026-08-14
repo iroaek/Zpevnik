@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { routeMotionDirection, runRouteTransition, scrollWindowInstantly } from './motion';
+import { routeMotionDirection, runElementTransition, runRouteTransition, scrollWindowInstantly } from './motion';
 
 function reducedMotion(matches: boolean): void {
   Object.defineProperty(window, 'matchMedia', {
@@ -17,6 +17,7 @@ afterEach(() => {
   delete document.documentElement.dataset.viewTransition;
   delete document.documentElement.dataset.transitionDriver;
   delete document.documentElement.dataset.transitionPhase;
+  delete document.documentElement.dataset.componentTransition;
   vi.restoreAllMocks();
 });
 
@@ -148,5 +149,30 @@ describe('směr navigačního pohybu', () => {
 
     expect(document.documentElement.dataset.viewTransition).toBeUndefined();
     stage.remove();
+  });
+
+  it('změní režim uvnitř komponenty bez animování celé stránky', async () => {
+    reducedMotion(false);
+    const container = document.createElement('section');
+    const surface = document.createElement('div');
+    surface.className = 'surface';
+    container.append(surface);
+    document.body.append(container);
+    let finish!: () => void;
+    const finished = new Promise<void>((resolve) => { finish = resolve; });
+    const animate = vi.fn(() => ({ finished, cancel: vi.fn() }));
+    Object.defineProperty(surface, 'animate', { configurable: true, value: animate });
+    const update = vi.fn();
+
+    runElementTransition(container, update, { name: 'performance', targetSelector: '.surface' });
+    expect(update).toHaveBeenCalledOnce();
+    expect(animate).toHaveBeenCalledOnce();
+    expect(document.documentElement.dataset.componentTransition).toBe('performance');
+    expect(container.dataset.motionTransition).toBe('performance');
+    finish();
+    await finished;
+    await Promise.resolve();
+    expect(document.documentElement.dataset.componentTransition).toBeUndefined();
+    container.remove();
   });
 });

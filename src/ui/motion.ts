@@ -13,6 +13,16 @@ interface ViewTransitionLike {
   skipTransition?: () => void;
 }
 
+type ViewTransitionElement = HTMLElement & {
+  startViewTransition?: (update: () => void | Promise<void>) => ViewTransitionLike;
+};
+
+export interface ElementTransitionOptions {
+  name?: string;
+  targetSelector?: string;
+  duration?: number;
+}
+
 type ViewTransitionDocument = Document & {
   startViewTransition?: (update: () => void | Promise<void>) => ViewTransitionLike;
 };
@@ -20,6 +30,13 @@ type ViewTransitionDocument = Document & {
 const PRIMARY_ROUTE_ORDER = ['home', 'library', 'setlists', 'import', 'offline', 'settings'];
 let transitionSequence = 0;
 let fallbackAnimations: Animation[] = [];
+const elementAnimations = new WeakMap<HTMLElement, Animation>();
+
+function motionIsDisabled(): boolean {
+  const reduced = typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  return reduced || document.documentElement.dataset.motion === 'off';
+}
 
 export function routeMotionDirection(current: string, target: string): MotionDirection {
   if (target === 'song' || target === 'public-setlist') return current === target ? 'lateral' : 'forward';
@@ -43,10 +60,8 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
   const transitionId = ++transitionSequence;
   fallbackAnimations.forEach((animation) => animation.cancel());
   fallbackAnimations = [];
-  const reduced = typeof window.matchMedia === 'function'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const preference = document.documentElement.dataset.motion as MotionPreference | undefined;
-  if (reduced || preference === 'off') {
+  if (motionIsDisabled()) {
     update();
     return;
   }
@@ -145,4 +160,52 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
     };
     void leaving.finished.then(enter, cleanup);
   });
+}
+
+/** Animates an in-place mode or layout change without snapshotting the whole page. */
+export function runElementTransition(container: HTMLElement | null, update: () => void, options: ElementTransitionOptions = {}): void {
+  if (!container || motionIsDisabled()) {
+    update();
+    return;
+  }
+  const root = document.documentElement;
+  const name = options.name ?? 'component';
+  const scopedTransition = (container as ViewTransitionElement).startViewTransition;
+  root.dataset.componentTransition = name;
+
+  const cleanup = () => {
+    if (root.dataset.componentTransition === name) delete root.dataset.componentTransition;
+    delete container.dataset.motionTransition;
+  };
+
+  if (typeof scopedTransition === 'function') {
+    try {
+      const transition = scopedTransition.call(container, update);
+      void transition.finished.then(cleanup, cleanup);
+      return;
+    } catch {
+      // Older engines can expose the draft method but reject scoped transitions.
+    }
+  }
+
+  update();
+  const target = options.targetSelector
+    ? container.querySelector<HTMLElement>(options.targetSelector) ?? container
+    : container;
+  elementAnimations.get(target)?.cancel();
+  container.dataset.motionTransition = name;
+  if (typeof target.animate !== 'function') {
+    cleanup();
+    return;
+  }
+  const preference = root.dataset.motion as MotionPreference | undefined;
+  const animation = target.animate([
+    { opacity: 0.78, transform: 'translate3d(0, 5px, 0) scale(.996)' },
+    { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
+  ], {
+    duration: options.duration ?? (preference === 'full' ? 300 : 230),
+    easing: 'cubic-bezier(.16, 1, .3, 1)',
+  });
+  elementAnimations.set(target, animation);
+  void animation.finished.then(cleanup, cleanup);
 }

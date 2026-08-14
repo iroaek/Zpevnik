@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { SecureProfile } from '../auth/secureAccess';
 import type { CloudSyncState } from '../hooks/useCloudUserState';
+import { useAnimatedPresence } from '../hooks/useAnimatedPresence';
 import { checkForUpdate } from '../pwa/updateManager';
 import { Icon } from '../ui/Icon';
 import { friendlyError } from '../ui/friendlyError';
@@ -25,6 +26,7 @@ export function AppStatusCenter({ open, online, profile, offlineAuthenticated, c
   const [updateState, setUpdateState] = useState<'idle' | 'checking' | 'current' | 'available' | 'installing' | 'error'>('idle');
   const [updateMessage, setUpdateMessage] = useState('');
   const [storage, setStorage] = useState<{ usage: number; quota: number } | null>(null);
+  const presence = useAnimatedPresence(open, 260);
 
   useEffect(() => {
     if (!open) return;
@@ -38,7 +40,7 @@ export function AppStatusCenter({ open, online, profile, offlineAuthenticated, c
     return () => window.removeEventListener('keydown', keydown);
   }, [onClose, open, updateAvailable]);
 
-  if (!open) return null;
+  if (!presence.mounted) return null;
   const synced = cloudSync.status === 'synced' && cloudSync.pendingCount === 0;
   const downloadedRatio = availableSongs ? Math.min(100, Math.round(downloadedSongs / availableSongs * 100)) : 0;
   const storageRatio = storage?.quota ? Math.min(100, Math.round(storage.usage / storage.quota * 100)) : null;
@@ -72,7 +74,7 @@ export function AppStatusCenter({ open, online, profile, offlineAuthenticated, c
     }
   };
 
-  return <div className="status-center-backdrop" role="presentation" onClick={onClose}>
+  return <div className={`status-center-backdrop motion-layer motion-layer--${presence.phase}`} role="presentation" aria-hidden={!open} onClick={() => { if (open) onClose(); }}>
     <section className="status-center" role="dialog" aria-modal="true" aria-labelledby="status-center-heading" onClick={(event) => event.stopPropagation()}>
       <div className="sheet-handle" aria-hidden="true" />
       <header><span><p className="eyebrow">Vše na jednom místě</p><h2 id="status-center-heading">Stav zpěvníku</h2></span><button type="button" className="icon-button" aria-label="Zavřít stav zpěvníku" onClick={onClose}><Icon name="close" /></button></header>

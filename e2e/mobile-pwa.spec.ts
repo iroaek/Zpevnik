@@ -114,6 +114,7 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await widthControl.fill('980');
   await expect(page.locator('.reader-width-mobile')).toHaveText('100 %');
   await expect.poll(() => page.locator('.chord-sheet').evaluate((element) => element.getBoundingClientRect().width)).toBeGreaterThan(compactReaderWidth + 30);
+  await page.getByRole('button', { name: 'Papír', exact: true }).click();
   await page.getByRole('button', { name: 'Hotovo' }).click();
   await expect.poll(() => page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize))).toBeGreaterThan(initialSize);
 
@@ -128,6 +129,18 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await expect(page.locator('html')).toHaveAttribute('data-performance-mode', 'fire');
   await expect(page.getByText('Jiskra kreslí')).toBeVisible();
   await expect(page.locator('.reader-guidance')).toBeHidden();
+  const firePaperContrast = await page.locator('.reader-performance-surface').evaluate((surface) => ({
+    lyric: getComputedStyle(surface.querySelector<HTMLElement>('.lyric')!).color,
+    chord: getComputedStyle(surface.querySelector<HTMLElement>('.chord:not(.chord--empty)')!).color,
+    texture: getComputedStyle(surface).backgroundImage,
+  }));
+  expect(firePaperContrast.lyric).toBe('rgb(255, 240, 208)');
+  expect(firePaperContrast.texture).toBe('none');
+  const chordChannels = firePaperContrast.chord.match(/\d+/g)?.map(Number) ?? [];
+  expect(chordChannels).toHaveLength(3);
+  expect(chordChannels[0]).toBeGreaterThan(235);
+  expect(chordChannels[1]).toBeGreaterThan(190);
+  expect(chordChannels[2]).toBeLessThan(140);
   await expectNoPageOverflow(page);
   await page.getByRole('button', { name: 'Ukončit režim u ohně' }).click();
 
