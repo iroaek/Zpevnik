@@ -99,6 +99,16 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   const widthControl = page.getByLabel('Šířka textu');
   await widthControl.fill('320');
   await expect(page.locator('.reader-width-mobile')).toHaveText('84 %');
+  await page.locator('.chord-sheet').evaluate((element) => new Promise<void>((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve();
+    };
+    element.addEventListener('transitionend', finish, { once: true });
+    window.setTimeout(finish, 700);
+  }));
   const compactReaderWidth = await page.locator('.chord-sheet').evaluate((element) => element.getBoundingClientRect().width);
   await widthControl.fill('980');
   await expect(page.locator('.reader-width-mobile')).toHaveText('100 %');
@@ -448,6 +458,17 @@ test('oblíbené a soukromý setlist přežijí obnovení aplikace', async ({ pa
   await page.goto('setlists');
   await page.getByLabel('Název nového setlistu').fill('Aktualizační test');
   await page.getByRole('button', { name: 'Vytvořit' }).click();
+  await expect(page.getByRole('tab', { name: /Aktualizační test/ })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => new Promise<boolean>((resolve) => {
+    const openRequest = indexedDB.open('cesky-zpevnik');
+    openRequest.onerror = () => resolve(false);
+    openRequest.onsuccess = () => {
+      const transaction = openRequest.result.transaction('state', 'readonly');
+      const readRequest = transaction.objectStore('state').get('current');
+      readRequest.onerror = () => resolve(false);
+      readRequest.onsuccess = () => resolve(Boolean(readRequest.result?.setlists?.some((setlist: { name?: string }) => setlist.name === 'Aktualizační test')));
+    };
+  }))).toBe(true);
   await page.reload();
   await expect(page.getByRole('tab', { name: /Aktualizační test/ })).toBeVisible();
   await page.goto('./');
