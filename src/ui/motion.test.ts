@@ -11,13 +11,14 @@ function reducedMotion(matches: boolean): void {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
-  document.querySelectorAll('.route-stage, .route-transition-veil').forEach((stage) => stage.remove());
+  document.querySelectorAll('.route-stage, .route-transition-scene, .route-transition-veil, .route-shared-ghost').forEach((stage) => stage.remove());
   delete (document as unknown as { startViewTransition?: unknown }).startViewTransition;
   delete document.documentElement.dataset.navigationDirection;
   delete document.documentElement.dataset.viewTransition;
   delete document.documentElement.dataset.transitionDriver;
   delete document.documentElement.dataset.transitionPhase;
   delete document.documentElement.dataset.componentTransition;
+  delete document.documentElement.dataset.motion;
   vi.restoreAllMocks();
 });
 
@@ -54,7 +55,7 @@ describe('směr navigačního pohybu', () => {
     expect(start).not.toHaveBeenCalled();
   });
 
-  it('vynechá nativní snapshot celé stránky a použije lehkou kompozitní vrstvu', async () => {
+  it('vynechá nativní snapshot celé stránky a použije filmovou kompozitní vrstvu', async () => {
     reducedMotion(false);
     let finish!: () => void;
     const finished = new Promise<void>((resolve) => { finish = resolve; });
@@ -75,7 +76,7 @@ describe('směr navigačního pohybu', () => {
     expect(update).toHaveBeenCalledOnce();
     expect(start).not.toHaveBeenCalled();
     expect(animate).toHaveBeenCalledOnce();
-    expect(document.documentElement.dataset.transitionDriver).toBe('compositor');
+    expect(document.documentElement.dataset.transitionDriver).toBe('cinematic-3d');
     expect(document.documentElement.dataset.transitionPhase).toBe('entering');
     expect(document.documentElement.dataset.viewTransition).toBe('active');
     finish();
@@ -90,6 +91,7 @@ describe('směr navigačního pohybu', () => {
     stage.className = 'route-stage';
     const heading = document.createElement('h1');
     stage.append(heading);
+    Object.defineProperty(stage, 'scrollHeight', { configurable: true, value: window.innerHeight * 4 });
     const stageAnimate = vi.fn();
     Object.defineProperty(stage, 'animate', { configurable: true, value: stageAnimate });
     let finishHeading!: () => void;
@@ -110,19 +112,65 @@ describe('směr navigačního pohybu', () => {
     const update = vi.fn();
 
     runRouteTransition(update, 'forward');
+    finishHeading();
+    await headingFinished;
+    await Promise.resolve();
     expect(update).toHaveBeenCalledOnce();
     expect(stageAnimate).not.toHaveBeenCalled();
     expect(veilAnimate).toHaveBeenCalledOnce();
-    expect(headingAnimate).toHaveBeenCalledOnce();
+    expect(headingAnimate).toHaveBeenCalledTimes(2);
     expect(document.documentElement.dataset.viewTransition).toBe('active');
     finishVeil();
-    finishHeading();
     await Promise.all([veilFinished, headingFinished]);
     await Promise.resolve();
 
     expect(document.documentElement.dataset.viewTransition).toBeUndefined();
     stage.remove();
     veil.remove();
+  });
+
+  it('ve filmovém režimu používá skutečnou 3D hloubku a horní i dolní clonu', async () => {
+    reducedMotion(false);
+    document.documentElement.dataset.motion = 'full';
+    const resolvedAnimation = () => ({ finished: Promise.resolve(), cancel: vi.fn() }) as unknown as Animation;
+    const animationMock = () => vi.fn((keyframes: Keyframe[], options?: KeyframeAnimationOptions) => {
+      void keyframes;
+      void options;
+      return resolvedAnimation();
+    });
+    const stage = document.createElement('div');
+    stage.className = 'route-stage';
+    stage.append(document.createElement('h1'));
+    const stageAnimate = animationMock();
+    Object.defineProperty(stage, 'animate', { configurable: true, value: stageAnimate });
+    const scene = document.createElement('div');
+    scene.className = 'route-transition-scene';
+    const veil = document.createElement('span');
+    veil.className = 'route-transition-veil';
+    const vignette = document.createElement('span');
+    vignette.className = 'route-transition-vignette';
+    const topBar = document.createElement('span');
+    topBar.className = 'route-transition-bar route-transition-bar--top';
+    const bottomBar = document.createElement('span');
+    bottomBar.className = 'route-transition-bar route-transition-bar--bottom';
+    const barAnimate = animationMock();
+    [veil, vignette, topBar, bottomBar].forEach((element) => {
+      Object.defineProperty(element, 'animate', { configurable: true, value: element === topBar || element === bottomBar ? barAnimate : animationMock() });
+      scene.append(element);
+    });
+    document.body.append(stage, scene);
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+
+    runRouteTransition(vi.fn(), 'forward');
+    const exitFrames = stageAnimate.mock.calls[0][0];
+    expect(String(exitFrames[1]?.transform)).toContain('rotateY(-4.8deg)');
+    expect(String(exitFrames[1]?.transform)).toContain('-105px');
+    expect(barAnimate).toHaveBeenCalledTimes(2);
+    await Promise.resolve();
+    await Promise.resolve();
   });
 
   it('změní režim uvnitř komponenty bez animování celé stránky', async () => {

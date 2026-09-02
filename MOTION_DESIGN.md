@@ -4,17 +4,18 @@ Pohybový systém je původní součást Českého zpěvníku. Vychází z obecn
 
 ## Pravidla
 
-- hlavní záložky mají směr podle pořadí navigace;
+- hlavní záložky mají směr podle pořadí navigace a prostorový náklon odpovídá směru;
 - detail písně se otevírá dopředu a návrat se pohybuje zpět;
-- prohlížeče s View Transitions API používají plynulé prolnutí a krátký posun;
-- fallback používá lehkou animaci vstupní vrstvy bez blokování navigace;
+- název písně nebo setlistu se při podporované navigaci plynule přenese ze zdrojové karty do záhlaví;
+- filmový střih kombinuje hloubku, krátké ztmavení okrajů a světelný průchod; režim `full` přidává krátké horní a dolní clony;
+- fallback používá Web Animations API bez závislosti na snapshotu celé stránky;
 - karty, tlačítka a aktivní záložka reagují změnou `transform`, `opacity` a barvy;
 - animace nemění rozměry layoutu, takže nevzniká poskakování ani horizontální scroll;
 - při `prefers-reduced-motion: reduce` jsou přechody a mikrointerakce prakticky vypnuté.
 
 ## Výkonnostní rozpočet
 
-Navigační přechod má zůstat přibližně 180–320 ms. Nepoužívá animaci `width`, `height`, velký blur ani JavaScriptové snímkování. Na slabším zařízení se může vizuální přechod vynechat; změna trasy a dat musí vždy proběhnout okamžitě a nezávisle na animaci.
+Jemný navigační přechod má zůstat přibližně do 320 ms, filmový režim do 510 ms. Animují se jen `transform`, `opacity` a barva sdíleného titulku; nepoužívá se animace rozměrů, velký blur ani JavaScriptové snímkování. U velmi dlouhého obsahu se prostorový pohyb omezí na malé záhlaví, aby nevznikla obří kompoziční vrstva.
 
 ## Testování
 

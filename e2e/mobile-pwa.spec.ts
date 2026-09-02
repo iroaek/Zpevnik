@@ -379,7 +379,7 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
   expect(transitionMetrics.scrollRange).toBe(0);
   expect(transitionMetrics.layoutShiftScore).toBeLessThanOrEqual(0.05);
   expect(transitionMetrics.phases).toEqual(expect.arrayContaining(['leaving', 'entering']));
-  expect(transitionMetrics.driver).toBe('compositor');
+  expect(transitionMetrics.driver).toBe('cinematic-3d');
   await expectNoPageOverflow(page);
 
   await page.emulateMedia({ reducedMotion: 'reduce' });

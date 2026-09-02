@@ -168,11 +168,21 @@ h3 { font-size: 1.08rem; line-height: 1.25; }
 .route-stage > section:not(.home-dashboard-page):not(.song-reader) { animation: none; }
 @keyframes content-settle { from { opacity: 0; transform: translateY(.5rem); } }
 :root[data-view-transition="active"] { scroll-behavior: auto; overflow-anchor: none; }
-:root[data-view-transition="active"] .route-stage { pointer-events: none; overflow-anchor: none; }
+:root[data-view-transition="active"] .app-main { perspective: 1400px; perspective-origin: 50% 42%; }
+:root[data-view-transition="active"] .route-stage { pointer-events: none; overflow-anchor: none; backface-visibility: hidden; transform-style: preserve-3d; will-change: transform, opacity; }
 :root[data-view-transition="active"] .route-stage > section:not(.home-dashboard-page):not(.song-reader) { animation: none; }
 :root[data-view-transition="active"] .bottom-nav { pointer-events: none; }
-.route-transition-veil { position: fixed; z-index: 175; inset: 0; contain: strict; opacity: 0; pointer-events: none; background: linear-gradient(108deg, transparent 10%, color-mix(in srgb, var(--primary) 13%, transparent) 42%, color-mix(in srgb, var(--accent) 10%, transparent) 56%, transparent 88%); transform: translate3d(-1.5rem, 0, 0); }
-:root[data-view-transition="active"] .route-transition-veil { will-change: transform, opacity; }
+.route-transition-scene { position: fixed; z-index: 175; inset: 0; contain: strict; overflow: hidden; pointer-events: none; }
+.route-transition-scene > span { position: absolute; display: block; opacity: 0; pointer-events: none; }
+.route-transition-vignette { inset: 0; background: radial-gradient(ellipse at 50% 43%, transparent 24%, rgba(20, 8, 3, .2) 68%, rgba(10, 4, 2, .64) 115%); }
+.route-transition-veil { inset: -12% -32%; background: linear-gradient(108deg, transparent 23%, color-mix(in srgb, var(--primary) 22%, transparent) 39%, color-mix(in srgb, var(--accent) 32%, transparent) 49%, rgba(255, 245, 220, .2) 52%, color-mix(in srgb, var(--primary) 17%, transparent) 59%, transparent 74%); mix-blend-mode: soft-light; }
+.route-transition-bar { right: 0; left: 0; height: clamp(.7rem, 3.2vh, 2.35rem); opacity: 1 !important; background: #120906; box-shadow: 0 0 32px rgba(0, 0, 0, .28); }
+.route-transition-bar--top { top: 0; transform: translate3d(0, -105%, 0); }
+.route-transition-bar--bottom { bottom: 0; transform: translate3d(0, 105%, 0); }
+.route-shared-ghost { position: fixed; z-index: 190; display: block; contain: paint; overflow: visible; pointer-events: none; white-space: nowrap; transform-origin: 0 0; will-change: transform, opacity; }
+:root[data-view-transition="active"] .route-transition-scene > span { will-change: transform, opacity; }
+:root[data-theme="monochrome"] .route-transition-veil { background: linear-gradient(108deg, transparent 24%, rgba(255,255,255,.05) 44%, rgba(255,255,255,.18) 51%, rgba(255,255,255,.04) 59%, transparent 76%); }
+:root[data-theme="monochrome"] .route-transition-bar { background: #000; }
 .navigation-progress { position: fixed; z-index: 180; top: 0; right: 0; left: 0; height: 3px; overflow: hidden; opacity: 0; pointer-events: none; transition: opacity var(--motion-fast) ease; }
 .navigation-progress span { display: block; width: 42%; height: 100%; border-radius: 0 999px 999px 0; background: linear-gradient(90deg, var(--primary), var(--accent)); box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 50%, transparent); transform: translateX(-115%); }
 .navigation-progress--active { opacity: 1; }
@@ -1355,6 +1365,7 @@ select:focus, input:not([type="range"]):not([type="checkbox"]):focus { border-co
 :root[data-motion="off"] { --motion-page: .01ms; }
 :root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 :root[data-motion="off"] button:not(:disabled):active { opacity: 1; scale: none; }
+:root[data-motion="off"] .route-transition-scene, :root[data-motion="off"] .route-shared-ghost { display: none; }
 
 @media (max-width: 38rem) {
   .route-loading { min-height: calc(100svh - 9rem); }

@@ -496,7 +496,12 @@ export default function App() {
   return (
     <div className={`app-shell ${route.name === 'home' ? 'app-shell--home' : ''}`}>
       <div className={`navigation-progress${navigationPending ? ' navigation-progress--active' : ''}`} role="status" aria-live="polite" aria-label={navigationPending ? 'Načítám další obrazovku' : undefined}><span aria-hidden="true" /></div>
-      <div className="route-transition-veil" aria-hidden="true" />
+      <div className="route-transition-scene" aria-hidden="true">
+        <span className="route-transition-vignette" />
+        <span className="route-transition-veil" />
+        <span className="route-transition-bar route-transition-bar--top" />
+        <span className="route-transition-bar route-transition-bar--bottom" />
+      </div>
       {route.name !== 'home' && <header className="app-header">
         <button className="brand" type="button" onClick={() => navigate('')} aria-label="Přejít na úvodní stránku"><span className="brand-mark" aria-hidden="true"><img src={`${import.meta.env.BASE_URL}icons/icon-lazec-192.png`} alt="" /></span><span><strong>Český zpěvník</strong><small>odkaz · PWA · offline</small></span></button>
         <div className="header-status"><button type="button" className={`sync-badge sync-badge--${cloudSync.status}`} onClick={() => setStatusCenterOpen(true)} aria-label="Otevřít stav zpěvníku"><Icon name="sync" size={17} /><span>{cloudSync.status === 'synced' ? 'Uloženo' : cloudSync.status === 'syncing' || cloudSync.status === 'loading' ? 'Ukládám' : cloudSync.status === 'error' ? 'Chyba' : cloudSync.status === 'offline' ? 'Čeká' : 'Místně'}</span></button><button type="button" className={`connection-badge ${online ? 'online' : 'offline'}`} onClick={() => setStatusCenterOpen(true)} aria-label={`${online ? 'Online' : 'Offline'}; otevřít stav zpěvníku`}><span aria-hidden="true" />{online ? 'Online' : 'Offline'}</button></div>
