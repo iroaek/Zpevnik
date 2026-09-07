@@ -56,9 +56,12 @@ export async function neonDataRequest<T>(path: string, accessToken: string, opti
     throw new NeonDataApiError(details.message, response.status, details.code);
   }
   if (response.status === 204) return null as T;
-  if (!response.headers.get('content-type')?.includes('application/json')) throw new NeonDataApiError('Neon Data API nevrátilo JSON.', response.status, 'api_not_json');
   const text = await response.text();
-  return (text ? JSON.parse(text) : null) as T;
+  if (!text) return null as T;
+  // Valid JSON can arrive with a vendor/plain MIME type or without Content-Type.
+  // Validate the actual body; HTML fallbacks must still fail safely.
+  try { return JSON.parse(text) as T; }
+  catch { throw new NeonDataApiError('Neon Data API nevrátilo JSON.', response.status, 'api_not_json'); }
 }
 
 export function neonSelect<T>(table: string, accessToken: string, query: Record<string, string>, signal?: AbortSignal): Promise<T[]> {

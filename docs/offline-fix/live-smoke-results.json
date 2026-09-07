@@ -1,0 +1,13 @@
+{
+  "url": "https://iroaek.github.io/Zpevnik/",
+  "revision": "6e61c72134612556474c02c35dbaa1dbf8fcaf6c",
+  "checkedAt": "2026-09-07T17:20:26.412Z",
+  "productionRevision": "passed",
+  "appShellHashes": 47,
+  "configurationMissing": false,
+  "secureLoginGate": "passed",
+  "pageErrors": [],
+  "missingAssets": [],
+  "accountLogin": "not tested; no production credentials used",
+  "screenshot": "live-login-390x844.png"
+}

@@ -93,3 +93,11 @@ Existující PWA nebyla mazána, odinstalována ani přenášena na jiný origin
 Ruční scénář C pro správce: na nainstalované PWA online přihlásit schválený testovací účet a dokončit přípravu; poznamenat ověřenou platnost. Úplně zavřít PWA, zapnout režim letadlo **a vypnout Wi-Fi**, spustit ikonou. Otevřít dosud neotevřenou předem staženou píseň, vyhledávat, transponovat (pro zachování zapnout vlastní aranžmá), uložit oblíbenou a setlist. Znovu úplně zavřít/spustit bez sítě, ověřit změny. Po připojení ověřit synchronizaci bez ztrát. Opakovat po vypršení online access tokenu, ale před koncem offline grantu; nemažte profil ani data PWA. Zaznamenat OS/prohlížeč/build a výsledek zvlášť pro Android a iOS.
 
 Zbytková omezení stávající politiky: offline telefon se o novém serverovém odvolání dozví až při dalším úspěšném spojení nebo skončení lokální platnosti. Podpis obsah nešifruje, hodiny klienta nejsou důvěryhodný serverový čas a lokální device ID není hardwarová ochrana proti kopírování. Cache historie veřejných chunků záměrně neodstraňuje staré soubory otevřených klientů; může postupně růst. `storage.persist()` ani tento postup nezaručují zachování při ručním smazání dat nebo zásahu systému.
+
+## Následné autorizované nasazení
+
+Na dodatečný pokyn uživatele byla oprava 7. 9. 2026 nasazena na stávající [živý zpěvník](https://iroaek.github.io/Zpevnik/) v revizi `6e61c72134612556474c02c35dbaa1dbf8fcaf6c`. Nasazení, celý CI běh a nezávislé ověření živé verze prošly. Přesné výsledky, odkazy na workflow a zbývající neověřené produkční kroky jsou v [záznamu nasazení](docs/offline-fix/DEPLOYMENT.md).
+
+## Následná regrese formátu odpovědi API
+
+Po nasazení uživatel nahlásil chybu „Neon Data API nevrátilo JSON“ spolu s chybějícím grantem. Nová MIME kontrola odmítala i validní JSON a prázdné úspěšné odpovědi. Byla nahrazena bezpečným parsováním skutečného těla; HTML a poškozené JSON zůstávají odmítnuté. [Zpráva hotfixu](docs/offline-fix/mime-hotfix/REPORT.md) obsahuje červené testy před opravou, devět úspěšných browserových scénářů a opakovaný důkaz skutečného offline restartu po expiraci online tokenu.

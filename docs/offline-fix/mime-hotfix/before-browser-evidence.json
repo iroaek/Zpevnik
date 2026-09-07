@@ -1,0 +1,175 @@
+{
+  "results": [
+    {
+      "test": "baseline real production client, stale signed role",
+      "result": "REPRODUCED"
+    }
+  ],
+  "logs": [
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:47.116Z",
+      "build": "offline-old",
+      "step": "browser_process_started",
+      "offline": false,
+      "preservedProfile": true
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:48.069Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:49.443Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:49.601Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/auth/sign-in/email",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:49.629Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:49.640Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:49.650Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/register_my_device",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:49.656Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/auth/.well-known/jwks.json",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:49.676Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/touch_my_presence",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:49.686Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:49.695Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:49.703Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:49.716Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 204
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:50.982Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/rest/v1/content_packages",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:51.144Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/rest/v1/content_packages",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:51.172Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/rest/v1/content_package_chunks",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:51.191Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/rest/v1/content_package_chunks",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:51.283Z",
+      "build": "offline-old",
+      "step": "http",
+      "endpoint": "/rest/v1/content_packages",
+      "status": 200
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:51.437Z",
+      "build": "offline-old",
+      "step": "preserved_installation_baseline",
+      "version": 9,
+      "deviceHash": "17389f70c5034f9c2c869110debdbad7ee7b810f3f10024fdfd8f1947267db25",
+      "contentHash": "7c8f53b0aed10105d46c65d1f0ca7565466a7a131389583857aed58f76a5486a",
+      "contentRecords": 2
+    },
+    {
+      "phase": "before",
+      "at": "2026-09-07T17:29:51.677Z",
+      "build": "offline-old",
+      "step": "reproduced",
+      "code": "signed_role_stale_after_ensure_my_profile",
+      "grantStored": false,
+      "contentRecords": 2,
+      "readiness": "2/3"
+    }
+  ],
+  "phone": "NEOVĚŘENO NA ZAŘÍZENÍ"
+}

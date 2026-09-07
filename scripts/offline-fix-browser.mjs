@@ -13,7 +13,7 @@ import { build, preview } from 'vite';
 const phase = process.argv.includes('--before') ? 'before' : 'after';
 const buildId = phase === 'before' ? 'offline-old' : 'offline-new';
 const root = path.resolve('tmp/offline-fix');
-const evidence = path.resolve('docs/offline-fix');
+const evidence = path.resolve(process.argv.includes('--mime-regression') ? 'docs/offline-fix/mime-hotfix' : 'docs/offline-fix');
 await mkdir(root, { recursive: true }); await mkdir(evidence, { recursive: true });
 const appOrigin = 'http://127.0.0.1:4187';
 const authOrigin = 'http://127.0.0.1:4186';
@@ -22,6 +22,14 @@ const profileDirectory = phase === 'before' ? path.join(root, `persistent-profil
 if (phase === 'before') await writeFile(path.join(root, 'profile-path.txt'), profileDirectory);
 const logs = [];
 const results = [];
+// Exercise real JSON bodies despite intermediary/default MIME metadata. Auth
+// and JWKS responses retain their original application/json header.
+const dataApiJsonTypes = {
+  ensure_my_profile: 'text/plain;charset=utf-8',
+  profiles: 'application/vnd.pgrst.array+json',
+  register_my_device: null,
+};
+const exercisedDataApiJsonTypes = new Set();
 const offlineSetlistName = `Offline zkouška ${new Date().toISOString().slice(11, 19)}`;
 const record = (step, details = {}) => { const entry = { phase, at: new Date().toISOString(), build: buildId, step, ...details }; logs.push(entry); console.log(JSON.stringify(entry)); };
 const profile = { id: '11111111-1111-4111-8111-111111111111', auth_user_id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', email: 'offline@example.test', display_name: 'Testovací člen', status: 'approved', role: 'member', created_at: '2026-09-01T09:00:00.000Z', reviewed_at: '2026-09-01T10:00:00.000Z', last_seen_at: null };
@@ -51,7 +59,23 @@ function authorized(request) {
 const backend = createServer(async (request, response) => {
   const url = new URL(request.url, authOrigin);
   const headers = { 'content-type': 'application/json', 'access-control-allow-origin': appOrigin, 'access-control-allow-credentials': 'true', 'access-control-allow-headers': request.headers['access-control-request-headers'] ?? '*', 'access-control-expose-headers': 'set-auth-jwt', 'cache-control': 'no-store' };
-  const send = (status, body, extra = {}) => { response.writeHead(status, { ...headers, ...extra }); response.end(status === 204 ? '' : JSON.stringify(body)); if (request.method !== 'OPTIONS') record('http', { endpoint: url.pathname, status }); };
+  const send = (status, body, extra = {}) => {
+    const responseHeaders = { ...headers, ...extra };
+    if (responseHeaders['content-type'] === null) delete responseHeaders['content-type'];
+    response.writeHead(status, responseHeaders);
+    response.end(status === 204 ? '' : JSON.stringify(body));
+    if (request.method !== 'OPTIONS') record('http', { endpoint: url.pathname, status });
+  };
+  const sendDataJson = (resource, body) => {
+    // The baseline reproduction retains its original HTTP responses.
+    if (phase === 'before') return send(200, body);
+    const contentType = dataApiJsonTypes[resource];
+    if (!exercisedDataApiJsonTypes.has(resource)) {
+      exercisedDataApiJsonTypes.add(resource);
+      record('data_api_json_media_type_fixture', { resource, contentType, validJsonBody: true, authenticatedRequest: true });
+    }
+    return send(200, body, { 'content-type': contentType });
+  };
   if (offlineNetwork) { response.destroy(); return; }
   if (request.method === 'OPTIONS') return send(204, null);
   let input = ''; for await (const chunk of request) input += chunk;
@@ -79,10 +103,10 @@ const backend = createServer(async (request, response) => {
   if (!authorized(request)) return send(401, { code: 'expired_or_missing_jwt' });
   if (apiFailure) return send(apiFailure, { code: 'synthetic_api_failure' });
   const resource = url.pathname.split('/').pop();
-  if (resource === 'ensure_my_profile') { jwtRole = accountStatus === 'approved' ? profile.role : accountStatus; return send(200, { ...profile, status: accountStatus }); }
-  if (resource === 'profiles') return send(200, [{ ...profile, status: accountStatus }]);
+  if (resource === 'ensure_my_profile') { jwtRole = accountStatus === 'approved' ? profile.role : accountStatus; return sendDataJson(resource, { ...profile, status: accountStatus }); }
+  if (resource === 'profiles') return sendDataJson(resource, [{ ...profile, status: accountStatus }]);
   if (accountStatus !== 'approved') return send(403, { code: 'not_approved' });
-  if (resource === 'register_my_device') return send(200, !deviceRevoked);
+  if (resource === 'register_my_device') return sendDataJson(resource, !deviceRevoked);
   if (resource === 'content_packages') return send(200, packageRow ? [packageRow] : []);
   if (resource === 'content_package_chunks') return send(200, packageChunk ? [packageChunk] : []);
   if (resource === 'user_app_state') { if (request.method === 'POST') cloudState = body.state; return send(request.method === 'POST' ? 204 : 200, cloudState ? [{ state: cloudState }] : []); }
@@ -283,6 +307,9 @@ try {
     const grant = await dbRead(page, 'offlineAuth', 'current');
     expect(grant.payload.subject).toBe(profile.id);
     record('grant_persisted', { provider: grant.provider, signatureVerified: true, deviceIdPresent: Boolean(grant.payload.deviceId), expiresAt: grant.payload.offlineValidUntil });
+    expect([...exercisedDataApiJsonTypes].sort()).toEqual(Object.keys(dataApiJsonTypes).sort());
+    record('data_api_json_media_types_verified', { variants: dataApiJsonTypes, grantPersisted: true, signatureVerified: true });
+    results.push({ test: 'authenticated JSON Data API with text/plain, vendor +json and missing Content-Type persists verified grant', result: 'PASS' });
     const clientEvents = (await dbRead(page, 'diagnostics', null)).filter(value => value.details?.build === buildId)
       .map(value => ({ at: value.occurredAt, code: value.event, phase: value.details.phase, build: value.details.build, status: value.details.status }));
     expect(clientEvents.some(value => value.code === 'offline_grant_valid')).toBe(true);
