@@ -129,7 +129,7 @@ describe('směr navigačního pohybu', () => {
     veil.remove();
   });
 
-  it('ve filmovém režimu používá skutečnou 3D hloubku a horní i dolní clonu', async () => {
+  it('zkrátí přechod a zklidní prostorový pohyb při zachování kompozice', async () => {
     reducedMotion(false);
     document.documentElement.dataset.motion = 'full';
     const resolvedAnimation = () => ({ finished: Promise.resolve(), cancel: vi.fn() }) as unknown as Animation;
@@ -166,8 +166,10 @@ describe('směr navigačního pohybu', () => {
 
     runRouteTransition(vi.fn(), 'forward');
     const exitFrames = stageAnimate.mock.calls[0][0];
-    expect(String(exitFrames[1]?.transform)).toContain('rotateY(-4.8deg)');
-    expect(String(exitFrames[1]?.transform)).toContain('-105px');
+    expect(String(exitFrames[1]?.transform)).toContain('rotateY(0deg)');
+    expect(String(exitFrames[1]?.transform)).toContain('translate3d(-12px, 0, 0px)');
+    expect(Number(stageAnimate.mock.calls[0][1]?.duration)).toBeLessThanOrEqual(180);
+    expect(barAnimate.mock.calls.every(([, options]) => Number(options?.duration) <= 180)).toBe(true);
     expect(barAnimate).toHaveBeenCalledTimes(2);
     await Promise.resolve();
     await Promise.resolve();

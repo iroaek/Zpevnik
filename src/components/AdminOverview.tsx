@@ -1,19 +1,12 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { loadAllProfiles, loadRemoteSongSubmissions, type SecureProfile } from '../auth/secureAccess';
 import type { CloudSyncState } from '../hooks/useCloudUserState';
 import { isProfileOnline } from './adminUserPresence';
-import { EmptyState } from '../ui/EmptyState';
+import { formatCount, formatDateTime } from '../ui/format';
 import { Icon } from '../ui/Icon';
 import { friendlyError } from '../ui/friendlyError';
 
 type AdminDestination = 'users' | 'requests' | 'songs' | 'system';
-
-const statusLabels: Record<SecureProfile['status'], string> = {
-  approved: 'Schválení',
-  pending: 'Čekající',
-  rejected: 'Zamítnutí',
-  suspended: 'Pozastavení',
-};
 
 export function AdminOverview({
   cloudSync,
@@ -61,87 +54,31 @@ export function AdminOverview({
     suspended: profiles.filter((profile) => profile.status === 'suspended').length,
   }), [profiles]);
   const onlineCount = profiles.filter((profile) => isProfileOnline(profile, observedAt)).length;
-  const approvalPercentage = profiles.length ? Math.round(statusCounts.approved / profiles.length * 100) : 0;
   const pendingTotal = statusCounts.pending + pendingSongs + cloudSync.pendingCount;
-  const newestProfiles = [...profiles]
-    .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))
-    .slice(0, 4);
-  const weeklyActivity = useMemo(() => {
-    if (!observedAt) return [];
-    const formatter = new Intl.DateTimeFormat('cs-CZ', { weekday: 'short' });
-    return Array.from({ length: 7 }, (_, index) => {
-      const day = new Date(observedAt - (6 - index) * 86_400_000);
-      const key = day.toISOString().slice(0, 10);
-      return {
-        key,
-        label: formatter.format(day).replace('.', ''),
-        count: profiles.filter((profile) => profile.last_seen_at?.slice(0, 10) === key).length,
-      };
-    });
-  }, [observedAt, profiles]);
-  const peakActivity = Math.max(1, ...weeklyActivity.map((day) => day.count));
 
+  const known = observedAt > 0;
+  const stale = !online || Boolean(error);
   return <section className="admin-overview" aria-labelledby="admin-overview-heading">
-    <div className="admin-command-bar">
-      <span><p className="eyebrow">Živý provoz</p><h2 id="admin-overview-heading">Přehled administrace</h2><small>{observedAt ? `Aktualizováno ${new Date(observedAt).toLocaleTimeString('cs-CZ')}` : 'Načítám aktuální stav z Neonu…'}</small></span>
-      <div className="admin-command-pulse" aria-label="Rychlý stav"><span className={online ? 'status-tone--success' : 'status-tone--warning'}><i />{online ? 'Server dostupný' : 'Bez spojení'}</span><span><i />{onlineCount} online</span><span className={pendingTotal ? 'status-tone--warning' : 'status-tone--success'}><i />{pendingTotal ? `${pendingTotal} úloh` : 'Fronta čistá'}</span></div>
-      <button type="button" className="secondary-button" disabled={loading || !online} onClick={() => void refresh()}><Icon name="sync" />{loading ? 'Načítám…' : 'Obnovit data'}</button>
-    </div>
+    <div className="admin-command-bar"><span><h2 id="admin-overview-heading">Přehled administrace</h2><small>{known ? 'Data z ' + formatDateTime(observedAt) + (stale ? ' · zastaralá' : '') : loading ? 'Načítám přehled…' : 'Data nejsou dostupná'}</small></span><button type="button" className="icon-button" aria-label="Obnovit data" disabled={loading || !online} onClick={() => void refresh()}><Icon name="sync" /></button></div>
     {error && <p className="error-message" role="alert">{error}</p>}
-
-    <div className={`admin-kpi-grid ${loading ? 'admin-kpi-grid--loading' : ''}`} aria-label="Hlavní provozní ukazatele" aria-busy={loading}>
-      <button type="button" onClick={() => onOpen('users')}><span className="admin-kpi-icon"><Icon name="users" /></span><small>Registrovaní</small><strong>{profiles.length}</strong><em>celkem profilů</em></button>
-      <button type="button" onClick={() => onOpen('users')}><span className="admin-kpi-icon admin-kpi-icon--online"><Icon name="wifi" /></span><small>Online nyní</small><strong>{onlineCount}</strong><em>poslední 2 minuty</em></button>
-      <button type="button" onClick={() => onOpen('users')}><span className="admin-kpi-icon"><Icon name="check" /></span><small>Autorizovaní</small><strong>{statusCounts.approved}</strong><em>{approvalPercentage} % účtů</em></button>
-      <button type="button" className={pendingTotal ? 'admin-kpi--attention' : ''} onClick={() => onOpen(statusCounts.pending ? 'requests' : pendingSongs ? 'songs' : 'system')}><span className="admin-kpi-icon"><Icon name="alert" /></span><small>Vyžaduje pozornost</small><strong>{pendingTotal}</strong><em>účty, písně a sync</em></button>
-    </div>
-
-    <div className={`admin-insight-grid ${loading ? 'admin-insight-grid--loading' : ''}`} aria-busy={loading}>
-      <article className="admin-chart-card">
-        <header><span><small>Stav členské základny</small><h3>Schválené účty</h3></span><strong>{approvalPercentage} %</strong></header>
-        <div className="admin-donut-layout">
-          <div className="admin-donut" role="img" aria-label={`${statusCounts.approved} z ${profiles.length} účtů je schválených`} style={{ '--admin-approved-angle': `${approvalPercentage * 3.6}deg` } as CSSProperties}><span><strong>{statusCounts.approved}</strong><small>z {profiles.length}</small></span></div>
-          <div className="admin-chart-legend">{(Object.keys(statusCounts) as Array<keyof typeof statusCounts>).map((status) => <span key={status}><i className={`admin-legend-dot admin-legend-dot--${status}`} /> <small>{statusLabels[status]}</small><strong>{statusCounts[status]}</strong></span>)}</div>
-        </div>
+    {loading && !known && <p role="status">Načítám účty a návrhy písní…</p>}
+    {known && <>
+      <article className="admin-queue-card" aria-label="Práce k vyřízení"><h3>Co čeká na vyřízení</h3>
+        {pendingTotal === 0 && cloudSync.status !== 'error' ? <p><Icon name="check" size={18} /> Nic nečeká na vyřízení</p> : <>
+          {statusCounts.pending > 0 && <button type="button" onClick={() => onOpen('requests')}><Icon name="users" /><span><strong>Nové registrace</strong><small>Schválit nebo zamítnout účet</small></span><em>{formatCount(statusCounts.pending)}</em></button>}
+          {pendingSongs > 0 && <button type="button" onClick={() => onOpen('songs')}><Icon name="music" /><span><strong>Návrhy písní</strong><small>Kontrola práv a obsahu</small></span><em>{formatCount(pendingSongs)}</em></button>}
+          {(cloudSync.pendingCount > 0 || cloudSync.status === 'error') && <button type="button" onClick={() => onOpen('system')}><Icon name={cloudSync.status === 'error' ? 'alert' : 'sync'} /><span><strong>{cloudSync.status === 'error' ? 'Chyba synchronizace' : 'Čekající synchronizace'}</strong><small>Změny v tomto zařízení</small></span><em>{formatCount(cloudSync.pendingCount)}</em></button>}
+        </>}
       </article>
-
-      <article className="admin-chart-card">
-        <header><span><small>Rozložení stavů</small><h3>Účty podle oprávnění</h3></span><button type="button" className="text-button" onClick={() => onOpen('users')}>Detail</button></header>
-        <div className="admin-bars">{(Object.keys(statusCounts) as Array<keyof typeof statusCounts>).map((status) => {
-          const percentage = profiles.length ? Math.round(statusCounts[status] / profiles.length * 100) : 0;
-          return <div key={status}><span><small>{statusLabels[status]}</small><strong>{statusCounts[status]}</strong></span><div role="progressbar" aria-label={statusLabels[status]} aria-valuemin={0} aria-valuemax={profiles.length} aria-valuenow={statusCounts[status]}><i className={`admin-bar admin-bar--${status}`} style={{ '--admin-bar-width': `${percentage}%` } as CSSProperties} /></div></div>;
-        })}</div>
-      </article>
-
-      <article className="admin-queue-card">
-        <header><span><small>Pracovní fronta</small><h3>Co čeká na vyřízení</h3></span><strong>{pendingTotal}</strong></header>
-        <button type="button" onClick={() => onOpen('requests')}><Icon name="users" /><span><strong>Nové registrace</strong><small>Schválit nebo zamítnout účet</small></span><em>{statusCounts.pending}</em></button>
-        <button type="button" onClick={() => onOpen('songs')}><Icon name="music" /><span><strong>Návrhy písní</strong><small>Ruční kontrola práv a obsahu</small></span><em>{pendingSongs}</em></button>
-        <button type="button" onClick={() => onOpen('system')}><Icon name="sync" /><span><strong>Čekající synchronizace</strong><small>Změny uložené v zařízení</small></span><em>{cloudSync.pendingCount}</em></button>
-      </article>
-
-      <article className="admin-health-card">
-        <header><span><small>Provozní stav</small><h3>Systém a bezpečnost</h3></span><span className={`admin-live-pill ${online ? 'online' : 'offline'}`}><i />{online ? 'Online' : 'Offline'}</span></header>
-        <dl>
-          <div><dt>Neon server</dt><dd>{online ? 'Dostupný' : 'Bez spojení'}</dd></div>
-          <div><dt>Synchronizace</dt><dd>{cloudSync.status === 'synced' ? 'Aktuální' : cloudSync.status === 'offline' ? 'Lokální režim' : cloudSync.status === 'error' ? 'Vyžaduje kontrolu' : 'Probíhá'}</dd></div>
-          <div><dt>Offline přístup</dt><dd>Podepsané oprávnění</dd></div>
-        </dl>
-        <button type="button" className="secondary-button" onClick={() => onOpen('system')}>Otevřít provozní nástroje</button>
-      </article>
-
-      <article className="admin-chart-card admin-activity-card">
-        <header><span><small>Posledních 7 dní</small><h3>Aktivita členů</h3></span><strong>{weeklyActivity.reduce((sum, day) => sum + day.count, 0)}</strong></header>
-        <div className="admin-activity-chart" role="img" aria-label="Počet uživatelů podle dne jejich poslední aktivity">
-          {weeklyActivity.map((day) => <span key={day.key}><i style={{ '--admin-activity-level': `${Math.max(8, day.count / peakActivity * 100)}%` } as CSSProperties} /><strong>{day.count}</strong><small>{day.label}</small></span>)}
-        </div>
-        <p>Graf pracuje pouze s posledním bezpečně evidovaným přístupem účtu; nejde o sledování jednotlivých návštěv.</p>
-      </article>
-    </div>
-
-    <article className="admin-recent-card">
-      <header><span><small>Poslední registrace</small><h3>Nejnovější členové</h3></span><button type="button" className="text-button" onClick={() => onOpen('users')}>Všichni uživatelé</button></header>
-      <div>{newestProfiles.length ? newestProfiles.map((profile) => <span key={profile.id}><i className={`admin-user-presence ${isProfileOnline(profile, observedAt) ? 'online' : 'offline'}`} /><span><strong>{profile.display_name}</strong><small>{profile.email}</small></span><em className={`status-badge status-badge--${profile.status}`}>{statusLabels[profile.status]}</em></span>) : <EmptyState icon="users" title="Zatím tu nejsou žádné profily" description="Nově registrovaní členové se zobrazí po obnovení přehledu." />}</div>
-    </article>
+      <div className="admin-kpi-grid" aria-label="Hlavní provozní ukazatele" aria-busy={loading}>
+        <button type="button" onClick={() => onOpen('users')}><small>Registrovaní</small><strong>{formatCount(profiles.length)}</strong><em>celkem profilů</em></button>
+        <button type="button" onClick={() => onOpen('users')}><small>Schválení členové</small><strong>{formatCount(statusCounts.approved)}</strong><em>mají přístup</em></button>
+        <button type="button" onClick={() => onOpen('users')}><small>Online při kontrole</small><strong>{formatCount(onlineCount)}</strong><em>aktivita do 2 minut</em></button>
+        <button type="button" onClick={() => onOpen('requests')}><small>Čekající účty</small><strong>{formatCount(statusCounts.pending)}</strong><em>na schválení</em></button>
+      </div>
+      <div className="admin-status-list"><span>Zamítnutí: {formatCount(statusCounts.rejected)}</span><span>Pozastavení: {formatCount(statusCounts.suspended)}</span></div>
+    </>}
+    <div className="admin-status-list" aria-label="Provozní stav"><span>Síť: {online ? 'online' : 'bez připojení'}</span><span>Synchronizace: {cloudSync.status === 'synced' ? 'aktuální' : cloudSync.status === 'error' ? 'vyžaduje kontrolu' : cloudSync.status === 'offline' ? 'místní změny' : 'čeká / probíhá'}</span></div>
+    <button type="button" className="secondary-button" onClick={() => onOpen('system')}>Provozní nástroje</button>
   </section>;
 }

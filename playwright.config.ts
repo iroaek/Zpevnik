@@ -12,6 +12,7 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   retries: 0,
+  workers: 2,
   reporter: 'list',
   use: {
     baseURL: 'http://127.0.0.1:4173/Zpevnik/',
@@ -21,6 +22,7 @@ export default defineConfig({
   },
   outputDir: 'test-results/playwright',
   projects: [
+    { name: 'tablet-768x1024', use: { viewport: { width: 768, height: 1024 }, isMobile: true, hasTouch: true } },
     ...viewports.map(([name, width, height]) => ({
       name,
       use: { viewport: { width, height }, isMobile: true, hasTouch: true },

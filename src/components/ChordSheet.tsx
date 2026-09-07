@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useMemo, useRef, useState } from 'react';
+import { Dialog } from '../ui/Dialog';
 import { parseChordPro, type ChordToken } from '../domain/chordpro';
 import { parseChord, renderChord, transposeCanonicalChord, type ChordNotation } from '../domain/chords';
 import { groupChordTokensIntoWords, mobileColumnPercent } from '../ui/readerLayout';
@@ -32,8 +32,6 @@ function displayedChord(chord: string, semitones: number, sourceNotation: ChordN
 interface ChordPopoverState {
   chord: string;
   sourceIndex: number | null;
-  top: number;
-  left: number;
 }
 
 const MAJOR_GUITAR: Array<Array<number | null>> = [
@@ -174,12 +172,6 @@ export function ChordSheet({
   const [activeSection, setActiveSection] = useState<number | null>(null);
   const chordDrag = useRef<{ sourceIndex: number; startX: number } | null>(null);
   const suppressChordClick = useRef(false);
-  useEffect(() => {
-    if (!popover) return;
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setPopover(null); };
-    window.addEventListener('keydown', close);
-    return () => window.removeEventListener('keydown', close);
-  }, [popover]);
   const renderChordButton = (token: ChordToken) => {
     if (!token.chord) return <span className="chord chord--empty" aria-hidden="true">{' '}</span>;
     const renderedChord = displayedChord(token.chord, semitones, sourceNotation, notation);
@@ -201,19 +193,11 @@ export function ChordSheet({
     }} onPointerCancel={() => { chordDrag.current = null; }} onClick={(event) => {
       event.stopPropagation();
       if (suppressChordClick.current) { suppressChordClick.current = false; return; }
-      const rect = event.currentTarget.getBoundingClientRect();
-      const width = Math.min(300, window.innerWidth - 24);
-      const estimatedHeight = 320;
-      setPopover({
-        chord: renderedChord,
-        sourceIndex: token.sourceIndex ?? null,
-        left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
-        top: rect.bottom + estimatedHeight > window.innerHeight ? Math.max(12, rect.top - estimatedHeight) : rect.bottom + 8,
-      });
+      setPopover({ chord: renderedChord, sourceIndex: token.sourceIndex ?? null });
     }}><span className="chord-value" key={`${token.chord}-${semitones}-${notation}`}>{renderedChord}</span></button>;
   };
   return (
-    <div className={`chord-sheet ${focusSections && activeSection !== null ? 'chord-sheet--focus-active' : ''} ${performanceSection !== null ? 'chord-sheet--performance' : ''} ${editMode ? 'chord-sheet--editing' : ''}`} style={{ '--song-font-size': `${fontSize}px`, '--chord-scale': chordScale, '--song-line-height': lineHeight, '--song-column-width': `${columnWidth}px`, '--mobile-song-column-width': `${mobileColumnWidth}%` } as React.CSSProperties}>
+    <div className={`chord-sheet ${focusSections && activeSection !== null ? 'chord-sheet--focus-active' : ''} ${performanceSection !== null ? 'chord-sheet--performance' : ''} ${editMode ? 'chord-sheet--editing' : ''}`} style={{ '--song-font-size': `${fontSize / 16}rem`, '--chord-scale': chordScale, '--song-line-height': lineHeight, '--song-column-width': `${columnWidth}px`, '--mobile-song-column-width': `${mobileColumnWidth}%` } as React.CSSProperties}>
       {parsed.sections.map((section, sectionIndex) => {
         if (section.kind === 'comment') {
           return <p className="song-comment" key={`comment-${sectionIndex}`}>{section.label}</p>;
@@ -251,7 +235,7 @@ export function ChordSheet({
           </section>
         );
       })}
-      {popover && createPortal(<><button type="button" className="chord-popover-scrim" aria-label="Zavřít detail akordu" onClick={() => setPopover(null)} /><section className="chord-popover" role="dialog" aria-modal="true" aria-label={`${editMode ? 'Úprava polohy' : 'Hmat'} akordu ${popover.chord}`} style={{ top: popover.top, left: popover.left }}><header><span><small>{editMode ? 'Úprava polohy' : 'Akord'}</small><strong>{popover.chord}</strong></span><button type="button" aria-label="Zavřít" onClick={() => setPopover(null)}>×</button></header>{editMode && popover.sourceIndex !== null && onMoveChord && <div className="chord-position-editor"><p>Posuňte akord vůči textu. Text písně se nezmění a úprava zůstane jen v tomto zařízení.</p><div role="group" aria-label={`Posunout akord ${popover.chord}`}><button type="button" onClick={() => onMoveChord(popover.sourceIndex!, -4)} aria-label="Posunout o čtyři znaky doleva">−4</button><button type="button" onClick={() => onMoveChord(popover.sourceIndex!, -1)} aria-label="Posunout o jeden znak doleva">←</button><button type="button" onClick={() => onMoveChord(popover.sourceIndex!, 1)} aria-label="Posunout o jeden znak doprava">→</button><button type="button" onClick={() => onMoveChord(popover.sourceIndex!, 4)} aria-label="Posunout o čtyři znaky doprava">+4</button></div></div>}<ChordDiagram chord={popover.chord} sourceNotation={notation} />{onSuggestCorrection && <button type="button" className="secondary-button chord-report-button" onClick={() => { onSuggestCorrection(popover.chord); setPopover(null); }}>Nahlásit chybný akord nebo polohu</button>}</section></>, document.body)}
+      {popover && <Dialog open title={`${editMode ? 'Úprava polohy' : 'Hmat'} akordu ${popover.chord}`} className="chord-detail-dialog" onClose={() => setPopover(null)}>{editMode && popover.sourceIndex !== null && onMoveChord && <div className="chord-position-editor"><p>Posuňte akord vůči textu. Text písně se nezmění a úprava zůstane jen v tomto zařízení.</p><div role="group" aria-label={`Posunout akord ${popover.chord}`}><button type="button" onClick={() => onMoveChord(popover.sourceIndex!, -4)} aria-label="Posunout o čtyři znaky doleva">−4</button><button type="button" onClick={() => onMoveChord(popover.sourceIndex!, -1)} aria-label="Posunout o jeden znak doleva">←</button><button type="button" onClick={() => onMoveChord(popover.sourceIndex!, 1)} aria-label="Posunout o jeden znak doprava">→</button><button type="button" onClick={() => onMoveChord(popover.sourceIndex!, 4)} aria-label="Posunout o čtyři znaky doprava">+4</button></div></div>}<ChordDiagram chord={popover.chord} sourceNotation={notation} />{onSuggestCorrection && <button type="button" className="secondary-button chord-report-button" onClick={() => { onSuggestCorrection(popover.chord); setPopover(null); }}>Nahlásit chybný akord nebo polohu</button>}</Dialog>}
     </div>
   );
 }

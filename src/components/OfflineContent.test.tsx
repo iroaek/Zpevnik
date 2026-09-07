@@ -1,4 +1,5 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { inspectAppShell } from '../pwa/appShell';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { downloadApprovedLibrary, loadApprovedLibraryManifest, type SecureProfile } from '../auth/secureAccess';
@@ -33,6 +34,8 @@ vi.mock('../pwa/contentCache', () => ({
   removeSongs: vi.fn(),
 }));
 
+vi.mock('../pwa/appShell', () => ({ inspectAppShell: vi.fn(async () => ({ status: 'verified', checkedAt: '2026-09-07T12:00:00Z', missing: 0 })) }));
+const pendingUserId = '33333333-3333-4333-8333-333333333333';
 const catalog = catalogSchema.parse(catalogJson as unknown);
 const downloadedSong = {
   ...catalog.songs[0],
@@ -60,6 +63,7 @@ describe('Offline obsah', () => {
   afterEach(cleanup);
 
   beforeEach(() => {
+    vi.mocked(inspectAppShell).mockResolvedValue({ status: 'verified', checkedAt: '2026-09-07T12:00:00Z', missing: 0 });
     vi.mocked(inspectOfflineContent).mockResolvedValue({
       supported: true,
       catalogCached: true,
@@ -97,6 +101,7 @@ describe('Offline obsah', () => {
     });
 
     render(<OfflineContent catalog={catalog} secureMode secureProfile={profile} downloadedLibrarySongs={[]} onPersonalLibraryChanged={refreshLibrary} onNavigate={vi.fn()} />);
+    await userEvent.click(screen.getByText('Správa obsahu a zařízení'));
     await userEvent.click(screen.getByRole('button', { name: 'Stáhnout knihovnu' }));
 
     await waitFor(() => expect(downloadApprovedLibrary).toHaveBeenCalledWith(profile, expect.objectContaining({
@@ -104,7 +109,7 @@ describe('Offline obsah', () => {
       onProgress: expect.any(Function),
     })));
     expect(refreshLibrary).toHaveBeenCalledOnce();
-    expect(await screen.findByText('Hotovo: bezpečně uloženo 485 písní. Staženo 1.0 kB, z dříve ověřených částí znovu použito 2.0 kB.')).toBeVisible();
+    expect(await screen.findByText('Hotovo: bezpečně uloženo 485 písní. Staženo 1,0 kB, z dříve ověřených částí znovu použito 2,0 kB.')).toBeVisible();
   });
 
   it('rozpozná novější verzovaný balíček a nabídne bezpečnou aktualizaci', async () => {
@@ -118,6 +123,7 @@ describe('Offline obsah', () => {
     });
     render(<OfflineContent catalog={catalog} secureMode secureProfile={profile} downloadedLibrarySongs={[downloadedSong]} onNavigate={vi.fn()} />);
 
+    await userEvent.click(screen.getByText('Správa obsahu a zařízení'));
     expect(await screen.findByText('Je dostupná nová verze')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Nainstalovat novou knihovnu' })).toBeEnabled();
   });
@@ -160,4 +166,41 @@ describe('Offline obsah', () => {
     await waitFor(() => expect(checkForUpdate).toHaveBeenCalledOnce());
     expect(await screen.findByText('Používáte nejnovější dostupnou verzi aplikace.')).toBeVisible();
   });
+
+  it.each(['missing', 'expired', 'other-account'] as const)('neoznačí dvě ze tří podmínek jako připraveno: %s', async (reason) => {
+    vi.mocked(inspectContentPackageIntegrity).mockResolvedValue({ expectedSongs: 1, indexedSongs: 1, completeSongs: 1, missingSongs: 0, invalidSongs: 0, missingContent: 0, alteredContent: 0, availableBytes: 20, expectedBytes: 20, healthy: true });
+    const valid = { version: 1 as const, issuer: 'https://auth.example.test', audience: 'qa', subject: profile.id, scopes: ['library:read'], contentPackages: ['members'], contentVersion: 'qa', issuedAt: '2020-01-01T00:00:00Z', notBefore: '2020-01-01T00:00:00Z', offlineValidUntil: '2099-01-01T00:00:00Z', keyId: 'qa' };
+    const grant = reason === 'missing' ? null : reason === 'expired' ? { ...valid, offlineValidUntil: '2020-01-02T00:00:00Z' } : { ...valid, subject: pendingUserId };
+    const refresh = vi.fn().mockResolvedValue(undefined);
+    render(<OfflineContent catalog={catalog} secureMode secureProfile={profile} offlineGrant={grant} downloadedLibrarySongs={[downloadedSong]} onNavigate={vi.fn()} onRefreshAuthorization={refresh} />);
+    expect(await screen.findByText('Offline příprava není dokončena')).toBeVisible();
+    await waitFor(() => expect(screen.getByLabelText('Splněné podmínky')).toHaveTextContent('2/3'));
+    expect(screen.queryByText('Připraveno bez internetu')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Obnovit oprávnění' }));
+    await waitFor(() => expect(refresh).toHaveBeenCalledOnce());
+  });
+
+  it('při vypršení oprávnění zruší připravenost i na otevřené stránce', async () => {
+    vi.useFakeTimers();
+    try {
+      const now = Date.now();
+      vi.mocked(inspectContentPackageIntegrity).mockResolvedValue({ expectedSongs: 1, indexedSongs: 1, completeSongs: 1, missingSongs: 0, invalidSongs: 0, missingContent: 0, alteredContent: 0, availableBytes: 20, expectedBytes: 20, healthy: true });
+      const grant = { version: 1 as const, issuer: 'https://auth.example.test', audience: 'qa', subject: profile.id, scopes: ['library:read'], contentPackages: ['members'], contentVersion: 'qa', issuedAt: new Date(now - 60_000).toISOString(), notBefore: new Date(now - 60_000).toISOString(), offlineValidUntil: new Date(now + 5_000).toISOString(), keyId: 'qa' };
+      render(<OfflineContent catalog={catalog} secureMode secureProfile={profile} offlineGrant={grant} downloadedLibrarySongs={[downloadedSong]} onNavigate={vi.fn()} />);
+      await act(async () => { await vi.advanceTimersByTimeAsync(1); });
+      expect(screen.getByText('Připraveno bez internetu')).toBeVisible();
+      await act(async () => { await vi.advanceTimersByTimeAsync(5_001); });
+      expect(screen.getByText('Offline příprava není dokončena')).toBeVisible();
+      expect(screen.getByLabelText('Splněné podmínky')).toHaveTextContent('2/3');
+    } finally { cleanup(); vi.useRealTimers(); }
+  });
+
+  it('ověřené veřejné texty jsou připravené i bez volitelných not', async () => {
+    vi.mocked(inspectOfflineContent).mockResolvedValue({ supported: true, catalogCached: true, allSongsVerified: true, allScoresVerified: false, downloadedSongs: catalog.songs.length, totalSongs: catalog.songs.length, downloadedScores: 0, totalScores: 3, bytes: 20, lastUpdated: null, serviceWorkerActive: true });
+    render(<OfflineContent catalog={catalog} onNavigate={vi.fn()} />);
+    expect(await screen.findByText('Připraveno bez internetu')).toBeVisible();
+    expect(screen.getByLabelText('Splněné podmínky')).toHaveTextContent('3/3');
+    expect(screen.getByText('0 / 3 partů')).toBeVisible();
+  });
+
 });

@@ -1,4 +1,5 @@
 import { openDB } from 'idb';
+import { isDownloadedLibrarySong } from '../domain/librarySource';
 import { z } from 'zod';
 import { normalizeSharpSpelling, type ChordNotation } from '../domain/chords';
 import { sanitizeImportedText } from '../domain/chordpro';
@@ -974,10 +975,7 @@ export async function exportFullBackup(state: UserState, personalSongs: Song[]):
   return backup.personalSongCount;
 }
 
-export function isDownloadedLibrarySong(song: Song): boolean {
-  return song.personalOnly === true
-    && song.sourceIdentifier.replace(/\\/g, '/').startsWith('songs_data/');
-}
+export { isDownloadedLibrarySong } from '../domain/librarySource';
 
 export async function importFullBackup(file: Blob, options: BackupImportOptions = {}): Promise<BackupImportResult> {
   if (file.size > 50 * 1024 * 1024) throw new Error('Záloha je větší než povolených 50 MB.');

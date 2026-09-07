@@ -50,14 +50,16 @@ describe('profesionální administrátorský dashboard', () => {
     }]);
   });
 
-  it('zobrazuje metriky, grafy a propojenou pracovní frontu', async () => {
+  it('zobrazuje pojmenované metriky a propojenou pracovní frontu', async () => {
     const onOpen = vi.fn();
     render(<AdminOverview online cloudSync={{ status: 'synced', lastSyncedAt: null, error: null, pendingCount: 2, nextRetryAt: null, refresh: vi.fn().mockResolvedValue(undefined) }} onOpen={onOpen} />);
 
     await waitFor(() => expect(loadAllProfiles).toHaveBeenCalledOnce());
     expect(screen.getByRole('heading', { name: 'Přehled administrace' })).toBeVisible();
-    expect(screen.getByRole('img', { name: '1 z 2 účtů je schválených' })).toBeVisible();
-    expect(screen.getByText('Vyžaduje pozornost').parentElement).toHaveTextContent('4');
+    expect(screen.getByRole('button', { name: /Schválení členové/ })).toHaveTextContent('1');
+    expect(screen.getByRole('button', { name: /Nové registrace/ })).toHaveTextContent('1');
+    expect(screen.getByRole('button', { name: /Návrhy písní/ })).toHaveTextContent('1');
+    expect(screen.getByRole('button', { name: /Čekající synchronizace/ })).toHaveTextContent('2');
     await userEvent.click(screen.getByRole('button', { name: /Nové registrace/ }));
     expect(onOpen).toHaveBeenCalledWith('requests');
   });

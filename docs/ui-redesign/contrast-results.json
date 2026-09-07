@@ -1,0 +1,2402 @@
+[
+  {
+    "theme": "dark",
+    "state": "default",
+    "color": "rgb(14, 19, 22)",
+    "background": "rgb(244, 241, 233)",
+    "outline": "rgb(14, 19, 22)",
+    "outlineStyle": "none",
+    "contrast": 16.56
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "color": "rgb(14, 19, 22)",
+    "background": "rgb(255, 255, 255)",
+    "outline": "rgb(14, 19, 22)",
+    "outlineStyle": "none",
+    "contrast": 18.69
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "color": "rgb(14, 19, 22)",
+    "background": "rgb(244, 241, 233)",
+    "outline": "rgb(233, 183, 104)",
+    "outlineStyle": "solid",
+    "contrast": 16.56
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "color": "rgb(14, 19, 22)",
+    "background": "rgb(255, 255, 255)",
+    "outline": "rgb(233, 183, 104)",
+    "outlineStyle": "solid",
+    "contrast": 18.69
+  },
+  {
+    "theme": "dark",
+    "state": "disabled",
+    "color": "rgb(182, 191, 193)",
+    "background": "rgb(34, 43, 48)",
+    "outline": "rgb(182, 191, 193)",
+    "outlineStyle": "none",
+    "contrast": 7.7
+  },
+  {
+    "theme": "dark",
+    "foreground": "--text",
+    "minimum": 12.78
+  },
+  {
+    "theme": "dark",
+    "foreground": "--muted",
+    "minimum": 7.7
+  },
+  {
+    "theme": "dark",
+    "foreground": "--primary",
+    "minimum": 7.85
+  },
+  {
+    "theme": "dark",
+    "foreground": "--success",
+    "minimum": 7.24
+  },
+  {
+    "theme": "dark",
+    "foreground": "--warning",
+    "minimum": 8.48
+  },
+  {
+    "theme": "dark",
+    "foreground": "--danger",
+    "minimum": 6.09
+  },
+  {
+    "theme": "dark",
+    "foreground": "--control-border",
+    "minimum": 3.53
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "color": "rgb(245, 242, 235)",
+    "background": "rgb(32, 42, 47)",
+    "outline": "rgb(245, 242, 235)",
+    "outlineStyle": "none",
+    "contrast": 13.1
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "color": "rgb(245, 242, 235)",
+    "background": "rgb(16, 23, 25)",
+    "outline": "rgb(245, 242, 235)",
+    "outlineStyle": "none",
+    "contrast": 16.21
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "color": "rgb(245, 242, 235)",
+    "background": "rgb(32, 42, 47)",
+    "outline": "rgb(119, 80, 22)",
+    "outlineStyle": "solid",
+    "contrast": 13.1
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "color": "rgb(245, 242, 235)",
+    "background": "rgb(16, 23, 25)",
+    "outline": "rgb(119, 80, 22)",
+    "outlineStyle": "solid",
+    "contrast": 16.21
+  },
+  {
+    "theme": "light",
+    "state": "disabled",
+    "color": "rgb(82, 96, 103)",
+    "background": "rgb(234, 229, 218)",
+    "outline": "rgb(82, 96, 103)",
+    "outlineStyle": "none",
+    "contrast": 5.18
+  },
+  {
+    "theme": "light",
+    "foreground": "--text",
+    "minimum": 11.66
+  },
+  {
+    "theme": "light",
+    "foreground": "--muted",
+    "minimum": 5.18
+  },
+  {
+    "theme": "light",
+    "foreground": "--primary",
+    "minimum": 5.68
+  },
+  {
+    "theme": "light",
+    "foreground": "--success",
+    "minimum": 5.46
+  },
+  {
+    "theme": "light",
+    "foreground": "--warning",
+    "minimum": 5.21
+  },
+  {
+    "theme": "light",
+    "foreground": "--danger",
+    "minimum": 5.58
+  },
+  {
+    "theme": "light",
+    "foreground": "--control-border",
+    "minimum": 3.2
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "color": "rgb(16, 18, 20)",
+    "background": "rgb(244, 241, 233)",
+    "outline": "rgb(16, 18, 20)",
+    "outlineStyle": "none",
+    "contrast": 16.63
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "color": "rgb(16, 18, 20)",
+    "background": "rgb(255, 255, 255)",
+    "outline": "rgb(16, 18, 20)",
+    "outlineStyle": "none",
+    "contrast": 18.77
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "color": "rgb(16, 18, 20)",
+    "background": "rgb(244, 241, 233)",
+    "outline": "rgb(233, 183, 104)",
+    "outlineStyle": "solid",
+    "contrast": 16.63
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "color": "rgb(16, 18, 20)",
+    "background": "rgb(255, 255, 255)",
+    "outline": "rgb(233, 183, 104)",
+    "outlineStyle": "solid",
+    "contrast": 18.77
+  },
+  {
+    "theme": "monochrome",
+    "state": "disabled",
+    "color": "rgb(182, 191, 193)",
+    "background": "rgb(37, 42, 45)",
+    "outline": "rgb(182, 191, 193)",
+    "outlineStyle": "none",
+    "contrast": 7.74
+  },
+  {
+    "theme": "monochrome",
+    "foreground": "--text",
+    "minimum": 12.85
+  },
+  {
+    "theme": "monochrome",
+    "foreground": "--muted",
+    "minimum": 7.74
+  },
+  {
+    "theme": "monochrome",
+    "foreground": "--primary",
+    "minimum": 12.85
+  },
+  {
+    "theme": "monochrome",
+    "foreground": "--success",
+    "minimum": 7.29
+  },
+  {
+    "theme": "monochrome",
+    "foreground": "--warning",
+    "minimum": 8.53
+  },
+  {
+    "theme": "monochrome",
+    "foreground": "--danger",
+    "minimum": 6.13
+  },
+  {
+    "theme": "monochrome",
+    "foreground": "--control-border",
+    "minimum": 3.55
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "svg",
+    "color": "rgb(145, 201, 229)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.147608 0.198118 0.225098)",
+    "contrast": 7.28
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.147608 0.198118 0.225098)",
+    "contrast": 11.58
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.147608 0.198118 0.225098)",
+    "contrast": 6.98
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "svg",
+    "color": "rgb(145, 201, 229)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.181098 0.245059 0.278627)",
+    "contrast": 6.13
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.181098 0.245059 0.278627)",
+    "contrast": 9.75
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.181098 0.245059 0.278627)",
+    "contrast": 5.88
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "svg",
+    "color": "rgb(145, 201, 229)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.147608 0.198118 0.225098)",
+    "contrast": 7.28
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.147608 0.198118 0.225098)",
+    "contrast": 11.58
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.147608 0.198118 0.225098)",
+    "contrast": 6.98
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "svg",
+    "color": "rgb(145, 201, 229)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.181098 0.245059 0.278627)",
+    "contrast": 6.13
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.181098 0.245059 0.278627)",
+    "contrast": 9.75
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.181098 0.245059 0.278627)",
+    "contrast": 5.88
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "svg",
+    "color": "rgb(240, 141, 136)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.192314 0.169882 0.181333)",
+    "contrast": 5.83
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.192314 0.169882 0.181333)",
+    "contrast": 12.23
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.192314 0.169882 0.181333)",
+    "contrast": 7.37
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "svg",
+    "color": "rgb(240, 141, 136)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.251882 0.200353 0.209333)",
+    "contrast": 5.08
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.251882 0.200353 0.209333)",
+    "contrast": 10.65
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.251882 0.200353 0.209333)",
+    "contrast": 6.42
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "svg",
+    "color": "rgb(240, 141, 136)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.192314 0.169882 0.181333)",
+    "contrast": 5.83
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.192314 0.169882 0.181333)",
+    "contrast": 12.23
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.192314 0.169882 0.181333)",
+    "contrast": 7.37
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "svg",
+    "color": "rgb(240, 141, 136)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.251882 0.200353 0.209333)",
+    "contrast": 5.08
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.251882 0.200353 0.209333)",
+    "contrast": 10.65
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.251882 0.200353 0.209333)",
+    "contrast": 6.42
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "svg",
+    "color": "rgb(233, 183, 104)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.18902 0.189647 0.166275)",
+    "contrast": 7.2
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.18902 0.189647 0.166275)",
+    "contrast": 11.71
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.18902 0.189647 0.166275)",
+    "contrast": 7.05
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "svg",
+    "color": "rgb(233, 183, 104)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.246667 0.231647 0.18549)",
+    "contrast": 6.09
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.246667 0.231647 0.18549)",
+    "contrast": 9.9
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.246667 0.231647 0.18549)",
+    "contrast": 5.97
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "svg",
+    "color": "rgb(233, 183, 104)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.18902 0.189647 0.166275)",
+    "contrast": 7.2
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.18902 0.189647 0.166275)",
+    "contrast": 11.71
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.18902 0.189647 0.166275)",
+    "contrast": 7.05
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "svg",
+    "color": "rgb(233, 183, 104)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.246667 0.231647 0.18549)",
+    "contrast": 6.09
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.246667 0.231647 0.18549)",
+    "contrast": 9.9
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.246667 0.231647 0.18549)",
+    "contrast": 5.97
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "svg",
+    "color": "rgb(163, 200, 185)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.156078 0.197647 0.204392)",
+    "contrast": 7.19
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.156078 0.197647 0.204392)",
+    "contrast": 11.61
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.156078 0.197647 0.204392)",
+    "contrast": 7
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "svg",
+    "color": "rgb(163, 200, 185)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.19451 0.244314 0.245843)",
+    "contrast": 6.06
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.19451 0.244314 0.245843)",
+    "contrast": 9.79
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.19451 0.244314 0.245843)",
+    "contrast": 5.9
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "svg",
+    "color": "rgb(163, 200, 185)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.156078 0.197647 0.204392)",
+    "contrast": 7.19
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.156078 0.197647 0.204392)",
+    "contrast": 11.61
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.156078 0.197647 0.204392)",
+    "contrast": 7
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "svg",
+    "color": "rgb(163, 200, 185)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.19451 0.244314 0.245843)",
+    "contrast": 6.06
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.19451 0.244314 0.245843)",
+    "contrast": 9.79
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.19451 0.244314 0.245843)",
+    "contrast": 5.9
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "svg",
+    "color": "rgb(121, 200, 155)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.136314 0.197647 0.190275)",
+    "contrast": 6.69
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.136314 0.197647 0.190275)",
+    "contrast": 11.8
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.136314 0.197647 0.190275)",
+    "contrast": 7.11
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "svg",
+    "color": "rgb(121, 200, 155)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.163216 0.244314 0.22349)",
+    "contrast": 5.7
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.163216 0.244314 0.22349)",
+    "contrast": 10.05
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.163216 0.244314 0.22349)",
+    "contrast": 6.06
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "svg",
+    "color": "rgb(121, 200, 155)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.136314 0.197647 0.190275)",
+    "contrast": 6.69
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.136314 0.197647 0.190275)",
+    "contrast": 11.8
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.136314 0.197647 0.190275)",
+    "contrast": 7.11
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "svg",
+    "color": "rgb(121, 200, 155)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.163216 0.244314 0.22349)",
+    "contrast": 5.7
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.163216 0.244314 0.22349)",
+    "contrast": 10.05
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.163216 0.244314 0.22349)",
+    "contrast": 6.06
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.16502 0.193412 0.208157)",
+    "contrast": 7.03
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.16502 0.193412 0.208157)",
+    "contrast": 11.66
+  },
+  {
+    "theme": "dark",
+    "state": "default",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.16502 0.193412 0.208157)",
+    "contrast": 7.03
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.208667 0.237608 0.251804)",
+    "contrast": 5.95
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.208667 0.237608 0.251804)",
+    "contrast": 9.87
+  },
+  {
+    "theme": "dark",
+    "state": "hover",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.208667 0.237608 0.251804)",
+    "contrast": 5.95
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.16502 0.193412 0.208157)",
+    "contrast": 7.03
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.16502 0.193412 0.208157)",
+    "contrast": 11.66
+  },
+  {
+    "theme": "dark",
+    "state": "focus",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.16502 0.193412 0.208157)",
+    "contrast": 7.03
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.208667 0.237608 0.251804)",
+    "contrast": 5.95
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.208667 0.237608 0.251804)",
+    "contrast": 9.87
+  },
+  {
+    "theme": "dark",
+    "state": "active",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.208667 0.237608 0.251804)",
+    "contrast": 5.95
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.948235 0.967686 0.963608)",
+    "contrast": 6.58
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.948235 0.967686 0.963608)",
+    "contrast": 13.51
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.948235 0.967686 0.963608)",
+    "contrast": 6
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.918039 0.953412 0.958392)",
+    "contrast": 6.34
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.918039 0.953412 0.958392)",
+    "contrast": 13.01
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.918039 0.953412 0.958392)",
+    "contrast": 5.78
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.948235 0.967686 0.963608)",
+    "contrast": 6.58
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.948235 0.967686 0.963608)",
+    "contrast": 13.51
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.948235 0.967686 0.963608)",
+    "contrast": 6
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.918039 0.953412 0.958392)",
+    "contrast": 6.34
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.918039 0.953412 0.958392)",
+    "contrast": 13.01
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.918039 0.953412 0.958392)",
+    "contrast": 5.78
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.992941 0.939451 0.919843)",
+    "contrast": 6.38
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.992941 0.939451 0.919843)",
+    "contrast": 13.11
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.992941 0.939451 0.919843)",
+    "contrast": 5.82
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.988824 0.908706 0.889098)",
+    "contrast": 6.03
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.988824 0.908706 0.889098)",
+    "contrast": 12.39
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.988824 0.908706 0.889098)",
+    "contrast": 5.5
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.992941 0.939451 0.919843)",
+    "contrast": 6.38
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.992941 0.939451 0.919843)",
+    "contrast": 13.11
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.992941 0.939451 0.919843)",
+    "contrast": 5.82
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.988824 0.908706 0.889098)",
+    "contrast": 6.03
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.988824 0.908706 0.889098)",
+    "contrast": 12.39
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.988824 0.908706 0.889098)",
+    "contrast": 5.5
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.989647 0.959216 0.904784)",
+    "contrast": 6.56
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.989647 0.959216 0.904784)",
+    "contrast": 13.47
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.989647 0.959216 0.904784)",
+    "contrast": 5.98
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.983608 0.94 0.865255)",
+    "contrast": 6.31
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.983608 0.94 0.865255)",
+    "contrast": 12.95
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.983608 0.94 0.865255)",
+    "contrast": 5.75
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.989647 0.959216 0.904784)",
+    "contrast": 6.56
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.989647 0.959216 0.904784)",
+    "contrast": 13.47
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.989647 0.959216 0.904784)",
+    "contrast": 5.98
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.983608 0.94 0.865255)",
+    "contrast": 6.31
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.983608 0.94 0.865255)",
+    "contrast": 12.95
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.983608 0.94 0.865255)",
+    "contrast": 5.75
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.956706 0.967216 0.942902)",
+    "contrast": 6.58
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.956706 0.967216 0.942902)",
+    "contrast": 13.51
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.956706 0.967216 0.942902)",
+    "contrast": 6
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.931451 0.952667 0.925608)",
+    "contrast": 6.33
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.931451 0.952667 0.925608)",
+    "contrast": 13
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.931451 0.952667 0.925608)",
+    "contrast": 5.78
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.956706 0.967216 0.942902)",
+    "contrast": 6.58
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.956706 0.967216 0.942902)",
+    "contrast": 13.51
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.956706 0.967216 0.942902)",
+    "contrast": 6
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.931451 0.952667 0.925608)",
+    "contrast": 6.33
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.931451 0.952667 0.925608)",
+    "contrast": 13
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.931451 0.952667 0.925608)",
+    "contrast": 5.78
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.936941 0.967216 0.928784)",
+    "contrast": 6.51
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.936941 0.967216 0.928784)",
+    "contrast": 13.36
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.936941 0.967216 0.928784)",
+    "contrast": 5.93
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.900157 0.952667 0.903255)",
+    "contrast": 6.22
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.900157 0.952667 0.903255)",
+    "contrast": 12.77
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.900157 0.952667 0.903255)",
+    "contrast": 5.67
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.936941 0.967216 0.928784)",
+    "contrast": 6.51
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.936941 0.967216 0.928784)",
+    "contrast": 13.36
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.936941 0.967216 0.928784)",
+    "contrast": 5.93
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.900157 0.952667 0.903255)",
+    "contrast": 6.22
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.900157 0.952667 0.903255)",
+    "contrast": 12.77
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.900157 0.952667 0.903255)",
+    "contrast": 5.67
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.918588 0.918275 0.904314)",
+    "contrast": 5.93
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.918588 0.918275 0.904314)",
+    "contrast": 12.17
+  },
+  {
+    "theme": "light",
+    "state": "default",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.918588 0.918275 0.904314)",
+    "contrast": 5.4
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.871098 0.875176 0.86451)",
+    "contrast": 5.34
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.871098 0.875176 0.86451)",
+    "contrast": 10.97
+  },
+  {
+    "theme": "light",
+    "state": "hover",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.871098 0.875176 0.86451)",
+    "contrast": 4.87
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.918588 0.918275 0.904314)",
+    "contrast": 5.93
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.918588 0.918275 0.904314)",
+    "contrast": 12.17
+  },
+  {
+    "theme": "light",
+    "state": "focus",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.918588 0.918275 0.904314)",
+    "contrast": 5.4
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "svg",
+    "color": "rgb(119, 80, 22)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.871098 0.875176 0.86451)",
+    "contrast": 5.34
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "STRONG",
+    "color": "rgb(32, 42, 47)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.871098 0.875176 0.86451)",
+    "contrast": 10.97
+  },
+  {
+    "theme": "light",
+    "state": "active",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "SMALL",
+    "color": "rgb(82, 96, 103)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.871098 0.875176 0.86451)",
+    "contrast": 4.87
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 11.87
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 10.04
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 11.87
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 10.04
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Písně 1 v knihovně",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 11.87
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 10.04
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 11.87
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 10.04
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Setlisty 0 vašich seznamů",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 11.87
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 10.04
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 11.87
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 10.04
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Oblíbené 0 v oblíbených",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 11.87
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 10.04
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 11.87
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 10.04
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Autoři Procházet podle jména",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 11.87
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 10.04
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 11.87
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 10.04
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Offline Ověřit připravenost",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 11.87
+  },
+  {
+    "theme": "monochrome",
+    "state": "default",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 10.04
+  },
+  {
+    "theme": "monochrome",
+    "state": "hover",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 11.87
+  },
+  {
+    "theme": "monochrome",
+    "state": "focus",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.171922 0.18651 0.194353)",
+    "contrast": 7.15
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "svg",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "STRONG",
+    "color": "rgb(244, 241, 233)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 10.04
+  },
+  {
+    "theme": "monochrome",
+    "state": "active",
+    "shortcut": "Přidat Píseň nebo vlastní PDF",
+    "element": "SMALL",
+    "color": "rgb(182, 191, 193)",
+    "fontFamily": "-apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif",
+    "background": "color(srgb 0.21502 0.231255 0.239098)",
+    "contrast": 6.05
+  }
+]

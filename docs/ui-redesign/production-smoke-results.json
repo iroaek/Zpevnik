@@ -1,0 +1,10 @@
+{
+  "productionSecureGate": "passed",
+  "configurationMissing": false,
+  "testFixturesAbsent": "passed",
+  "appShellHashes": 46,
+  "browser": "Chromium",
+  "missingAssets": [],
+  "consoleErrors": [],
+  "remoteAuthentication": "not tested; requests intercepted as unauthenticated"
+}

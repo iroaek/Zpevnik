@@ -15,15 +15,16 @@ const song = {
 describe('Úvodní rozcestník', () => {
   afterEach(cleanup);
 
-  it('zobrazuje pouze šest hlavních voleb a otevře samostatnou knihovnu', async () => {
+  it('nabídne knihovnu, setlisty, oblíbené a ověření offline stavu', async () => {
     const onNavigate = vi.fn();
     const view = render(<HomeDashboard songs={[song]} favorites={[]} recent={[]} setlistCount={0} onOpenSong={vi.fn()} onNavigate={onNavigate} />);
-    expect(view.container.querySelectorAll('.dashboard-orbits button')).toHaveLength(6);
+    expect(view.container.querySelectorAll('.home-shortcuts button')).toHaveLength(6);
     expect(view.container.querySelector('.library-sticky-panel')).toBeNull();
     expect(view.container.querySelector('.song-list')).toBeNull();
-    expect(screen.getByText('1', { selector: '.home-dashboard-stats strong' })).toBeVisible();
-    expect(screen.getByText('Připraveno k hraní')).toBeVisible();
-    await userEvent.click(screen.getByRole('button', { name: /^Akordy/ }));
+    expect(screen.getByText('1 v knihovně')).toBeVisible();
+    expect(screen.queryByText('Připraveno k hraní')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Offline Ověřit připravenost/ })).toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: /^Písně/ }));
     expect(onNavigate).toHaveBeenCalledWith('songs');
   });
 });

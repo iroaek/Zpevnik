@@ -1,59 +1,44 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { Song } from '../domain/song';
-import { Icon } from '../ui/Icon';
+import { Icon, type IconName } from '../ui/Icon';
+import { SearchField } from '../ui/SearchField';
+import { formatCount } from '../ui/format';
+import { resolvePublicPath } from '../pwa/paths';
 
 interface HomeDashboardProps {
-  songs: Song[];
-  favorites: string[];
-  recent: string[];
-  setlistCount: number;
-  onOpenSong: (id: string) => void;
-  onNavigate: (path: string) => void;
+  songs: Song[]; favorites: string[]; recent: string[]; setlistCount: number;
+  onOpenSong: (id: string) => void; onNavigate: (path: string) => void;
+  onSearch?: (query: string) => void;
 }
-
-export function HomeDashboard({ songs, favorites, recent, setlistCount, onOpenSong, onNavigate }: HomeDashboardProps) {
-  const lastSong = useMemo(() => {
-    const songById = new Map(songs.map((song) => [song.id, song]));
-    return recent.map((id) => songById.get(id)).find((song): song is Song => Boolean(song));
+export function HomeDashboard({ songs, favorites, recent, setlistCount, onOpenSong, onNavigate, onSearch }: HomeDashboardProps) {
+  const [query, setQuery] = useState('');
+  const recentSongs = useMemo(() => {
+    const byId = new Map(songs.map((song) => [song.id, song]));
+    return recent.map((id) => byId.get(id)).filter((song): song is Song => Boolean(song)).slice(0, 5);
   }, [recent, songs]);
-
-  return (
-    <section className="home-dashboard-page" aria-labelledby="home-dashboard-heading">
-      <section className="library-dashboard library-dashboard--home">
-        <div className="home-ambient" aria-hidden="true"><i /><i /><i /></div>
-        <div className="home-ready-pill"><span aria-hidden="true" />Připraveno k hraní</div>
-        <div className="library-dashboard__heading">
-          <p className="eyebrow">Váš hudební prostor</p>
-          <h1 id="home-dashboard-heading">Český zpěvník</h1>
-          <p>Texty, akordy a setlisty připravené na pódium i k ohni.</p>
-          <div className="home-dashboard-stats" aria-label="Stav zpěvníku">
-            <span><strong>{songs.length}</strong><small>písní v knihovně</small></span>
-            <i aria-hidden="true" />
-            <span><strong>{setlistCount}</strong><small>vašich setlistů</small></span>
-          </div>
-        </div>
-        <nav className="dashboard-orbits" aria-label="Hudební rozcestník">
-          <button type="button" className="dashboard-orbit dashboard-orbit--featured" onClick={() => lastSong ? onOpenSong(lastSong.id) : onNavigate('songs')}>
-            <span className="dashboard-orbit__icon" aria-hidden="true"><Icon name="play" size={32} /></span><strong>Pokračovat</strong><small>{lastSong?.title ?? 'Vybrat píseň'}</small><em aria-hidden="true">↗</em>
-          </button>
-          <button type="button" className="dashboard-orbit" onClick={() => onNavigate('songs')}>
-            <span className="dashboard-orbit__icon" aria-hidden="true"><Icon name="music" size={32} /></span><strong>Akordy</strong><small>Celá knihovna</small><em aria-hidden="true">↗</em>
-          </button>
-          <button type="button" className="dashboard-orbit" onClick={() => onNavigate('songs/favorites')}>
-            <span className="dashboard-orbit__icon" aria-hidden="true"><Icon name="heart" size={32} /></span><strong>Oblíbené</strong><small>{favorites.length} písní</small><em aria-hidden="true">↗</em>
-          </button>
-          <button type="button" className="dashboard-orbit" onClick={() => onNavigate('songs/artists')}>
-            <span className="dashboard-orbit__icon" aria-hidden="true"><Icon name="users" size={32} /></span><strong>Interpreti</strong><small>Podle autora</small><em aria-hidden="true">↗</em>
-          </button>
-          <button type="button" className="dashboard-orbit" onClick={() => onNavigate('setlists')}>
-            <span className="dashboard-orbit__icon" aria-hidden="true"><Icon name="list" size={32} /></span><strong>Setlisty</strong><small>{setlistCount} seznamů</small><em aria-hidden="true">↗</em>
-          </button>
-          <button type="button" className="dashboard-orbit" onClick={() => onNavigate('import')}>
-            <span className="dashboard-orbit__icon" aria-hidden="true"><Icon name="plus" size={32} /></span><strong>Přidat</strong><small>PDF nebo píseň</small><em aria-hidden="true">↗</em>
-          </button>
-        </nav>
-        <p className="home-gesture-hint"><span aria-hidden="true">●</span> Vyberte prostor a začněte hrát</p>
-      </section>
-    </section>
-  );
+  const lastSong = recentSongs[0];
+  const shortcuts: Array<{ path: string; label: string; detail: string; icon: IconName; tone: string }> = [
+    { path: 'songs', label: 'Písně', detail: formatCount(songs.length) + ' v knihovně', icon: 'music', tone: 'songs' },
+    { path: 'setlists', label: 'Setlisty', detail: formatCount(setlistCount) + ' ' + (setlistCount === 1 ? 'váš seznam' : setlistCount > 1 && setlistCount < 5 ? 'vaše seznamy' : 'vašich seznamů'), icon: 'list', tone: 'setlists' },
+    { path: 'songs/favorites', label: 'Oblíbené', detail: formatCount(favorites.length) + ' v oblíbených', icon: 'heart', tone: 'favorites' },
+    { path: 'songs/artists', label: 'Autoři', detail: 'Procházet podle jména', icon: 'users', tone: 'authors' },
+    { path: 'offline', label: 'Offline', detail: 'Ověřit připravenost', icon: 'download', tone: 'offline' },
+    { path: 'import', label: 'Přidat', detail: 'Píseň nebo vlastní PDF', icon: 'plus', tone: 'import' },
+  ];
+  return <section className="home-dashboard-page" aria-labelledby="home-dashboard-heading">
+    <div className="home-intro"><h1 id="home-dashboard-heading">Český zpěvník</h1><p>Písně, které nás spojují.</p></div>
+    <form className="home-search" role="search" onSubmit={(event) => { event.preventDefault(); if (onSearch) onSearch(query); else onNavigate('songs'); }}>
+      <SearchField value={query} onChange={setQuery} /><button type="submit" className="icon-button" aria-label="Hledat v knihovně"><Icon name="chevronRight" /></button>
+    </form>
+    <button type="button" className="continue-song" onClick={() => lastSong ? onOpenSong(lastSong.id) : onNavigate('songs')}>
+      <img src={resolvePublicPath('images/taborovy-zpevnik.jpg')} alt="" aria-hidden="true" />
+      <span><small>{lastSong ? 'Pokračovat v poslední písni' : 'Začněte písní'}</small><strong>{lastSong?.title ?? 'Otevřít knihovnu'}</strong><span>{lastSong?.authors.join(', ') || (lastSong ? 'Autor neuveden' : 'Vyberte, co si dnes zahrajete')}</span></span><Icon name="chevronRight" size={24} />
+    </button>
+    <nav className="home-shortcuts" aria-label="Hudební rozcestník">
+      {shortcuts.map(item => <button key={item.path} type="button" className={'shortcut shortcut--' + item.tone} aria-label={item.label + ' ' + item.detail} onClick={() => onNavigate(item.path)}>
+        <Icon name={item.icon} /><span><strong>{item.label}</strong><small>{item.detail}</small></span>
+      </button>)}
+    </nav>
+    {recentSongs.length > 1 && <section className="home-recent"><div className="results-heading"><h2>Naposledy otevřené</h2></div>{recentSongs.slice(1).map((song) => <button type="button" key={song.id} onClick={() => onOpenSong(song.id)}><span><strong>{song.title}</strong><small>{song.authors.join(', ') || 'Autor neuveden'}</small></span><Icon name="chevronRight" size={18} /></button>)}</section>}
+  </section>;
 }

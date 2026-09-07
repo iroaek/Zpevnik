@@ -267,15 +267,10 @@ export function Setlists({
     <section className="setlists-page" aria-labelledby="setlists-heading">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Pořadí na večer</p>
           <h1 id="setlists-heading">Setlisty</h1>
         </div>
       </div>
-      <p className="lead setlists-intro">
-        Vytvořte si vlastní pořadí písní. Po přihlášení se setlisty
-        synchronizují mezi vašimi zařízeními; bez připojení zůstávají bezpečně
-        uložené zde.
-      </p>
+      <p className="setlists-intro">Vaše pořadí písní pro společné hraní.</p>
       <div
         className={`setlist-collection-switch setlist-collection-switch--${collection}`}
         role="tablist"
@@ -363,11 +358,7 @@ export function Setlists({
       )}
       {collection === "mine" && (
         <div className="collection-panel">
-          <div className="results-heading private-heading">
-            <h2>Moje soukromé setlisty</h2>
-            <span>Offline i mezi zařízeními</span>
-          </div>
-          <form className="new-setlist" onSubmit={submit}>
+          <details className="new-setlist-details" open={userState.setlists.length === 0}><summary>Nový setlist</summary><form className="new-setlist" onSubmit={submit}>
             <label>
               Název nového setlistu
               <input
@@ -380,7 +371,7 @@ export function Setlists({
             <button className="primary-button" type="submit">
               Vytvořit
             </button>
-          </form>
+          </form></details>
           {message && (
             <p className="success-message" role="status">
               {message}

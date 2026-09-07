@@ -21,7 +21,7 @@ interface SharedGhost {
   targetOpacity?: string;
 }
 
-const PRIMARY_ROUTE_ORDER = ['home', 'library', 'setlists', 'import', 'offline', 'settings'];
+const PRIMARY_ROUTE_ORDER = ['home', 'library', 'setlists', 'offline', 'more', 'settings', 'import'];
 let transitionSequence = 0;
 let activeRouteCleanup: (() => void) | null = null;
 const elementAnimations = new WeakMap<HTMLElement, Animation>();
@@ -60,9 +60,9 @@ function animationTarget(stage: HTMLElement | null): HTMLElement | null {
 function cinematicTransform(direction: MotionDirection, phase: 'out' | 'in', full: boolean): string {
   const enteringSide = direction === 'forward' ? 1 : direction === 'back' ? -1 : 0;
   const side = phase === 'in' ? enteringSide : -enteringSide;
-  const travel = full ? 48 : 19;
-  const depth = full ? -105 : -34;
-  const angle = full ? 4.8 : 1.35;
+  const travel = full ? 12 : 6;
+  const depth = 0;
+  const angle = 0;
   if (direction === 'lateral') {
     return `perspective(1400px) translate3d(0, ${phase === 'in' ? 13 : -7}px, ${depth}px) rotateX(${phase === 'in' ? 2.6 : -1.8}deg) scale(${full ? 0.982 : 0.993})`;
   }
@@ -132,8 +132,8 @@ export function runRouteTransition(update: () => void, direction: MotionDirectio
   const root = document.documentElement;
   const preference = root.dataset.motion as MotionPreference | undefined;
   const full = preference === 'full';
-  const exitDuration = full ? 155 : 85;
-  const enterDuration = full ? 355 : 235;
+  const exitDuration = full ? 60 : 40;
+  const enterDuration = full ? 120 : 100;
   const totalDuration = exitDuration + enterDuration;
   const animations: Animation[] = [];
   const transformOrigins = new Map<HTMLElement, string>();
@@ -352,7 +352,7 @@ export function runElementTransition(container: HTMLElement | null, update: () =
     { opacity: 0.78, transform: 'translate3d(0, 5px, 0) scale(.996)' },
     { opacity: 1, transform: 'translate3d(0, 0, 0) scale(1)' },
   ], {
-    duration: options.duration ?? (preference === 'full' ? 300 : 230),
+    duration: Math.min(options.duration ?? (preference === 'full' ? 180 : 140), 180),
     easing: 'cubic-bezier(.16, 1, .3, 1)',
   });
   elementAnimations.set(target, animation);

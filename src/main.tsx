@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { installBrowserCompatibility } from './domain/browserCompatibility';
 import './styles.css';
+import './ui/interface.css';
 
 // Externí moduly (zejména Neon Auth) mohou při vyhodnocení okamžitě použít
 // moderní browser API. Nejdřív proto synchronně nainstalujeme fallbacky a až

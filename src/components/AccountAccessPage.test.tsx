@@ -46,7 +46,7 @@ describe('schvalovaný účet', () => {
     const user = userEvent.setup();
     render(<AccountAccessPage canInstall={false} installed={false} onInstall={vi.fn()} />);
 
-    await user.click(screen.getByRole('tab', { name: 'Registrovat se' }));
+    await user.click(screen.getByRole('button', { name: 'Nemáte účet? Registrovat se' }));
     await user.type(screen.getByLabelText('Jméno nebo přezdívka'), 'Testovací člen');
     await user.type(screen.getByLabelText('E-mail'), 'clen@example.cz');
     await user.type(screen.getByLabelText('Heslo', { selector: '#account-password' }), 'VelmiDobreHeslo42');
@@ -72,7 +72,7 @@ describe('schvalovaný účet', () => {
     const user = userEvent.setup();
     render(<AccountAccessPage canInstall={false} installed={false} onInstall={vi.fn()} />);
 
-    await user.click(screen.getByRole('tab', { name: 'Registrovat se' }));
+    await user.click(screen.getByRole('button', { name: 'Nemáte účet? Registrovat se' }));
     await user.type(screen.getByLabelText('Jméno nebo přezdívka'), 'Testovací člen');
     await user.type(screen.getByLabelText('E-mail'), 'clen@example.cz');
     await user.type(screen.getByLabelText('Heslo', { selector: '#account-password' }), 'VelmiDobreHeslo42');

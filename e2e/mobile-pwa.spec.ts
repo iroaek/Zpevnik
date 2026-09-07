@@ -53,8 +53,8 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await page.goto('./');
   await expect(page.getByRole('heading', { name: 'Český zpěvník', exact: true })).toBeVisible();
   await expectNoPageOverflow(page);
-  await page.getByRole('button', { name: /^Akordy/ }).click();
-  await page.getByRole('button', { name: /Syntetická jiskra/ }).click();
+  await page.locator('.home-shortcuts').getByRole('button', { name: /^Písně/ }).click();
+  await page.locator('.song-card__open').filter({ hasText: 'Syntetická jiskra' }).click();
   await expect(page.getByText('Jiskra kreslí')).toBeVisible();
   await expectNoPageOverflow(page);
   const readerGeometry = await page.locator('.reader-performance-surface').evaluate((surface) => {
@@ -79,12 +79,17 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
       chord: getComputedStyle(chord).display,
     };
   });
-  expect(mobileChordFlow).toEqual({ line: 'block', word: 'nowrap', token: 'grid', lyric: 'block', chord: 'block' });
-  const readerButtons = await page.locator('.toolbar-actions > .icon-button').evaluateAll((buttons) => buttons.map((button) => {
+  expect(mobileChordFlow).toEqual({ line: 'block', word: 'normal', token: 'grid', lyric: 'block', chord: 'block' });
+  const readerButtons = await page.locator('.toolbar-actions > button').evaluateAll((buttons) => buttons.map((button) => {
     const box = button.getBoundingClientRect();
     return { width: box.width, height: box.height };
   }));
-  expect(readerButtons.every(({ width, height }) => width >= 44 && height >= 44 && Math.abs(width - height) <= 12)).toBe(true);
+  expect(readerButtons).toHaveLength(3);
+  expect(readerButtons.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
+  await page.getByRole('button', { name: 'Zvýšit o půltón' }).click();
+  await expect(page.getByLabel('Posun v půltónech')).toHaveText('+1');
+  const initialSize = await page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+  await page.getByRole('button', { name: 'Otevřít nastavení zobrazení' }).click();
   const performanceButtons = await page.locator('.performance-entry .icon-button').evaluateAll((buttons) => buttons.map((button) => {
     const box = button.getBoundingClientRect();
     return { width: box.width, height: box.height };
@@ -92,10 +97,7 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   const isCompactPortrait = (page.viewportSize()?.width ?? 0) <= 704;
   expect(performanceButtons.every(({ width, height }) => height >= 44 && width >= (isCompactPortrait ? 100 : 44))).toBe(true);
 
-  await page.getByRole('button', { name: 'Zvýšit o půltón' }).click();
-  await expect(page.getByLabel('Posun v půltónech')).toHaveText('+1');
-  const initialSize = await page.locator('.chord-sheet').evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
-  await page.getByRole('button', { name: 'Otevřít nastavení zobrazení' }).click();
+
   await page.getByLabel('Nastavit velikost textu').fill(String(initialSize + 2));
   const widthControl = page.getByLabel('Šířka textu');
   await widthControl.fill('320');
@@ -123,8 +125,10 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await page.locator('.fire-tap-zone').click();
   await expect(page.getByRole('button', { name: 'Pozastavit automatický posun' })).toBeVisible();
   await expect(page.getByText('žádná známá píseň')).toBeVisible();
-  await page.getByRole('button', { name: 'Pozastavit automatický posun' }).click();
+  await page.mouse.wheel(0, 100);
+  await expect(page.getByRole('button', { name: 'Spustit odpočet a automatický posun' })).toBeVisible();
 
+  await page.getByRole('button', { name: 'Otevřít nastavení zobrazení' }).click();
   await page.getByRole('button', { name: 'Režim u ohně' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-performance-mode', 'fire');
   await expect(page.getByText('Jiskra kreslí')).toBeVisible();
@@ -141,6 +145,7 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await expectNoPageOverflow(page);
   await page.getByRole('button', { name: 'Ukončit režim u ohně' }).click();
 
+  await page.getByRole('button', { name: 'Otevřít nastavení zobrazení' }).click();
   await page.getByRole('button', { name: 'Pódiový režim' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-fire-mode', 'true');
   await expect(page.locator('html')).toHaveAttribute('data-performance-mode', 'stage');
@@ -158,14 +163,15 @@ test('mobilní čtečka nemá přetečení a ovládá transpozici, text i posun'
   await page.getByRole('button', { name: 'Zpět do seznamu' }).click();
   await expect(page.getByRole('heading', { name: 'Písně', exact: true, level: 1 })).toBeVisible();
   await expect(page.locator('.now-playing-bar')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Rychlé akce' }).click();
+  await page.getByRole('button', { name: 'Rychlé akce pro Syntetická jiskra' }).click();
   await expect(page.getByRole('dialog', { name: /Syntetická jiskra/ })).toBeVisible();
-  const quickActionOverlap = await page.evaluate(() => {
-    const sheet = document.querySelector('.quick-action-sheet')?.getBoundingClientRect();
-    const navigation = document.querySelector('.bottom-nav')?.getBoundingClientRect();
-    return sheet && navigation ? Math.max(0, sheet.bottom - navigation.top) : 0;
-  });
-  expect(quickActionOverlap).toBeLessThanOrEqual(1);
+  const dialog = page.getByRole('dialog', { name: /Syntetická jiskra/ });
+  const box = await dialog.boundingBox();
+  expect(box!.y + box!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+  expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'Rychlé akce pro Syntetická jiskra' })).toBeFocused();
 });
 
 test('desktopová čtečka skládá akordy nad souvislý text bez falešných sloupců', async ({ page }, testInfo) => {
@@ -199,10 +205,10 @@ test('desktopová čtečka skládá akordy nad souvislý text bez falešných sl
 
   expect(chordFlow).toMatchObject({
     wordDisplay: 'inline-flex',
-    tokenPosition: 'relative',
-    chordPosition: 'absolute',
+    tokenPosition: 'static',
+    chordPosition: 'static',
     chordOverflow: 'visible',
-    lyricDisplay: 'inline',
+    lyricDisplay: 'block',
   });
   expect(chordFlow.lineWidth).toBeGreaterThan(chordFlow.sheetWidth * .9);
   expect(chordFlow.firstRowWordCount).toBeGreaterThan(1);
@@ -213,11 +219,12 @@ test('desktopová čtečka skládá akordy nad souvislý text bez falešných sl
 test('desktopové nastavení neobsahuje překrývající lištu poslední písně', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-1440x900', 'Desktopovou regresi ověřuje projekt bez dotykových media queries.');
   await page.goto('./');
-  await page.getByRole('button', { name: /^Akordy/ }).click();
-  await page.getByRole('button', { name: /Syntetická jiskra/ }).click();
+  await page.locator('.home-shortcuts').getByRole('button', { name: /^Písně/ }).click();
+  await page.locator('.song-card__open').filter({ hasText: 'Syntetická jiskra' }).click();
   await expect(page.getByText('Jiskra kreslí')).toBeVisible();
   await page.getByRole('button', { name: 'Zpět do seznamu' }).click();
-  await page.getByRole('button', { name: 'Nastavení' }).click();
+  await page.locator('.bottom-nav').getByRole('button', { name: 'Více', exact: true }).click();
+  await page.getByRole('button', { name: /^Nastavení/ }).click();
 
   await expect(page.getByRole('heading', { name: 'Nastavení', exact: true })).toBeVisible();
   await expect(page.locator('.now-playing-bar')).toHaveCount(0);
@@ -253,6 +260,7 @@ test('kapodastr používá křížky a ruční posun akordu uloží potvrzenou l
   await page.goto('songs/synteticka-jiskra');
   await expect(page.getByRole('heading', { name: 'Syntetická jiskra' })).toBeVisible();
 
+  await page.getByRole('button', { name: 'Otevřít nastavení zobrazení' }).click();
   await page.locator('details.capo-hint > summary').click();
   await expect(page.getByRole('button', { name: 'Začátečník' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.capo-planner')).toContainText('Obtížné hmaty');
@@ -260,9 +268,11 @@ test('kapodastr používá křížky a ruční posun akordu uloží potvrzenou l
   await expect(capoOne).toBeVisible();
   await expect(page.locator('.capo-option-grid')).not.toContainText(/Cis|Dis|Fis|Gis|Ais/);
   await capoOne.click();
-  await expect(page.locator('.song-facts')).toContainText('1. pražec');
+  await page.getByRole('button', { name: 'Hotovo' }).click();
+  await expect(page.locator('.reader-metadata')).toContainText('1. pražec');
   await expect(page.getByRole('button', { name: /Akord F#; zobrazit hmat/ }).first()).toBeVisible();
 
+  await page.getByRole('button', { name: 'Další', exact: true }).click();
   await page.getByRole('button', { name: 'Ručně posunout akordy' }).click();
   await page.getByRole('button', { name: /Akord F#; upravit polohu/ }).first().click();
   await page.getByRole('button', { name: 'Posunout o jeden znak doprava' }).click();
@@ -281,26 +291,16 @@ test('kapodastr používá křížky a ruční posun akordu uloží potvrzenou l
   await expect(page.getByRole('textbox', { name: 'Text a akordy' })).toHaveValue(/J\[G\]iskra kreslí/);
 });
 
-test('úvod obsahuje pouze šest hlavních voleb a knihovna drží hledání uvnitř panelu', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'mobile-390x844', 'Geometrii stačí ověřit jednou pro oba reprezentativní viewporty.');
-  for (const viewport of [{ width: 390, height: 844 }, { width: 1300, height: 1000 }]) {
-    await page.setViewportSize(viewport);
-    await page.goto('./');
-    await expect(page.locator('.dashboard-orbits button')).toHaveCount(6);
-    await expect(page.locator('.library-sticky-panel')).toHaveCount(0);
-    await expect(page.locator('.song-list')).toHaveCount(0);
-    await expect(page.locator('.app-header')).toHaveCount(0);
-    await expect(page.locator('.bottom-nav')).toHaveCount(0);
-    await page.getByRole('button', { name: /^Akordy/ }).click();
-    await expect.poll(() => page.locator('html').getAttribute('data-view-transition')).toBeNull();
-    const panel = await page.locator('.library-sticky-panel').boundingBox();
-    const search = await page.locator('.library-sticky-search').boundingBox();
-    expect(panel).not.toBeNull();
-    expect(search).not.toBeNull();
-    expect(search!.x).toBeGreaterThanOrEqual(panel!.x);
-    expect(search!.y).toBeGreaterThanOrEqual(panel!.y);
-    expect(search!.x + search!.width).toBeLessThanOrEqual(panel!.x + panel!.width + 1);
-    expect(search!.y + search!.height).toBeLessThanOrEqual(panel!.y + panel!.height + 1);
+test('úvod a knihovna používají jednotnou navigaci a jedno hledání', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'mobile-390x844', 'Geometrie ve dvou šířkách.');
+  for (const viewport of [{ width: 390, height: 844 }, { width: 1440, height: 900 }]) {
+    await page.setViewportSize(viewport); await page.goto('./');
+    await expect(page.locator('.home-shortcuts button')).toHaveCount(6);
+    await expect(page.getByRole('navigation', { name: 'Hlavní navigace' }).getByRole('button')).toHaveCount(5);
+    await page.locator('.home-shortcuts').getByRole('button', { name: /^Písně/ }).click();
+    await expect(page.getByRole('searchbox')).toHaveCount(1);
+    const first = await page.locator('.song-card__open').first().boundingBox();
+    expect(first!.y).toBeLessThanOrEqual(300);
     await expectNoPageOverflow(page);
   }
 });
@@ -364,12 +364,15 @@ test('navigace používá plynulý přechod a respektuje omezení pohybu', async
     };
     requestAnimationFrame(sample);
   }));
-  await page.getByRole('button', { name: /^Setlisty/ }).click();
+  await page.locator('.home-shortcuts').getByRole('button', { name: /^Setlisty/ }).click();
   await expect(page.getByRole('heading', { name: 'Setlisty', exact: true })).toBeVisible();
   await expect.poll(() => page.locator('html').getAttribute('data-view-transition')).toBeNull();
   const transitionMetrics = await transitionFinished;
-  expect(transitionMetrics.duration).toBeGreaterThanOrEqual(150);
-  expect(transitionMetrics.frames).toBeGreaterThanOrEqual(8);
+  console.info('Redesign transition:', JSON.stringify(transitionMetrics));
+  // The redesigned transition lasts 140–180 ms; allow RAF boundary sampling.
+  expect(transitionMetrics.duration).toBeGreaterThanOrEqual(100);
+  expect(transitionMetrics.duration).toBeLessThan(300);
+  expect(transitionMetrics.frames).toBeGreaterThanOrEqual(6);
   expect(transitionMetrics.blankFrames).toBe(0);
   expect(transitionMetrics.overlapFrames).toBe(0);
   // Při plném běhu sdílí CPU pět prohlížečů; samostatný výkonový běh drží limit 1.
@@ -426,7 +429,7 @@ test('vizuální kontrola zachytí mobil, tablet, desktop i landscape bez rozpad
     await expectNoPageOverflow(page);
     const narrowColumns = await page.locator('.settings-grid > label, .cloud-sync-card > span, .offline-actions article').evaluateAll((elements) => elements.filter((element) => {
       const style = getComputedStyle(element);
-      return style.display !== 'none' && element.getBoundingClientRect().width < 220;
+      return style.display !== 'none' && element.getClientRects().length > 0 && element.getBoundingClientRect().width < 220;
     }).map((element) => element.className));
     expect(narrowColumns).toEqual([]);
     await testInfo.attach(`phone-${route}`, {
@@ -442,13 +445,15 @@ test('deep linky načtou píseň, setlist, import PDF, instalaci, offline obsah 
   await page.goto('setlists/synteticky-vecer');
   await expect(page.getByRole('heading', { name: 'Syntetický večer' })).toBeVisible();
   await page.goto('offline');
-  await expect(page.getByRole('heading', { name: 'Offline obsah' })).toBeVisible();
+  await page.getByText('Správa obsahu a zařízení', { exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Offline', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Přejít k instalaci' }).click();
   await expect(page.getByRole('heading', { name: 'Nainstalovat zpěvník' })).toBeVisible();
   await page.goto('import');
   await expect(page.getByRole('heading', { name: 'Vložit PDF s akordy' })).toBeVisible();
   await expect(page.getByRole('checkbox', { name: 'Akordy v PDF jsou zkontrolované' })).toBeChecked();
-  await expect(page.getByRole('button', { name: 'Přidat' })).toBeVisible();
+  await expect(page.locator('.bottom-nav').getByRole('button', { name: 'Více', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('button', { name: 'Vybrat PDF ze zařízení' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Nahrát nebo vyžádat píseň' })).toBeVisible();
   await page.goto('help');
   await expect(page.getByRole('heading', { name: 'Jak používat zpěvník' })).toBeVisible();
@@ -478,6 +483,7 @@ test('stažená píseň funguje offline a nestažené noty zobrazí upozornění
   await page.goto('./');
   await ensureServiceWorkerControls(page);
   await page.goto('offline');
+  await page.getByText('Správa obsahu a zařízení', { exact: true }).click();
   await page.getByRole('button', { name: /Stáhnout ukázky|Ověřit znovu/ }).click();
   await expect(page.getByText('Ukázkové písně byly staženy a ověřeny.')).toBeVisible({ timeout: 20_000 });
   await page.goto('songs/synteticka-jiskra');
@@ -485,7 +491,7 @@ test('stažená píseň funguje offline a nestažené noty zobrazí upozornění
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByText('Jiskra kreslí')).toBeVisible();
-  await page.getByRole('tab', { name: /Noty/ }).click();
+  await page.getByRole('button', { name: /Noty/ }).click();
   await expect(page.getByText(/notový part ještě není stažený/i)).toBeVisible({ timeout: 20_000 });
   await context.setOffline(false);
 });
@@ -495,11 +501,12 @@ test('výslovně stažené noty se vykreslí offline', async ({ page, context },
   await page.goto('./');
   await ensureServiceWorkerControls(page);
   await page.goto('offline');
+  await page.getByText('Správa obsahu a zařízení', { exact: true }).click();
   await page.getByRole('button', { name: /Stáhnout noty|Ověřit znovu/ }).click();
   await expect(page.getByText('Všechny notové party byly staženy a ověřeny.')).toBeVisible({ timeout: 30_000 });
   await context.setOffline(true);
   await page.goto('songs/synteticka-jiskra');
-  await page.getByRole('tab', { name: /Noty/ }).click();
+  await page.getByRole('button', { name: /Noty/ }).click();
   await expect(page.locator('.score-host svg').first()).toBeVisible({ timeout: 30_000 });
   await context.setOffline(false);
 });
@@ -525,8 +532,8 @@ test('oblíbené a soukromý setlist přežijí obnovení aplikace', async ({ pa
   await expect(page.getByRole('heading', { name: 'Setlisty', exact: true })).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('tab', { name: /Aktualizační test/ })).toBeVisible({ timeout: 15_000 });
   await page.goto('./');
-  await page.getByRole('button', { name: /^Akordy/ }).click();
-  await page.getByRole('button', { name: /Syntetická jiskra/ }).click();
+  await page.locator('.home-shortcuts').getByRole('button', { name: /^Písně/ }).click();
+  await page.locator('.song-card__open').filter({ hasText: 'Syntetická jiskra' }).click();
   await expect(page.getByRole('button', { name: 'Odebrat z oblíbených' })).toBeVisible();
   await page.goto('setlists');
   await page.getByRole('button', { name: 'Smazat setlist' }).click();
@@ -541,6 +548,7 @@ test('offline cold start zachová staženou píseň, transpozici, oblíbené a s
   await page.goto('./');
   await ensureServiceWorkerControls(page);
   await page.goto('offline');
+  await page.getByText('Správa obsahu a zařízení', { exact: true }).click();
   await page.getByRole('button', { name: /Stáhnout ukázky|Ověřit znovu/ }).click();
   await expect(page.getByText('Ukázkové písně byly staženy a ověřeny.')).toBeVisible({ timeout: 20_000 });
   await page.goto('songs/synteticka-jiskra');

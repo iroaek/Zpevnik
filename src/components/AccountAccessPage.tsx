@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { resolvePublicPath } from '../pwa/paths';
+import { Icon } from '../ui/Icon';
 import {
   completeMigratedPasswordSetup,
   registerSecureAccount,
@@ -24,6 +26,7 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [passwordAgain, setPasswordAgain] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
@@ -125,19 +128,15 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
   return (
     <section className="registration-page" aria-labelledby="account-access-heading">
       <div className="registration-card account-access-card">
-        <p className="eyebrow">Soukromý členský zpěvník</p>
+        <div className="login-scene" aria-hidden="true"><img src={resolvePublicPath('images/taborovy-zpevnik.jpg')} alt="" /></div>
+        <div className="login-brand"><span aria-hidden="true"><Icon name="music" size={24} /></span><strong>Český zpěvník</strong></div>
         <h1 id="account-access-heading">{mode === 'login' ? 'Přihlášení' : mode === 'activate' ? 'Přihlášení kódem' : mode === 'register' ? 'Žádost o registraci' : mode === 'password-setup' ? 'Nastavení nového hesla' : verificationPurpose === 'activate' ? 'Přihlášení kódem' : 'Ověření e-mailu'}</h1>
-        <p className="lead">Písně nejsou veřejné. Každý nový účet musí před prvním použitím schválit administrátor.</p>
-        {mode !== 'verify' && mode !== 'password-setup' && <div className="account-mode-switch" role="tablist" aria-label="Přihlášení nebo registrace">
-          <button type="button" role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'active' : ''} onClick={() => { setMode('login'); setError(''); setMessage(''); }}>Přihlásit se</button>
-          <button type="button" role="tab" aria-selected={mode === 'register'} className={mode === 'register' ? 'active' : ''} onClick={() => { setMode('register'); setError(''); setMessage(''); }}>Registrovat se</button>
-        </div>}
-        {mode === 'login' && <aside className="migration-note account-activation-note"><strong>Převedený účet nebo přihlášení bez hesla</strong><span>Všech 12 původních účtů je připravených. Přihlaste se jednorázovým kódem z evidovaného e-mailu; schválení ani uložená data neztratíte.</span><button type="button" className="secondary-button" onClick={() => { setMode('activate'); setError(''); setMessage(''); }}>Přihlásit se kódem</button></aside>}
+        <p className="login-subtitle">Váš soukromý prostor pro společné hraní.</p>
         <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
           {mode === 'password-setup' ? <>
             <p className="migration-note"><strong>Povinné zabezpečení převedeného účtu</strong><br />Zvolte si vlastní heslo. Potvrďte jej nejnovějším kódem, který jsme právě poslali na váš e-mail.</p>
             <label htmlFor="account-verification-code">Kód pro nastavení hesla<input id="account-verification-code" inputMode="numeric" autoComplete="one-time-code" required minLength={6} maxLength={8} value={verificationCode} onChange={(event) => setVerificationCode(event.target.value.replace(/\s/g, ''))} /></label>
-            <label htmlFor="account-password">Nové heslo<input id="account-password" type="password" autoComplete="new-password" required minLength={10} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+            <label htmlFor="account-password">Nové heslo<input id="account-password" aria-describedby={error ? "account-error" : undefined} type="password" autoComplete="new-password" required minLength={10} value={password} onChange={(event) => setPassword(event.target.value)} /></label>
             <label htmlFor="account-password-again">Nové heslo znovu<input id="account-password-again" type="password" autoComplete="new-password" required minLength={10} value={passwordAgain} onChange={(event) => setPasswordAgain(event.target.value)} /></label>
           </> : mode === 'verify' ? <>
             <p className="migration-note">{verificationPurpose === 'activate' ? 'Po ověření stejného e-mailu se bezpečně připojí váš dřívější profil, role, schválení, oblíbené i setlisty.' : 'Po ověření e-mailu bude nový účet čekat na schválení administrátorem.'}</p>
@@ -145,22 +144,25 @@ export function AccountAccessPage({ canInstall, installed, onInstall }: AccountA
             <label htmlFor="account-verification-code">Šestimístný kód<input id="account-verification-code" inputMode="numeric" autoComplete="one-time-code" required minLength={6} maxLength={8} value={verificationCode} onChange={(event) => setVerificationCode(event.target.value.replace(/\s/g, ''))} /></label>
           </> : <>
           {mode === 'register' && <label htmlFor="account-name">Jméno nebo přezdívka<input id="account-name" autoComplete="nickname" required minLength={2} maxLength={60} value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label>}
-          <label htmlFor="account-email">E-mail<input id="account-email" type="email" inputMode="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-          {mode !== 'activate' && <label htmlFor="account-password">Heslo<input id="account-password" type="password" autoComplete={mode === 'register' ? 'new-password' : 'current-password'} required minLength={mode === 'register' ? 10 : undefined} value={password} onChange={(event) => setPassword(event.target.value)} /></label>}
+          <label htmlFor="account-email">E-mail<input id="account-email" aria-describedby={error ? "account-error" : undefined} type="email" inputMode="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+          {mode !== 'activate' && <div className="password-field"><label htmlFor="account-password">Heslo</label><div><input id="account-password" aria-describedby={error ? "account-error" : undefined} type={showPassword ? 'text' : 'password'} autoComplete={mode === 'register' ? 'new-password' : 'current-password'} required minLength={mode === 'register' ? 10 : undefined} value={password} onChange={(event) => setPassword(event.target.value)} /><button type="button" className="text-button" aria-pressed={showPassword} aria-controls="account-password" onClick={() => setShowPassword((value) => !value)}>{showPassword ? 'Skrýt' : 'Zobrazit'}<span className="visually-hidden"> heslo</span></button></div></div>}
           {mode === 'register' && <>
             <label htmlFor="account-password-again">Heslo znovu<input id="account-password-again" type="password" autoComplete="new-password" required minLength={10} value={passwordAgain} onChange={(event) => setPasswordAgain(event.target.value)} /></label>
             <label className="switch-row registration-consent"><input type="checkbox" required checked={privacyAccepted} onChange={(event) => setPrivacyAccepted(event.target.checked)} /> Souhlasím s uložením jména, e-mailu a stavu schválení pro provoz soukromého zpěvníku.</label>
           </>}
           </>}
           <button type="submit" className="primary-button" disabled={busy}>{busy ? 'Ověřuji…' : mode === 'login' ? 'Přihlásit se' : mode === 'activate' ? 'Poslat přihlašovací kód' : mode === 'register' ? 'Odeslat registraci' : mode === 'password-setup' ? 'Uložit nové heslo' : 'Ověřit kód'}</button>
+          {mode === 'login' && <button type="button" className="secondary-button" disabled={busy} onClick={() => { setMode('activate'); setError(''); setMessage(''); }}>Přihlásit se kódem</button>}
           {(mode === 'verify' || mode === 'password-setup') && <button type="button" className="secondary-button" disabled={busy} onClick={() => void resendVerificationCode()}>{busy ? 'Odesílám…' : mode === 'password-setup' ? 'Poslat nový kód pro heslo' : 'Poslat nový kód'}</button>}
           {mode === 'login' && <button type="button" className="text-button" disabled={busy} onClick={() => void resetPassword()}>Zapomenuté heslo</button>}
           {(mode === 'verify' || mode === 'activate' || mode === 'password-setup') && <button type="button" className="text-button" disabled={busy} onClick={() => { setMode('login'); setVerificationCode(''); setPassword(''); setPasswordAgain(''); }}>Zpět na přihlášení</button>}
         </form>
         {message && <p className="success-message" role="status">{message}</p>}
-        {error && <p className="error-message" role="alert">{error}</p>}
+        {error && <p id="account-error" className="error-message" role="alert">{error}</p>}
         {!installed && canInstall && <button type="button" className="secondary-button" onClick={() => void onInstall()}>Nainstalovat aplikaci</button>}
-        <small>Registrace sama přístup neudělí. Písně a formulář návrhů server zpřístupní až po schválení.</small>
+        {(mode === 'login' || mode === 'register') && <button type="button" className="text-button login-register" disabled={busy} onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setMessage(''); }}>{mode === 'login' ? 'Nemáte účet? Registrovat se' : 'Máte účet? Přihlásit se'}</button>}
+        <p className="login-approval">Nové účty před prvním použitím schvaluje správce.</p>
+        {mode === 'login' && <details className="login-help"><summary>Převedený účet nebo přihlášení bez hesla</summary><p>Použijte přihlášení kódem se svým dosavadním e-mailem. Po ověření se připojí původní profil i uložená data.</p></details>}
       </div>
     </section>
   );

@@ -65,6 +65,7 @@ describe('Režimy pro živé hraní', () => {
     await waitFor(() => expect(performanceSurface.querySelector('.chord-line--with-chords')).toHaveTextContent('Čistě vymyšlený řádek'));
     const lyricLine = performanceSurface.querySelector('.chord-line--with-chords');
 
+    await user.click(screen.getByRole('button', { name: 'Otevřít nastavení zobrazení' }));
     await user.click(screen.getByRole('button', { name: 'Režim u ohně' }));
     await waitFor(() => expect(view.container.querySelector('.song-reader--fire')).not.toBeNull());
     expect(screen.getByRole('navigation', { name: 'Hlavní ovládání hraní' })).toBeVisible();
@@ -72,6 +73,7 @@ describe('Režimy pro živé hraní', () => {
 
     await user.click(screen.getByRole('button', { name: 'Ukončit režim u ohně' }));
     await waitFor(() => expect(view.container.querySelector('.song-reader--off')).not.toBeNull());
+    await user.click(screen.getByRole('button', { name: 'Otevřít nastavení zobrazení' }));
     await user.click(screen.getByRole('button', { name: 'Pódiový režim' }));
     await waitFor(() => expect(view.container.querySelector('.song-reader--stage')).not.toBeNull());
     expect(document.documentElement.dataset.performanceMode).toBe('stage');

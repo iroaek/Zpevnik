@@ -1,4 +1,7 @@
 import { loadEnv } from 'vite';
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
@@ -45,9 +48,31 @@ export default defineConfig(({ mode }) => {
         },
       },
       react(),
+      {
+        name: 'app-shell-inventory',
+        apply: 'build',
+        enforce: 'post',
+        generateBundle(_options, bundle) {
+          const resources = Object.values(bundle)
+            .filter((item) => /\.(js|mjs|css|html|woff2)$/.test(item.fileName) && !/(music-renderer|pdf-engine|opensheetmusicdisplay|jszip)/.test(item.fileName))
+            .map((item) => ({ path: item.fileName, sha256: createHash('sha256').update(item.type === 'chunk' ? item.code : item.source).digest('hex') }));
+          const icon = 'icons/icon-lazec-192.png';
+          resources.push({ path: icon, sha256: createHash('sha256').update(readFileSync(`public/${icon}`)).digest('hex') });
+          this.emitFile({ type: 'asset', fileName: 'app-shell.json', source: JSON.stringify({ resources }) });
+        },
+        writeBundle(options, bundle) {
+          // Vite finalizes dynamic imports after generateBundle; hash the emitted bytes.
+          const directory = options.dir ?? 'dist';
+          const paths = Object.values(bundle).map((item) => item.fileName)
+            .filter((file) => /\.(js|mjs|css|html|woff2)$/.test(file) && !/(music-renderer|pdf-engine|opensheetmusicdisplay|jszip)/.test(file));
+          paths.push('icons/icon-lazec-192.png', 'images/taborovy-zpevnik.jpg');
+          const resources = paths.map((file) => ({ path: file, sha256: createHash('sha256').update(readFileSync(path.join(directory, file))).digest('hex') }));
+          writeFileSync(path.join(directory, 'app-shell.json'), JSON.stringify({ resources }));
+        },
+      },
       VitePWA({
         registerType: 'prompt',
-        includeAssets: ['icons/apple-touch-icon-lazec.png'],
+        includeAssets: ['icons/apple-touch-icon-lazec.png', 'icons/icon-lazec-192.png', 'images/taborovy-zpevnik.jpg'],
         manifest: {
           id: basePath,
           name: 'Český digitální zpěvník',
@@ -59,8 +84,8 @@ export default defineConfig(({ mode }) => {
           display: 'standalone',
           display_override: ['window-controls-overlay', 'standalone', 'minimal-ui'],
           orientation: 'any',
-          background_color: '#171310',
-          theme_color: '#7a321f',
+          background_color: '#0e1316',
+          theme_color: '#0e1316',
           categories: ['music', 'education', 'entertainment'],
           icons: [
             { src: 'icons/icon-lazec-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
@@ -73,7 +98,7 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
-          globPatterns: ['**/*.{js,mjs,css,html,png,svg,json,woff2,wasm}'],
+          globPatterns: ['**/*.{js,mjs,css,html,png,jpg,svg,json,woff2,wasm}'],
           globIgnores: [
             'qr/**/*',
             'icons/**/*',
@@ -114,6 +139,7 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     test: {
+      maxWorkers: 4,
       environment: 'jsdom',
       setupFiles: ['./src/test/setup.ts'],
       coverage: { reporter: ['text', 'html'] },

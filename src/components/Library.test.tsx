@@ -22,7 +22,7 @@ describe('Knihovna', () => {
   it('hledá bez ohledu na diakritiku a otevře píseň', async () => {
     const onOpen = vi.fn();
     render(<Library songs={[song]} favorites={[]} recent={[]} onOpenSong={onOpen} />);
-    expect(screen.getByRole('searchbox').closest('.library-sticky-panel')).not.toBeNull();
+    expect(screen.getByRole('searchbox').closest('.search-field')).not.toBeNull();
     await userEvent.type(screen.getByRole('searchbox'), 'zluta');
     await userEvent.click(screen.getByRole('button', { name: /^Žlutá zkouška/ }));
     expect(onOpen).toHaveBeenCalledWith('synteticky-test', expect.any(HTMLElement));
@@ -37,12 +37,16 @@ describe('Knihovna', () => {
     }));
     const first = render(<Library songs={songs} favorites={[]} recent={[]} onOpenSong={vi.fn()} />);
     expect(first.container.querySelectorAll('.song-card')).toHaveLength(15);
+    fireEvent.click(screen.getByRole('button', { name: 'Filtry' }));
+    fireEvent.click(screen.getByText('Abecední index'));
     fireEvent.click(screen.getByRole('button', { name: 'B' }));
     expect(first.container.querySelectorAll('.song-card')).toHaveLength(5);
     first.unmount();
 
     const second = render(<Library songs={songs} favorites={[]} recent={[]} onOpenSong={vi.fn()} />);
     expect(second.container.querySelectorAll('.song-card')).toHaveLength(5);
+    fireEvent.click(screen.getByRole('button', { name: 'Filtry (1)' }));
+    fireEvent.click(screen.getByText('Abecední index'));
     expect(screen.getByRole('button', { name: 'B' })).toHaveAttribute('aria-pressed', 'true');
   });
 
@@ -61,6 +65,7 @@ describe('Knihovna', () => {
 
   it('přepíná mezi velkými kartami a kompaktním seznamem', async () => {
     const view = render(<Library songs={[song]} favorites={[]} recent={[]} onOpenSong={vi.fn()} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Filtry' }));
     await userEvent.click(screen.getByRole('button', { name: 'Kompaktní seznam' }));
     expect(view.container.querySelector('.song-list--compact')).not.toBeNull();
     await userEvent.click(screen.getByRole('button', { name: 'Karty' }));

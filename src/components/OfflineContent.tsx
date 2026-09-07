@@ -26,6 +26,10 @@ import {
   type ContentPackageIntegrity,
   type LibraryManifest,
 } from '../storage/database';
+import { inspectAppShell, type AppShellInspection } from '../pwa/appShell';
+import { Icon } from '../ui/Icon';
+import { Dialog } from '../ui/Dialog';
+import { formatCount, formatDecimal, formatDateTime } from '../ui/format';
 import { friendlyError } from '../ui/friendlyError';
 
 const LIBRARY_PAGE_SIZE = 40;
@@ -35,8 +39,8 @@ type Notice = { text: string; tone: 'success' | 'error' | 'info' };
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} kB`;
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024) return `${formatDecimal(bytes / 1024)} kB`;
+  return `${formatDecimal(bytes / 1024 / 1024)} MB`;
 }
 
 interface OfflineContentProps {
@@ -46,6 +50,7 @@ interface OfflineContentProps {
   offlineGrant?: OfflineGrantPayload | null;
   downloadedLibrarySongs?: Song[];
   onPersonalLibraryChanged?: () => Promise<void>;
+  onRefreshAuthorization?: () => Promise<void>;
   onNavigate: (path: string) => void;
 }
 
@@ -57,6 +62,7 @@ export function OfflineContent({
   downloadedLibrarySongs = [],
   onPersonalLibraryChanged,
   onNavigate,
+  onRefreshAuthorization,
 }: OfflineContentProps) {
   const online = useConnectivity();
   const [stats, setStats] = useState<OfflineContentStats | null>(null);
@@ -75,7 +81,9 @@ export function OfflineContent({
   const [storagePersistent, setStoragePersistent] = useState<boolean | null>(null);
   const [storageUsage, setStorageUsage] = useState<{ usage: number; quota: number } | null>(null);
   const [pendingChanges, setPendingChanges] = useState(0);
-  const [openedAt] = useState(() => Date.now());
+  const [openedAt, setOpenedAt] = useState(() => Date.now());
+  const [shell, setShell] = useState<AppShellInspection | null>(null);
+  const [confirmKind, setConfirmKind] = useState<'songs' | 'scores' | null>(null);
   const scoreEstimate = useMemo(() => catalog.songs.flatMap((song) => song.scoreAssets).reduce((sum, asset) => sum + asset.byteSize, 0), [catalog]);
   const songEstimate = useMemo(() => catalog.songs.reduce((sum, song) => sum + song.contentBytes, 0), [catalog]);
   const filteredLibrarySongs = useMemo(() => {
@@ -85,7 +93,10 @@ export function OfflineContent({
       .some((value) => value.toLocaleLowerCase('cs').includes(query)));
   }, [downloadedLibrarySongs, libraryQuery]);
 
-  const refresh = useCallback(async () => setStats(await inspectOfflineContent(catalog)), [catalog]);
+  const refresh = useCallback(async () => {
+    const [content, appShell] = await Promise.all([inspectOfflineContent(catalog), inspectAppShell()]);
+    setStats(content); setShell(appShell); setOpenedAt(Date.now());
+  }, [catalog]);
   const refreshLibraryVersion = useCallback(async () => {
     setLocalManifest(await loadDownloadedLibraryMetadata());
     setMemberIntegrity(secureProfile ? await inspectContentPackageIntegrity(secureProfile.id) : null);
@@ -95,12 +106,12 @@ export function OfflineContent({
   }, [secureMode, secureProfile]);
 
   useEffect(() => {
-    inspectOfflineContent(catalog).then(setStats).catch(() => setStats(null));
+    void Promise.all([inspectOfflineContent(catalog), inspectAppShell()]).then(([content, appShell]) => { setStats(content); setShell(appShell); }).catch(() => setStats(null));
     void storagePersistenceState().then(setStoragePersistent);
     if (navigator.storage?.estimate) navigator.storage.estimate().then((estimate) => {
       setStorageUsage({ usage: estimate.usage ?? 0, quota: estimate.quota ?? 0 });
     }).catch(() => setStorageUsage(null));
-  }, [catalog]);
+  }, [catalog, refresh]);
 
   useEffect(() => {
     let active = true;
@@ -121,6 +132,17 @@ export function OfflineContent({
     window.addEventListener('zpevnik:update-available', available);
     return () => window.removeEventListener('zpevnik:update-available', available);
   }, []);
+
+  useEffect(() => {
+    if (!offlineGrant) return;
+    const updateClock = () => setOpenedAt(Date.now());
+    const nextBoundary = [Date.parse(offlineGrant.notBefore), Date.parse(offlineGrant.offlineValidUntil)]
+      .filter((time) => time > openedAt).sort((a, b) => a - b)[0];
+    const timer = nextBoundary === undefined ? null : window.setTimeout(updateClock, Math.min(2_147_483_647, Math.max(1, nextBoundary - Date.now() + 1)));
+    const onVisible = () => { if (document.visibilityState === 'visible') updateClock(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { if (timer !== null) window.clearTimeout(timer); document.removeEventListener('visibilitychange', onVisible); };
+  }, [offlineGrant, openedAt]);
 
   const runDownload = async (kind: 'songs' | 'scores') => {
     setOperation(kind);
@@ -307,8 +329,8 @@ export function OfflineContent({
   };
 
   const busy = operation !== null;
-  const publicCatalogReady = Boolean(stats?.allSongsVerified);
-  const memberLibraryReady = downloadedLibrarySongs.length > 0;
+  const publicCatalogReady = catalog.songs.length > 0 && Boolean(stats?.allSongsVerified);
+  const memberLibraryReady = downloadedLibrarySongs.length > 0 && memberIntegrity?.healthy === true && memberIntegrity.expectedSongs > 0;
   const memberUpdateAvailable = Boolean(remoteManifest && (!localManifest || remoteManifest.version !== localManifest.version));
   const missingMemberSongs = memberIntegrity
     ? memberIntegrity.missingSongs + memberIntegrity.invalidSongs + memberIntegrity.missingContent + memberIntegrity.alteredContent
@@ -316,77 +338,66 @@ export function OfflineContent({
   const missingPublicSongs = Math.max(0, (stats?.totalSongs ?? 0) - (stats?.downloadedSongs ?? 0));
   const missingScores = Math.max(0, (stats?.totalScores ?? 0) - (stats?.downloadedScores ?? 0));
   const hasRepairableContent = downloadedLibrarySongs.length > 0 || (stats?.downloadedSongs ?? 0) > 0 || (stats?.downloadedScores ?? 0) > 0;
-  const integrityHealthy = (memberIntegrity?.healthy ?? missingMemberSongs === 0)
-    && ((stats?.downloadedSongs ?? 0) === 0 || missingPublicSongs === 0)
-    && ((stats?.downloadedScores ?? 0) === 0 || missingScores === 0);
-  const shellReady = Boolean(stats?.serviceWorkerActive);
-  const authorizationReady = !secureMode || Boolean(offlineGrant);
+  const integrityHealthy = hasRepairableContent
+    && (downloadedLibrarySongs.length === 0 || memberIntegrity?.healthy === true)
+    && ((stats?.downloadedSongs ?? 0) === 0 || stats?.allSongsVerified === true)
+    && ((stats?.downloadedScores ?? 0) === 0 || stats?.allScoresVerified === true);
+  const shellReady = shell?.status === 'verified';
+  const authorizationReady = !secureMode || Boolean(offlineGrant && secureProfile?.status === 'approved' && offlineGrant.subject === secureProfile.id && Date.parse(offlineGrant.notBefore) <= openedAt && Date.parse(offlineGrant.offlineValidUntil) > openedAt);
   const grantDaysRemaining = offlineGrant ? Math.ceil((new Date(offlineGrant.offlineValidUntil).getTime() - openedAt) / 86_400_000) : null;
   const ready = secureMode
     ? memberLibraryReady && authorizationReady && shellReady
     : publicCatalogReady && shellReady;
-  const statusTitle = memberLibraryReady
-    ? 'Soukromá knihovna je připravená offline'
-    : publicCatalogReady
-      ? 'Ukázkové písně jsou připravené offline'
-      : online ? 'Zatím není stažena žádná knihovna' : 'Jste offline';
-  const statusDescription = memberLibraryReady
-    ? `${downloadedLibrarySongs.length} soukromých písní je uloženo přímo v tomto zařízení.`
-    : publicCatalogReady
-      ? 'Katalog i všechny ukázkové texty byly ověřeny v místní cache.'
-      : secureMode
-        ? 'Schválenou členskou knihovnu stáhněte v první kartě níže.'
-        : 'Ukázkové písně a noty můžete stáhnout v první sekci níže.';
+  const contentReady = secureMode ? memberLibraryReady : publicCatalogReady;
+  const readinessCount = [shellReady, authorizationReady, contentReady].filter(Boolean).length;
+  const verifiedTexts = secureMode ? memberIntegrity?.completeSongs ?? 0 : stats?.downloadedSongs ?? 0;
+  const totalTexts = secureMode ? memberIntegrity?.expectedSongs || remoteManifest?.songCount || localManifest?.songCount || downloadedLibrarySongs.length : catalog.songs.length;
+  const textProgress = totalTexts > 0 ? Math.min(1, verifiedTexts / totalTexts) : 0;
+  const refreshAuthorization = async () => {
+    setOperation('update'); setNotice(null);
+    try { await onRefreshAuthorization?.(); await refresh(); await refreshLibraryVersion(); }
+    catch (error) { setNotice({ tone: 'error', text: friendlyError(error, 'Oprávnění se nepodařilo obnovit.') }); }
+    finally { setOperation(null); }
+  };
 
   return (
     <section className="offline-page" aria-labelledby="offline-heading">
-      <p className="eyebrow">Bez signálu</p>
-      <h1 id="offline-heading">Offline obsah</h1>
-      <p className="lead offline-intro">Na jednom místě zde stáhnete, obnovíte i odstraníte soukromé písně, ukázky, noty a aktualizace aplikace.</p>
-
-      <div className={`offline-status offline-status--${ready ? 'ready' : online ? 'partial' : 'offline'}`} role="status">
-        <span className="status-dot" aria-hidden="true" />
-        <div><strong>{statusTitle}</strong><p>{statusDescription}</p></div>
-      </div>
-
-      <div className="offline-metrics">
-        <span><small>Členská knihovna</small><strong>{downloadedLibrarySongs.length}</strong></span>
-        <span><small>Ukázkové písně</small><strong>{stats?.downloadedSongs ?? 0}/{stats?.totalSongs ?? catalog.songs.length}</strong></span>
-        <span><small>Stažené party</small><strong>{stats?.downloadedScores ?? 0}/{stats?.totalScores ?? 0}</strong></span>
-        <span><small>Uložená cache</small><strong>{formatBytes(stats?.bytes ?? 0)}</strong></span>
-        <span><small>Offline oprávnění</small><strong>{offlineGrant ? `do ${new Date(offlineGrant.offlineValidUntil).toLocaleDateString('cs-CZ')}` : secureMode ? 'není aktivní' : 'nevyžaduje se'}</strong></span>
-        <span><small>Trvalé úložiště</small><strong>{storagePersistent === true ? 'povoleno' : storagePersistent === false ? 'nepovoleno' : 'nezjištěno'}</strong></span>
-        <span><small>Změny čekající na synchronizaci</small><strong>{pendingChanges}</strong></span>
-        <span><small>Platnost zařízení</small><strong>{grantDaysRemaining === null ? '—' : grantDaysRemaining > 1 ? `${grantDaysRemaining} dní` : grantDaysRemaining === 1 ? 'poslední den' : 'vyžaduje obnovu'}</strong></span>
-      </div>
-      <p className="last-update">Poslední změna offline obsahu: {stats?.lastUpdated ? new Date(stats.lastUpdated).toLocaleString('cs-CZ') : 'zatím žádná'}</p>
-      {storageUsage && <p className="last-update">Úložiště aplikace: přibližně {formatBytes(storageUsage.usage)} z dostupných {formatBytes(storageUsage.quota)}.</p>}
-
-      <article className={`offline-readiness ${ready ? 'offline-readiness--ready' : ''}`} aria-labelledby="offline-readiness-heading">
-        <header><span><p className="eyebrow">Cold start bez internetu</p><h2 id="offline-readiness-heading">{ready ? 'Zařízení je připravené' : 'Dokončete offline přípravu'}</h2></span><strong>{[shellReady, authorizationReady, secureMode ? memberLibraryReady : publicCatalogReady].filter(Boolean).length}/3</strong></header>
-        <ul>
-          <li className={shellReady ? 'complete' : ''}><span aria-hidden="true">{shellReady ? '✓' : '1'}</span><div><strong>Jádro aplikace</strong><small>{shellReady ? 'Service worker ovládá tuto instalaci.' : 'Načtěte aplikaci jednou online a obnovte ji.'}</small></div></li>
-          <li className={authorizationReady ? 'complete' : ''}><span aria-hidden="true">{authorizationReady ? '✓' : '2'}</span><div><strong>Offline oprávnění</strong><small>{authorizationReady ? (offlineGrant ? `Podepsané oprávnění platí do ${new Date(offlineGrant.offlineValidUntil).toLocaleDateString('cs-CZ')}.` : 'Pro veřejný obsah není vyžadováno.') : 'Přihlaste se online a nechte oprávnění bezpečně uložit.'}</small></div></li>
-          <li className={(secureMode ? memberLibraryReady : publicCatalogReady) ? 'complete' : ''}><span aria-hidden="true">{(secureMode ? memberLibraryReady : publicCatalogReady) ? '✓' : '3'}</span><div><strong>Obsah písní</strong><small>{secureMode ? `${downloadedLibrarySongs.length} členských písní v zařízení.` : `${stats?.downloadedSongs ?? 0} z ${stats?.totalSongs ?? catalog.songs.length} ukázek v zařízení.`}</small></div></li>
+      <div className="page-heading"><h1 id="offline-heading">Offline</h1><span className="muted">{online ? 'Online' : 'Bez připojení'}</span></div>
+      <article className={'offline-readiness ' + (ready ? 'offline-readiness--ready' : '')} aria-labelledby="offline-readiness-heading">
+        <header><div><h2 id="offline-readiness-heading">{!shell ? 'Kontroluji offline přípravu…' : ready ? 'Připraveno bez internetu' : 'Offline příprava není dokončena'}</h2><p>{!shell ? 'Ověřuji soubory uložené v tomto zařízení.' : ready ? 'Aplikace, oprávnění a texty jsou ověřené v tomto zařízení.' : !authorizationReady ? 'Chybí platné offline oprávnění.' : !contentReady ? 'Texty ještě nejsou kompletně uložené a ověřené.' : 'Uložení aplikace je třeba ověřit.'}</p></div><strong className="readiness-counter" aria-label="Splněné podmínky">{readinessCount}/3</strong></header>
+        <div className="offline-progress" role="img" aria-label={`${formatCount(verifiedTexts)} z ${formatCount(totalTexts)} textů ověřeno. ${readinessCount} ze 3 podmínek připravenosti splněno.`}>
+          <svg viewBox="0 0 120 120" aria-hidden="true"><circle className="offline-progress__track" cx="60" cy="60" r="51" /><circle className="offline-progress__value" cx="60" cy="60" r="51" pathLength="100" strokeDasharray={`${textProgress * 100} 100`} transform="rotate(-90 60 60)" /></svg>
+          <span><strong>{formatCount(verifiedTexts)}</strong><small>ověřených písní</small></span>
+        </div>
+        <ul className="readiness-checks">
+          <li className={shellReady ? 'complete' : ''}><Icon name={shellReady ? 'check' : 'alert'} size={20} /><div><strong>Aplikace</strong><small>{shellReady ? 'Soubory této verze jsou uložené a ověřené.' : shell?.status === 'missing' ? 'Část souborů aplikace chybí nebo nesouhlasí.' : 'Neověřeno. Otevřete aktuální verzi online.'}</small></div></li>
+          <li className={authorizationReady ? 'complete' : ''}><Icon name={authorizationReady ? 'check' : 'lock'} size={20} /><div><strong>Offline oprávnění</strong><small>{authorizationReady ? offlineGrant ? 'Platné do ' + formatDateTime(offlineGrant.offlineValidUntil) : 'Veřejné ukázky oprávnění nevyžadují.' : offlineGrant ? 'Platnost skončila nebo nesouhlasí s účtem.' : 'Připojte se a obnovte oprávnění účtu.'}</small></div></li>
+          <li className={contentReady ? 'complete' : ''}><Icon name={contentReady ? 'check' : 'download'} size={20} /><div><strong>Texty a akordy</strong><small>{secureMode ? formatCount(memberIntegrity?.completeSongs ?? 0) + ' z ' + formatCount(memberIntegrity?.expectedSongs ?? localManifest?.songCount ?? downloadedLibrarySongs.length) + ' členských písní ověřeno' : formatCount(stats?.downloadedSongs ?? 0) + ' z ' + formatCount(catalog.songs.length) + ' ukázek ověřeno'}</small></div></li>
         </ul>
-        <div className="offline-protection-row"><span><strong>Ochrana úložiště</strong><small>{storagePersistent === true ? 'Systém nebude data automaticky uvolňovat.' : 'Lze požádat systém o vyšší ochranu místních dat.'}</small></span><div className="button-row">{storagePersistent !== true && <button type="button" className="secondary-button" disabled={busy} onClick={() => void protectOfflineStorage()}>Chránit offline data</button>}<button type="button" className="secondary-button" onClick={() => onNavigate('settings')}>Exportovat nouzovou zálohu</button></div></div>
-        {pendingChanges > 0 && <p className="offline-queue-note" role="status"><strong>{pendingChanges} změn čeká.</strong> Oblíbené, setlisty nebo nastavení zůstávají bezpečně v zařízení a odešlou se při stabilním připojení.</p>}
-        {grantDaysRemaining !== null && grantDaysRemaining <= 7 && <p className="offline-renew-note" role="status"><strong>Offline oprávnění brzy vyprší.</strong> Před cestou aplikaci jednou otevřete online; oprávnění se při ověření účtu obnoví.</p>}
-        <p className="offline-data-warning"><strong>Důležité:</strong> běžné zavření aplikace ani aktualizace vás neodhlásí. Volba telefonu „Smazat data webu/aplikace“ ale odstraní také bezpečný offline klíč, knihovnu a setlisty; potom je záměrně nutné znovu ověřit účet online.</p>
+        {!authorizationReady ? <button type="button" className="primary-button" disabled={busy || !online} onClick={() => onRefreshAuthorization ? void refreshAuthorization() : onNavigate('settings')}>{busy ? 'Ověřuji…' : 'Obnovit oprávnění'}</button> : !contentReady ? <button type="button" className="primary-button" disabled={busy || !online} onClick={() => secureMode ? void downloadMemberLibrary() : void runDownload('songs')}>{busy ? 'Stahuji…' : 'Stáhnout písně'}</button> : <button type="button" className="primary-button" disabled={busy} onClick={() => void refresh().catch((error) => setNotice({ tone: 'error', text: friendlyError(error) }))}>Ověřit připravenost</button>}
+        {!online && !ready && <p className="last-update">K dokončení chybějících kroků se připojte k internetu.</p>}
       </article>
-
-      <article className={`offline-integrity-card ${integrityHealthy ? 'offline-integrity-card--healthy' : 'offline-integrity-card--attention'}`}>
-        <div><p className="eyebrow">Kontrola dat</p><h2>{integrityHealthy ? 'Stažený obsah je v pořádku' : 'Některé položky je třeba doplnit'}</h2><p>{integrityHealthy ? 'Počty, přítomnost obsahu a uložené délky všech částí souhlasí.' : `K opravě: členské písně ${missingMemberSongs}, ukázky ${missingPublicSongs}, party ${missingScores}. Oprava pokračuje od již ověřených částí.`}</p>{memberIntegrity && <small>Ověřeno {memberIntegrity.completeSongs}/{memberIntegrity.expectedSongs} písní · {formatBytes(memberIntegrity.availableBytes)} z {formatBytes(memberIntegrity.expectedBytes)}</small>}</div>
-        <button type="button" className="secondary-button" disabled={busy || !online || !hasRepairableContent} onClick={() => void repairOfflineContent()}>{operation === 'repair' ? 'Opravuji…' : 'Zkontrolovat a opravit'}</button>
-      </article>
-
+      <dl className="offline-summary"><div><dt>Písně v zařízení</dt><dd>{formatCount(secureMode ? downloadedLibrarySongs.length : stats?.downloadedSongs ?? 0)}</dd></div><div><dt>Volitelné noty</dt><dd>{formatCount(stats?.downloadedScores ?? 0)} / {formatCount(stats?.totalScores ?? 0)} partů</dd></div></dl>
+      <p className="last-update">Poslední kontrola: {shell ? formatDateTime(shell.checkedAt) : 'probíhá…'}. Noty se stahují samostatně.</p>
+      {storageUsage && storageUsage.quota > 0 && <div className="storage-estimate"><label htmlFor="offline-storage-meter"><span>Odhad využití kvóty prohlížeče</span><span>{formatBytes(storageUsage.usage)} / {formatBytes(storageUsage.quota)}</span></label><meter id="offline-storage-meter" min={0} max={storageUsage.quota} value={Math.min(storageUsage.usage, storageUsage.quota)} /></div>}
       {progress && <div className="download-progress" aria-live="polite"><div className="results-heading"><strong>{progress.currentLabel}</strong><span>{progress.completed}/{progress.total}</span></div><progress max={progress.total} value={progress.completed} /><small>{formatBytes(progress.downloadedBytes)} z odhadovaných {formatBytes(progress.estimatedBytes)}</small></div>}
       {notice && <p className={`${notice.tone === 'error' ? 'error-message' : notice.tone === 'success' ? 'success-message' : 'info-message'} offline-notice`} role="status">{notice.text}</p>}
 
+      <details className="offline-management"><summary>Správa obsahu a zařízení</summary><div>
+      <article className={`offline-integrity-card ${integrityHealthy ? 'offline-integrity-card--healthy' : 'offline-integrity-card--attention'}`}>
+        <div><p className="eyebrow">Kontrola dat</p><h2>{integrityHealthy ? 'Stažený obsah je v pořádku' : !hasRepairableContent ? 'Zatím není co ověřit' : 'Některé položky je třeba doplnit'}</h2><p>{integrityHealthy ? 'Počty, přítomnost obsahu a uložené délky všech částí souhlasí.' : `K opravě: členské písně ${missingMemberSongs}, ukázky ${missingPublicSongs}, party ${missingScores}. Oprava pokračuje od již ověřených částí.`}</p>{memberIntegrity && <small>Ověřeno {memberIntegrity.completeSongs}/{memberIntegrity.expectedSongs} písní · {formatBytes(memberIntegrity.availableBytes)} z {formatBytes(memberIntegrity.expectedBytes)}</small>}</div>
+        <button type="button" className="secondary-button" disabled={busy || !online || !hasRepairableContent} onClick={() => void repairOfflineContent()}>{operation === 'repair' ? 'Opravuji…' : 'Zkontrolovat a opravit'}</button>
+      </article>
+        <p className="last-update">Poslední změna obsahu: {stats?.lastUpdated ? formatDateTime(stats.lastUpdated) : 'zatím žádná'}.</p>
+        {storageUsage && <p className="last-update">Odhad využití aplikace: {formatBytes(storageUsage.usage)}. Kvóta prohlížeče: {formatBytes(storageUsage.quota)}; nejde o volnou kapacitu telefonu.</p>}
+        <p>{storagePersistent === true ? 'Prohlížeč udělil vyšší ochranu úložiště. Data může stále odstranit uživatel nebo systém.' : 'Lze požádat prohlížeč o vyšší ochranu místních dat.'}</p>
+        {storagePersistent !== true && <button type="button" className="secondary-button" disabled={busy} onClick={() => void protectOfflineStorage()}>Chránit offline data</button>}
+        <button type="button" className="secondary-button" onClick={() => onNavigate('settings')}>Exportovat zálohu</button>
+        <p className="last-update">Čekající změny: {formatCount(pendingChanges)}. {grantDaysRemaining === null ? 'Offline platnost není evidována.' : 'Zbývající platnost: ' + formatCount(Math.max(0, grantDaysRemaining)) + ' dní.'}</p>
       <div className="offline-actions">
         {secureMode && <>
           <div className="offline-section-heading"><span className="step-number" aria-hidden="true">1</span><span><p className="eyebrow">Vaše hlavní písně</p><h2>Soukromá knihovna</h2></span></div>
-          <article className="member-library-download"><div><h3>{secureProfile?.role === 'admin' ? 'Správcovský balíček' : 'Členský balíček'}</h3><p>{downloadedLibrarySongs.length > 0 ? `${downloadedLibrarySongs.length} písní je uloženo v tomto zařízení a funguje bez internetu.` : 'V zařízení zatím nejsou stažené žádné členské písně.'}</p><div className="library-version-row"><span className={`status-badge ${memberUpdateAvailable ? 'status-badge--pending' : localManifest ? 'status-badge--approved' : ''}`}>{memberUpdateAvailable ? 'Je dostupná nová verze' : localManifest ? 'Knihovna je aktuální' : 'Verze zatím není evidována'}</span>{localManifest && <small>Staženo {new Date(localManifest.downloadedAt).toLocaleString('cs-CZ')} · verze {localManifest.version.slice(0, 8)}</small>}{remoteManifest && <small>Na serveru {remoteManifest.songCount} písní · {formatBytes(remoteManifest.contentBytes)}</small>}</div><small>Obnovení proběhne bezpečně až po kontrole celého balíčku. Vaše vlastní PDF importy zůstanou zachované.</small></div><div className="offline-card-actions"><button className="primary-button" type="button" disabled={busy || !online || !secureProfile} onClick={() => void downloadMemberLibrary()}>{operation === 'member-library' ? 'Stahuji…' : memberUpdateAvailable ? 'Nainstalovat novou knihovnu' : downloadedLibrarySongs.length > 0 ? 'Ověřit aktuálnost' : 'Stáhnout knihovnu'}</button>{downloadedLibrarySongs.length > 0 && <button className="danger-button" type="button" disabled={busy} onClick={() => setConfirmRemoveLibrary(true)}>Odstranit knihovnu</button>}</div></article>
+          <article className="member-library-download"><div><h3>{secureProfile?.role === 'admin' ? 'Správcovský balíček' : 'Členský balíček'}</h3><p>{downloadedLibrarySongs.length > 0 ? `${downloadedLibrarySongs.length} písní je uloženo v tomto zařízení; použitelnost určuje kontrola výše.` : 'V zařízení zatím nejsou stažené žádné členské písně.'}</p><div className="library-version-row"><span className={`status-badge ${memberUpdateAvailable ? 'status-badge--pending' : localManifest && remoteManifest ? 'status-badge--approved' : ''}`}>{memberUpdateAvailable ? 'Je dostupná nová verze' : localManifest ? remoteManifest ? 'Knihovna je aktuální' : 'Aktuálnost na serveru neověřena' : 'Verze zatím není evidována'}</span>{localManifest && <small>Staženo {new Date(localManifest.downloadedAt).toLocaleString('cs-CZ')} · verze {localManifest.version.slice(0, 8)}</small>}{remoteManifest && <small>Na serveru {remoteManifest.songCount} písní · {formatBytes(remoteManifest.contentBytes)}</small>}</div><small>Obnovení proběhne bezpečně až po kontrole celého balíčku. Vaše vlastní PDF importy zůstanou zachované.</small></div><div className="offline-card-actions"><button className="primary-button" type="button" disabled={busy || !online || !secureProfile} onClick={() => void downloadMemberLibrary()}>{operation === 'member-library' ? 'Stahuji…' : memberUpdateAvailable ? 'Nainstalovat novou knihovnu' : downloadedLibrarySongs.length > 0 ? 'Ověřit aktuálnost' : 'Stáhnout knihovnu'}</button>{downloadedLibrarySongs.length > 0 && <button className="danger-button" type="button" disabled={busy} onClick={() => setConfirmRemoveLibrary(true)}>Odstranit knihovnu</button>}</div></article>
           {confirmRemoveLibrary && <div className="confirm-row prominent-confirm" role="alert"><strong>Odstranit všech {downloadedLibrarySongs.length} stažených členských písní?</strong><span>Odstranění platí pouze pro toto zařízení. Písně lze později znovu stáhnout.</span><div className="button-row"><button type="button" className="danger-button" disabled={busy} onClick={() => void removeMemberLibrary()}>Ano, odstranit knihovnu</button><button type="button" className="secondary-button" disabled={busy} onClick={() => setConfirmRemoveLibrary(false)}>Zrušit</button></div></div>}
           {downloadedLibrarySongs.length > 0 && <details className="downloaded-library-manager">
             <summary>Odstranit jednotlivé písně ({downloadedLibrarySongs.length})</summary>
@@ -412,8 +423,8 @@ export function OfflineContent({
         <details className="optional-offline-panel" open={!secureMode}>
           <summary><span><strong>Volitelné ukázky a noty</strong><small>Nejsou nutné pro soukromou knihovnu</small></span></summary>
           <div className="optional-offline-panel__content">
-            <article><div><h3>Ukázkový veřejný katalog</h3><p>{catalog.songs.length} písní · přibližně {formatBytes(songEstimate)}. Soukromá členská knihovna se spravuje samostatně výše.</p></div><div className="offline-card-actions"><button className="secondary-button" type="button" disabled={busy || !online} onClick={() => void runDownload('songs')}>{operation === 'songs' ? 'Stahuji…' : stats?.allSongsVerified ? 'Ověřit znovu' : 'Stáhnout ukázky'}</button><button className="danger-button" type="button" disabled={busy || (stats?.downloadedSongs ?? 0) === 0} onClick={() => void removeCached('songs')}>{operation === 'remove-songs' ? 'Odstraňuji…' : 'Odstranit ukázky'}</button></div></article>
-            <article><div><h3>Notové party</h3><p>{stats?.totalScores ?? 0} partů · přibližně {formatBytes(scoreEstimate)} · stahují se zvlášť</p></div><div className="offline-card-actions"><button className="secondary-button" type="button" disabled={busy || !online || scoreEstimate === 0} onClick={() => void runDownload('scores')}>{operation === 'scores' ? 'Stahuji…' : stats?.allScoresVerified ? 'Ověřit znovu' : 'Stáhnout noty'}</button><button className="danger-button" type="button" disabled={busy || (stats?.downloadedScores ?? 0) === 0} onClick={() => void removeCached('scores')}>{operation === 'remove-scores' ? 'Odstraňuji…' : 'Odstranit noty'}</button></div></article>
+            <article><div><h3>Ukázkový veřejný katalog</h3><p>{catalog.songs.length} písní · přibližně {formatBytes(songEstimate)}. Soukromá členská knihovna se spravuje samostatně výše.</p></div><div className="offline-card-actions"><button className="secondary-button" type="button" disabled={busy || !online} onClick={() => void runDownload('songs')}>{operation === 'songs' ? 'Stahuji…' : stats?.allSongsVerified ? 'Ověřit znovu' : 'Stáhnout ukázky'}</button><button className="danger-button" type="button" disabled={busy || (stats?.downloadedSongs ?? 0) === 0} onClick={() => setConfirmKind('songs')}>{operation === 'remove-songs' ? 'Odstraňuji…' : 'Odstranit ukázky'}</button></div></article>
+            <article><div><h3>Notové party</h3><p>{stats?.totalScores ?? 0} partů · přibližně {formatBytes(scoreEstimate)} · stahují se zvlášť</p></div><div className="offline-card-actions"><button className="secondary-button" type="button" disabled={busy || !online || scoreEstimate === 0} onClick={() => void runDownload('scores')}>{operation === 'scores' ? 'Stahuji…' : stats?.allScoresVerified ? 'Ověřit znovu' : 'Stáhnout noty'}</button><button className="danger-button" type="button" disabled={busy || (stats?.downloadedScores ?? 0) === 0} onClick={() => setConfirmKind('scores')}>{operation === 'remove-scores' ? 'Odstraňuji…' : 'Odstranit noty'}</button></div></article>
           </div>
         </details>
 
@@ -427,6 +438,8 @@ export function OfflineContent({
         <span><h2>Vyčistit stažená data</h2><p>Odstraní ukázky, noty a soukromou knihovnu. Samotná aplikace, profil, setlisty a vaše PDF importy zůstanou.</p></span>
         {!confirmRemove ? <button className="danger-button" type="button" disabled={busy} onClick={() => setConfirmRemove(true)}>Odstranit všechna stažená data</button> : <div className="confirm-row" role="alert"><strong>Opravdu odstranit všechna stažená data?</strong><span>Písně z členské knihovny lze později znovu stáhnout.</span><div className="button-row"><button className="danger-button" type="button" onClick={() => void removeCached('all')}>Ano, odstranit data</button><button className="secondary-button" type="button" onClick={() => setConfirmRemove(false)}>Zrušit</button></div></div>}
       </div></details>
+      </div></details>
+      <Dialog open={confirmKind !== null} title="Odstranit stažený obsah?" onClose={() => setConfirmKind(null)}><p>Odstranění platí pro toto zařízení. Obsah lze později znovu stáhnout.</p><button type="button" className="danger-button" onClick={() => { if (confirmKind) void removeCached(confirmKind); setConfirmKind(null); }}>Ano, odstranit</button><button type="button" className="secondary-button" onClick={() => setConfirmKind(null)}>Zrušit</button></Dialog>
       {!stats?.serviceWorkerActive && <p className="score-note">Offline jádro aplikace ještě není aktivní. Nechte stránku jednou načíst online a poté ji obnovte.</p>}
     </section>
   );
