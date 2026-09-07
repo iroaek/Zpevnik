@@ -169,7 +169,7 @@ describe('Offline obsah', () => {
 
   it.each(['missing', 'expired', 'other-account'] as const)('neoznačí dvě ze tří podmínek jako připraveno: %s', async (reason) => {
     vi.mocked(inspectContentPackageIntegrity).mockResolvedValue({ expectedSongs: 1, indexedSongs: 1, completeSongs: 1, missingSongs: 0, invalidSongs: 0, missingContent: 0, alteredContent: 0, availableBytes: 20, expectedBytes: 20, healthy: true });
-    const valid = { version: 1 as const, issuer: 'https://auth.example.test', audience: 'qa', subject: profile.id, scopes: ['library:read'], contentPackages: ['members'], contentVersion: 'qa', issuedAt: '2020-01-01T00:00:00Z', notBefore: '2020-01-01T00:00:00Z', offlineValidUntil: '2099-01-01T00:00:00Z', keyId: 'qa' };
+    const valid = { version: 1 as const, issuer: 'https://auth.example.test', audience: 'qa', subject: profile.id, scopes: ['songs:read'], contentPackages: ['members'], contentVersion: 'qa', issuedAt: '2020-01-01T00:00:00Z', notBefore: '2020-01-01T00:00:00Z', offlineValidUntil: '2099-01-01T00:00:00Z', keyId: 'qa' };
     const grant = reason === 'missing' ? null : reason === 'expired' ? { ...valid, offlineValidUntil: '2020-01-02T00:00:00Z' } : { ...valid, subject: pendingUserId };
     const refresh = vi.fn().mockResolvedValue(undefined);
     render(<OfflineContent catalog={catalog} secureMode secureProfile={profile} offlineGrant={grant} downloadedLibrarySongs={[downloadedSong]} onNavigate={vi.fn()} onRefreshAuthorization={refresh} />);
@@ -185,7 +185,7 @@ describe('Offline obsah', () => {
     try {
       const now = Date.now();
       vi.mocked(inspectContentPackageIntegrity).mockResolvedValue({ expectedSongs: 1, indexedSongs: 1, completeSongs: 1, missingSongs: 0, invalidSongs: 0, missingContent: 0, alteredContent: 0, availableBytes: 20, expectedBytes: 20, healthy: true });
-      const grant = { version: 1 as const, issuer: 'https://auth.example.test', audience: 'qa', subject: profile.id, scopes: ['library:read'], contentPackages: ['members'], contentVersion: 'qa', issuedAt: new Date(now - 60_000).toISOString(), notBefore: new Date(now - 60_000).toISOString(), offlineValidUntil: new Date(now + 5_000).toISOString(), keyId: 'qa' };
+      const grant = { version: 1 as const, issuer: 'https://auth.example.test', audience: 'qa', subject: profile.id, scopes: ['songs:read'], contentPackages: ['members'], contentVersion: 'qa', issuedAt: new Date(now - 60_000).toISOString(), notBefore: new Date(now - 60_000).toISOString(), offlineValidUntil: new Date(now + 5_000).toISOString(), keyId: 'qa' };
       render(<OfflineContent catalog={catalog} secureMode secureProfile={profile} offlineGrant={grant} downloadedLibrarySongs={[downloadedSong]} onNavigate={vi.fn()} />);
       await act(async () => { await vi.advanceTimersByTimeAsync(1); });
       expect(screen.getByText('Připraveno bez internetu')).toBeVisible();

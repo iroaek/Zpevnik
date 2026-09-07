@@ -1,4 +1,5 @@
 import { neonDataApiUrl } from './neonClient';
+import { authFetch } from '../auth/authLifecycle';
 
 export const neonDataApiConfigured = Boolean(neonDataApiUrl);
 
@@ -15,6 +16,7 @@ interface NeonRequestOptions {
   body?: unknown;
   prefer?: string;
   baseUrl?: string;
+  signal?: AbortSignal;
 }
 
 function endpoint(path: string, query?: Record<string, string>, baseUrl = neonDataApiUrl): URL {
@@ -36,7 +38,8 @@ function errorDetails(value: unknown): { message: string; code?: string } {
 
 export async function neonDataRequest<T>(path: string, accessToken: string, options: NeonRequestOptions = {}): Promise<T> {
   if (!accessToken) throw new NeonDataApiError('Pro Neon Data API je nutné přihlášení.', 401, 'missing_access_token');
-  const response = await fetch(endpoint(path, options.query, options.baseUrl), {
+  const response = await authFetch(endpoint(path, options.query, options.baseUrl), {
+    signal: options.signal,
     method: options.method ?? 'GET',
     headers: {
       Accept: 'application/json',
@@ -53,12 +56,13 @@ export async function neonDataRequest<T>(path: string, accessToken: string, opti
     throw new NeonDataApiError(details.message, response.status, details.code);
   }
   if (response.status === 204) return null as T;
+  if (!response.headers.get('content-type')?.includes('application/json')) throw new NeonDataApiError('Neon Data API nevrátilo JSON.', response.status, 'api_not_json');
   const text = await response.text();
   return (text ? JSON.parse(text) : null) as T;
 }
 
-export function neonSelect<T>(table: string, accessToken: string, query: Record<string, string>): Promise<T[]> {
-  return neonDataRequest<T[]>(table, accessToken, { query });
+export function neonSelect<T>(table: string, accessToken: string, query: Record<string, string>, signal?: AbortSignal): Promise<T[]> {
+  return neonDataRequest<T[]>(table, accessToken, { query, signal });
 }
 
 export function neonInsert<T>(table: string, accessToken: string, row: unknown): Promise<T[]> {
@@ -78,6 +82,6 @@ export function neonUpsert(table: string, accessToken: string, row: unknown, onC
   });
 }
 
-export function neonRpc<T>(functionName: string, accessToken: string, body: Record<string, unknown> = {}): Promise<T> {
-  return neonDataRequest<T>(`rpc/${functionName}`, accessToken, { method: 'POST', body });
+export function neonRpc<T>(functionName: string, accessToken: string, body: Record<string, unknown> = {}, signal?: AbortSignal): Promise<T> {
+  return neonDataRequest<T>(`rpc/${functionName}`, accessToken, { method: 'POST', body, signal });
 }

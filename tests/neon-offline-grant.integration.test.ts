@@ -25,7 +25,7 @@ describe('Neon offline oprávnění', () => {
 
   it('ukládá veřejný JWKS s grantem a nepotřebuje Edge Function ani privátní klíč', () => {
     expect(repository).toContain("provider: 'neon-auth'");
-    expect(repository).toContain('loadNeonPublicJwks()');
+    expect(repository).toContain('loadNeonPublicJwks(signal)');
     expect(repository).not.toMatch(/supabase|private_jwk|service_role/i);
     expect(client).not.toMatch(/functions\.invoke|VITE_NEON_OFFLINE_GRANT_URL/i);
   });
@@ -33,6 +33,6 @@ describe('Neon offline oprávnění', () => {
   it('po přihlášení uloží grant z již ověřeného JWT bez druhého cookie požadavku', () => {
     const hook = readFileSync('src/hooks/useSecureAccount.ts', 'utf8');
     expect(hook).toContain('result.session.access_token');
-    expect(repository).toContain('accessToken || requestNeonSessionJwt()');
+    expect(repository).toContain('accessToken || requestNeonSessionJwt({ signal })');
   });
 });

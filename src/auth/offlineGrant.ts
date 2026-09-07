@@ -37,6 +37,11 @@ export const offlineGrantKeySetSchema = z.object({
 });
 
 export type OfflineGrantPayload = z.infer<typeof offlineGrantPayloadSchema>;
+export function offlineGrantAllowsReading(grant: OfflineGrantPayload | null | undefined, profile: { id: string; status: string; role: string } | null | undefined, now = Date.now()): boolean {
+  return Boolean(grant && profile?.status === 'approved' && grant.subject === profile.id
+    && grant.scopes.includes('songs:read') && grant.contentPackages.includes(profile.role === 'admin' ? 'admin' : 'members')
+    && Date.parse(grant.notBefore) <= now && Date.parse(grant.offlineValidUntil) > now);
+}
 export type OfflineGrantKeySet = z.infer<typeof offlineGrantKeySetSchema>;
 
 const neonProtectedHeaderSchema = z.object({
@@ -56,6 +61,7 @@ const neonSessionClaimsSchema = z.object({
   banned: z.boolean().default(false),
   iat: z.number().int().nonnegative(),
   exp: z.number().int().positive(),
+  nbf: z.number().int().nonnegative().optional(),
 });
 
 export const neonOfflineKeySetSchema = z.object({
@@ -84,6 +90,7 @@ export type OfflineGrantValidationReason =
   | 'wrong-issuer'
   | 'wrong-audience'
   | 'wrong-device'
+  | 'identity-mismatch'
   | 'wrong-package'
   | 'not-active'
   | 'expired';
@@ -214,22 +221,23 @@ export async function verifyNeonOfflineGrant(token: string, options: VerifyNeonO
   const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
   if (!audiences.includes(options.audience)) throw new OfflineGrantValidationError('wrong-audience', 'Offline oprávnění není určené pro tuto aplikaci.');
   if (!options.profile.auth_user_id || claims.sub !== options.profile.auth_user_id) {
-    throw new OfflineGrantValidationError('malformed', 'Neon účet a místní profil si neodpovídají.');
+    throw new OfflineGrantValidationError('identity-mismatch', 'Neon účet a místní profil si neodpovídají.');
   }
   if (claims.email.toLocaleLowerCase('cs') !== options.profile.email.toLocaleLowerCase('cs')) {
     throw new OfflineGrantValidationError('malformed', 'Neon účet používá jiný e-mail než místní profil.');
   }
-  if (options.profile.status !== 'approved' || claims.banned || claims.role !== options.profile.role) {
+  if (!claims.emailVerified || options.profile.status !== 'approved' || claims.banned || claims.role !== options.profile.role) {
     throw new OfflineGrantValidationError('wrong-package', 'Neon účet nemá schválený přístup k tomuto obsahovému balíčku.');
   }
   const requiredPackage = options.profile.role === 'admin' ? 'admin' : 'members';
   const issuedAtMs = claims.iat * 1000;
   const now = options.now ?? Date.now();
-  const tolerance = options.clockToleranceMs ?? 5 * 60_000;
-  if (issuedAtMs > now + tolerance) throw new OfflineGrantValidationError('not-active', 'Neon offline oprávnění ještě není platné.');
+  if (!Number.isFinite(now) || claims.exp <= claims.iat || (claims.id && claims.id !== claims.sub)) throw new OfflineGrantValidationError('malformed', 'Neon oprávnění má neplatné časové nebo autorizační údaje.');
+  if (issuedAtMs > now) throw new OfflineGrantValidationError('not-active', 'Neon offline oprávnění ještě není platné.');
+  if (claims.nbf !== undefined && claims.nbf * 1000 > now) throw new OfflineGrantValidationError('not-active', 'Neon offline oprávnění ještě není platné.');
   const offlineDays = Math.min(30, Math.max(1, options.offlineDays ?? 30));
   const offlineValidUntilMs = issuedAtMs + offlineDays * 24 * 60 * 60 * 1000;
-  if (offlineValidUntilMs <= now - tolerance) {
+  if (offlineValidUntilMs <= now) {
     throw new OfflineGrantValidationError('expired', 'Offline oprávnění vypršelo. Připojte se k internetu a obnovte je.');
   }
   const payload = offlineGrantPayloadSchema.parse({
@@ -242,7 +250,7 @@ export async function verifyNeonOfflineGrant(token: string, options: VerifyNeonO
     contentPackages: [requiredPackage],
     contentVersion: options.contentVersion || 'not-downloaded',
     issuedAt: new Date(issuedAtMs).toISOString(),
-    notBefore: new Date(issuedAtMs).toISOString(),
+    notBefore: new Date(claims.nbf === undefined ? issuedAtMs : claims.nbf * 1000).toISOString(),
     offlineValidUntil: new Date(offlineValidUntilMs).toISOString(),
     keyId: header.kid,
     deviceId: options.deviceId,

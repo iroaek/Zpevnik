@@ -31,17 +31,17 @@ describe('migrace IndexedDB', () => {
     legacy.close();
   });
 
-  it('povýší databázi na verzi 9, převede stav na schéma 7 a zachová uživatelská data', async () => {
+  it('povýší databázi na verzi 10, převede stav na schéma 7 a zachová uživatelská data', async () => {
     const databaseModule = await import('./database');
     const loaded = await databaseModule.loadUserState();
-    expect(databaseModule.DATABASE_VERSION).toBe(9);
+    expect(databaseModule.DATABASE_VERSION).toBe(10);
     expect(loaded.schemaVersion).toBe(7);
     expect(loaded.settings.motion).toBe('gentle');
     expect(loaded.updatedAt).toBe('2026-08-05T00:00:00.000Z');
     expect(loaded.favorites).toEqual(legacyState.favorites);
     expect(loaded.setlists).toEqual(legacyState.setlists);
     expect(loaded.settings.autoScrollSpeed).toBe(31);
-    const upgraded = await openDB('cesky-zpevnik', 9);
+    const upgraded = await openDB('cesky-zpevnik', 10);
     expect([...upgraded.objectStoreNames]).toContain('metadata');
     expect([...upgraded.objectStoreNames]).toContain('personalSongs');
     expect([...upgraded.objectStoreNames]).toContain('personalSongContent');
@@ -216,8 +216,10 @@ describe('migrace IndexedDB', () => {
     const imported = await databaseModule.importFullBackup(file, {
       replaceDownloadedLibrary: true,
       expectedLibraryScope: 'members',
+      ownerUserId: '11111111-1111-4111-8111-111111111111',
+      verifiedManifest: { schemaVersion: 1, scope: 'members', version: 'a'.repeat(64), generatedAt: '2026-09-01T00:00:00Z', songCount: 1, contentBytes: 24 },
     });
-    const songs = await databaseModule.loadPersonalSongs();
+    const songs = await databaseModule.loadPersonalSongs('11111111-1111-4111-8111-111111111111');
     expect(imported.personalSongCount).toBe(1);
     expect(songs).not.toContainEqual(expect.objectContaining({ id: oldDownloaded.id }));
     expect(songs).toContainEqual(expect.objectContaining({ id: newDownloaded.id }));
@@ -228,7 +230,7 @@ describe('migrace IndexedDB', () => {
 
   it('odstraní celou staženou členskou knihovnu, ale ponechá vlastní PDF importy', async () => {
     const databaseModule = await import('./database');
-    const before = await databaseModule.loadPersonalSongs();
+    const before = await databaseModule.loadPersonalSongs('11111111-1111-4111-8111-111111111111');
     expect(before).toContainEqual(expect.objectContaining({ id: 'personal-nova-clenska' }));
     expect(before).toContainEqual(expect.objectContaining({ id: 'personal-vlastni-pdf' }));
 

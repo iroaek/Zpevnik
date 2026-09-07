@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
-  clearSecureAccountLocalData,
-  clearSecureAuthorizationData,
+  changeAuthIntent,
+  loadAuthIntent,
   clearNeonSessionCredential,
   importFullBackup,
   libraryManifestSchema,
@@ -16,6 +16,7 @@ import {
   type UserState,
 } from '../storage/database';
 import { createUuid } from '../domain/browserCompatibility';
+import { assertAuthWork, authFetch, authWorkSignal, cancelAuthWork } from './authLifecycle';
 import { readBlobBytes } from '../domain/readBlobBytes';
 import { neonInsert, neonRpc, neonSelect, neonUpsert } from '../backend/neonDataApi';
 import {
@@ -210,7 +211,7 @@ function normalizeSession(data: Awaited<ReturnType<ReturnType<typeof requireNeon
   if (!data?.session || !data.user) return null;
   return {
     access_token: data.session.token,
-    expires_at: new Date(data.session.expiresAt).toISOString(),
+    expires_at: jwtExpiry(data.session.token) ?? new Date(data.session.expiresAt).toISOString(),
     user: {
       id: data.user.id,
       email: data.user.email,
@@ -238,28 +239,34 @@ function sessionIsUsable(session: SecureSession | null): session is SecureSessio
   return Boolean(session && Date.parse(session.expires_at) > Date.now() + 5_000);
 }
 
-async function jwtFromSessionToken(sessionToken: string): Promise<string | null> {
+async function jwtFromSessionToken(sessionToken: string, signal?: AbortSignal): Promise<string | null> {
   if (!neonAuthUrl || !sessionToken) return null;
-  const response = await fetch(`${neonAuthUrl}/token`, {
+  const response = await authFetch(`${neonAuthUrl}/token`, {
+    signal,
     credentials: 'omit',
     headers: {
       Accept: 'application/json',
       Authorization: `Bearer ${sessionToken}`,
     },
   });
-  if (!response.ok) return null;
+  if (response.status === 401) return null;
+  if (!response.ok) throw new SecureAccessError('Server neobnovil relaci.', response.status, 'neon_token_http_failed');
+  if (!response.headers.get('content-type')?.includes('application/json')) throw new SecureAccessError('Server nevrátil autorizační JSON.', response.status, 'neon_token_not_json');
   const data = await response.json().catch(() => null) as { token?: unknown } | null;
-  return typeof data?.token === 'string' ? data.token : null;
+  if (typeof data?.token !== 'string') throw new SecureAccessError('Server nevrátil autorizační token.', response.status, 'neon_token_malformed');
+  return data.token;
 }
 
 async function sessionFromSignInResponse(
   data: { token: string; user: { id: string; email: string; emailVerified: boolean; name: string } } | null,
+  signal?: AbortSignal,
 ): Promise<SecureSession | null> {
   if (!data?.user) return null;
   // Safari v PWA může odmítnout third-party cookie Neon Auth. OTP endpoint však
   // vrací krátký session token a Neonův bearer plugin jej umí bezpečně vyměnit
   // za podepsaný JWT bez závislosti na cookie.
-  const token = consumePendingNeonAuthJwt(data.user.id) ?? await jwtFromSessionToken(data.token);
+  const token = consumePendingNeonAuthJwt(data.user.id) ?? await jwtFromSessionToken(data.token, signal);
+  assertAuthWork(signal);
   const expiresAt = token ? jwtExpiry(token) : null;
   if (!token || !expiresAt) return null;
   return {
@@ -276,6 +283,7 @@ async function sessionFromSignInResponse(
 
 async function persistSessionCredential(
   data: { token: string; user: { id: string; email: string; emailVerified: boolean; name: string } } | null,
+  signal?: AbortSignal,
 ): Promise<void> {
   if (!data?.token || !data.user.emailVerified) return;
   // Podepsaný JWT je krátkodobý autorizační doklad, nikoli obnovovací relace.
@@ -295,10 +303,10 @@ async function persistSessionCredential(
       displayName: data.user.name || data.user.email.split('@')[0] || 'Člen',
     },
     savedAt: new Date().toISOString(),
-  });
+  }, signal);
 }
 
-async function restorePersistedSession(): Promise<SecureSession | null> {
+async function restorePersistedSession(signal?: AbortSignal): Promise<SecureSession | null> {
   const stored = await loadNeonSessionCredential();
   if (!stored) return null;
   if (!stored.user.emailVerified) {
@@ -308,12 +316,14 @@ async function restorePersistedSession(): Promise<SecureSession | null> {
   // Endpoint /token ověří, že serverová relace stále existuje a nebyla
   // odvolána. Při výpadku sítě token nemažeme; useSecureAccount použije
   // podepsané offline oprávnění uložené pro toto zařízení.
-  const jwt = await jwtFromSessionToken(stored.sessionToken);
+  const jwt = await jwtFromSessionToken(stored.sessionToken, signal);
+  assertAuthWork(signal);
   const expiresAt = jwt ? jwtExpiry(jwt) : null;
-  if (!jwt || !expiresAt) {
+  if (!jwt) {
     await clearNeonSessionCredential();
     return null;
   }
+  if (!expiresAt) throw new SecureAccessError('Server vrátil neplatný autorizační token.', 502, 'neon_token_malformed');
   return {
     access_token: jwt,
     expires_at: expiresAt,
@@ -340,16 +350,19 @@ export function subscribeToSecureSession(callback: (event: SecureAuthChangeEvent
   };
 }
 
-export async function getSecureSession(): Promise<SecureSession | null> {
+export async function getSecureSession(signal: AbortSignal = authWorkSignal()): Promise<SecureSession | null> {
+  assertAuthWork(signal);
+  if ((await loadAuthIntent()).signedOut) return null;
   if (sessionIsUsable(bootstrapSession)) return bootstrapSession;
   bootstrapSession = null;
   let result: Awaited<ReturnType<ReturnType<typeof requireNeonClient>['auth']['getSession']>>;
   try {
     result = await requireNeonClient().auth.getSession({
-      fetchOptions: { headers: { 'X-Force-Fetch': 'true' } },
+      fetchOptions: { headers: { 'X-Force-Fetch': 'true' }, signal },
     });
   } catch (error) {
-    const restored = await restorePersistedSession();
+    assertAuthWork(signal);
+    const restored = await restorePersistedSession(signal);
     if (restored) {
       bootstrapSession = restored;
       return restored;
@@ -357,8 +370,9 @@ export async function getSecureSession(): Promise<SecureSession | null> {
     throw error;
   }
   const { data, error } = result;
+  assertAuthWork(signal);
   if (error) {
-    const restored = await restorePersistedSession();
+    const restored = await restorePersistedSession(signal);
     if (restored) {
       bootstrapSession = restored;
       return restored;
@@ -367,7 +381,7 @@ export async function getSecureSession(): Promise<SecureSession | null> {
   }
   const session = normalizeSession(data);
   if (!sessionIsUsable(session)) {
-    const restored = await restorePersistedSession();
+    const restored = await restorePersistedSession(signal);
     bootstrapSession = restored;
     return restored;
   }
@@ -386,8 +400,9 @@ export async function getSecureSession(): Promise<SecureSession | null> {
         displayName: session.user.user_metadata.display_name,
       },
       savedAt: new Date().toISOString(),
-    }).catch(() => undefined);
-    const jwt = await jwtFromSessionToken(session.access_token);
+    }, signal).catch(() => undefined);
+    const jwt = await jwtFromSessionToken(session.access_token, signal);
+    assertAuthWork(signal);
     const expiresAt = jwt ? jwtExpiry(jwt) : null;
     if (!jwt || !expiresAt) throw new SecureAccessError('Neon Auth neobnovil autorizační token po otevření aplikace.', 401, 'neon_session_jwt_failed');
     bootstrapSession = { ...session, access_token: jwt, expires_at: expiresAt };
@@ -398,6 +413,8 @@ export async function getSecureSession(): Promise<SecureSession | null> {
 }
 
 export async function registerSecureAccount(input: { displayName: string; email: string; password: string }): Promise<{ needsEmailConfirmation: boolean }> {
+  cancelAuthWork();
+  const signal = authWorkSignal();
   const { data, error } = await requireNeonClient().auth.signUp.email({
     name: input.displayName.trim(),
     email: input.email.trim().toLocaleLowerCase('cs'),
@@ -405,6 +422,7 @@ export async function registerSecureAccount(input: { displayName: string; email:
     callbackURL: appRedirectUrl(),
   });
   if (error) throw readableError(error, 'Registraci v Neon Auth se nepodařilo dokončit.');
+  assertAuthWork(signal);
   const needsEmailConfirmation = data?.user?.emailVerified !== true;
   // Neon může po registraci vydat relaci ještě před ověřením e-mailu. Takovou
   // relaci nesmíme pustit k profilu ani použít pro převzetí migrovaného účtu.
@@ -412,11 +430,14 @@ export async function registerSecureAccount(input: { displayName: string; email:
     await requireNeonClient().auth.signOut().catch(() => undefined);
   } else {
     const signUpSessionData = data && typeof data.token === 'string' ? data : null;
-    const directSession = await sessionFromSignInResponse(signUpSessionData);
+    if (signUpSessionData?.user.emailVerified) await changeAuthIntent(signUpSessionData.user.id, false, signal);
+    const directSession = await sessionFromSignInResponse(signUpSessionData, signal);
     if (directSession) bootstrapSession = directSession;
-    const session = directSession ?? await getSecureSession().catch(() => null);
+    const session = directSession ?? await getSecureSession(signal).catch(() => null);
+    assertAuthWork(signal);
     if (session) {
-      await persistSessionCredential(signUpSessionData);
+      await persistSessionCredential(signUpSessionData, signal);
+      assertAuthWork(signal);
       emitSession('SIGNED_IN', session);
     }
   }
@@ -440,15 +461,21 @@ export async function sendEmailSignInCode(email: string): Promise<void> {
 }
 
 export async function signInSecureAccountWithCode(email: string, otp: string): Promise<void> {
+  cancelAuthWork();
+  const signal = authWorkSignal();
   clearPendingNeonAuthJwt();
   const { data, error } = await requireNeonClient().auth.signIn.emailOtp({
     email: email.trim().toLocaleLowerCase('cs'),
     otp: otp.trim(),
   });
   if (error) throw readableError(error, 'Přihlašovací kód není platný nebo už vypršel.');
-  const directSession = await sessionFromSignInResponse(data);
+  assertAuthWork(signal);
+  if (data?.user.emailVerified) await changeAuthIntent(data.user.id, false, signal);
+  const directSession = await sessionFromSignInResponse(data, signal);
+  assertAuthWork(signal);
   if (directSession) bootstrapSession = directSession;
-  const session = directSession ?? await getSecureSession();
+  const session = directSession ?? await getSecureSession(signal);
+  assertAuthWork(signal);
   if (!session?.user.emailVerified) throw new SecureAccessError('Neon Auth nevytvořil ověřenou relaci. Vyžádejte si nový kód.');
 }
 
@@ -471,11 +498,14 @@ export async function completeMigratedPasswordSetup(email: string, otp: string, 
 }
 
 export async function verifyEmailVerificationCode(email: string, otp: string, password?: string): Promise<void> {
+  cancelAuthWork();
+  const signal = authWorkSignal();
   const { error } = await requireNeonClient().auth.emailOtp.verifyEmail({
     email: email.trim().toLocaleLowerCase('cs'),
     otp: otp.trim(),
   });
   if (error) throw readableError(error, 'Ověřovací kód není platný nebo už vypršel.');
+  assertAuthWork(signal);
   // Ověření e-mailu samo nemusí po předchozím bezpečnostním odhlášení obnovit
   // cookie relace. Heslo zůstává jen v paměti formuláře a použije se jednou.
   let directSession: SecureSession | null = null;
@@ -487,16 +517,21 @@ export async function verifyEmailVerificationCode(email: string, otp: string, pa
       callbackURL: appRedirectUrl(),
     });
     if (signInError) throw readableError(signInError, 'E-mail je ověřený, ale přihlášení se nepodařilo dokončit.');
-    directSession = await sessionFromSignInResponse(signInData);
+    assertAuthWork(signal);
+    if (signInData?.user.emailVerified) await changeAuthIntent(signInData.user.id, false, signal);
+    directSession = await sessionFromSignInResponse(signInData, signal);
     if (directSession) bootstrapSession = directSession;
-    if (directSession?.user.emailVerified) await persistSessionCredential(signInData);
+    if (directSession?.user.emailVerified) await persistSessionCredential(signInData, signal);
   }
-  const session = directSession ?? await getSecureSession();
+  const session = directSession ?? await getSecureSession(signal);
+  assertAuthWork(signal);
   if (!session?.user.emailVerified) throw new SecureAccessError('E-mail se nepodařilo bezpečně ověřit. Vyžádejte si nový kód.');
   emitSession('SIGNED_IN', session);
 }
 
 export async function signInSecureAccount(email: string, password: string): Promise<void> {
+  cancelAuthWork();
+  const signal = authWorkSignal();
   clearPendingNeonAuthJwt();
   const { data, error } = await requireNeonClient().auth.signIn.email({
     email: email.trim().toLocaleLowerCase('cs'),
@@ -504,15 +539,20 @@ export async function signInSecureAccount(email: string, password: string): Prom
     callbackURL: appRedirectUrl(),
   });
   if (error) throw readableError(error, 'Přihlášení přes Neon Auth se nepodařilo.');
-  const directSession = await sessionFromSignInResponse(data);
+  assertAuthWork(signal);
+  if (data?.user.emailVerified) await changeAuthIntent(data.user.id, false, signal);
+  const directSession = await sessionFromSignInResponse(data, signal);
+  assertAuthWork(signal);
   if (directSession) bootstrapSession = directSession;
-  const session = directSession ?? await getSecureSession();
+  const session = directSession ?? await getSecureSession(signal);
+  assertAuthWork(signal);
   if (!session) throw new SecureAccessError('Neon Auth nevytvořil platnou relaci. Zkuste přihlášení zopakovat.');
   if (!session.user.emailVerified) {
     await requireNeonClient().auth.signOut().catch(() => undefined);
     throw new SecureAccessError('Tento Neon účet ještě nemá ověřený e-mail. Na přihlašovací stránce zvolte „Aktivovat původní účet“ a dokončete ověření kódem.');
   }
-  await persistSessionCredential(data);
+  await persistSessionCredential(data, signal);
+  assertAuthWork(signal);
   emitSession('SIGNED_IN', session);
 }
 
@@ -537,37 +577,48 @@ export async function updateSecurePassword(password: string): Promise<void> {
 }
 
 export async function signOutSecureAccount(): Promise<void> {
-  const session = await getSecureSession().catch(() => null);
-  const { error } = await requireNeonClient().auth.signOut();
+  cancelAuthWork();
   bootstrapSession = null;
   clearPendingNeonAuthJwt();
-  await clearSecureAccountLocalData(session?.user.id);
+  await changeAuthIntent(null, true);
   emitSession('SIGNED_OUT', null);
+  // Local logout is committed before contacting the server. Preserve songs,
+  // favorites, imports, setlists and queued changes for their original owner.
+  const { error } = await requireNeonClient().auth.signOut({ fetchOptions: { signal: AbortSignal.timeout(8_000) } });
   if (error) throw readableError(error, 'Serverové odhlášení z Neonu se nepodařilo, místní oprávnění však bylo odstraněno.');
 }
 
 export async function beginMigratedAccountActivation(): Promise<void> {
-  bootstrapSession = null;
-  clearPendingNeonAuthJwt();
-  const { error } = await requireNeonClient().auth.signOut();
-  // Při jednorázové aktivaci rušíme jen starou relaci a offline grant. Stažený
-  // balíček zůstane na zařízení a po propojení stejného profilu se znovu použije.
-  await clearSecureAuthorizationData();
-  emitSession('SIGNED_OUT', null);
-  if (error) throw readableError(error, 'Starou relaci se nepodařilo ukončit. Zkuste aktivaci znovu online.');
+  // Activation uses the same durable logout, preserving songs and pending work.
+  await signOutSecureAccount();
 }
 
-export async function requestNeonSessionJwt(): Promise<string> {
+export async function requestNeonSessionJwt(options: { forceRefresh?: boolean; signal?: AbortSignal } = {}): Promise<string> {
+  const signal = options.signal ?? authWorkSignal();
+  assertAuthWork(signal);
   if (!neonAuthUrl) throw new SecureAccessError('Neon Auth není nakonfigurovaný.', 503, 'neon_auth_not_configured');
+  if ((await loadAuthIntent()).signedOut) throw new SecureAccessError('Relace byla ukončena.', 401, 'session_not_found');
+  if (options.forceRefresh) {
+    const stored = await loadNeonSessionCredential();
+    const responseToken = stored ? await jwtFromSessionToken(stored.sessionToken, signal) : null;
+    const result = responseToken ? null : await requireNeonClient().auth.token({ fetchOptions: { headers: { 'X-Force-Fetch': 'true' }, signal } });
+    assertAuthWork(signal);
+    if (result?.error) throw readableError(result.error, 'Neon Auth neobnovil podepsané oprávnění.');
+    const token = responseToken ?? result?.data?.token;
+    const expiresAt = token ? jwtExpiry(token) : null;
+    if (!token || !expiresAt || Date.parse(expiresAt) <= Date.now()) throw new SecureAccessError('Neon Auth nevrátil platný JWT.', 401, 'neon_token_failed');
+    if (bootstrapSession) bootstrapSession = { ...bootstrapSession, access_token: token, expires_at: expiresAt };
+    return token;
+  }
   if (sessionIsUsable(bootstrapSession)) return bootstrapSession.access_token;
-  const restored = await getSecureSession();
+  const restored = await getSecureSession(signal);
   if (!restored) throw new SecureAccessError('Neon Auth nevydal autorizační token.', 401, 'neon_token_failed');
   return restored.access_token;
 }
 
-export async function loadNeonPublicJwks(): Promise<unknown> {
+export async function loadNeonPublicJwks(signal?: AbortSignal): Promise<unknown> {
   if (!neonAuthJwksUrl) throw new SecureAccessError('Veřejné klíče Neon Auth nejsou nakonfigurované.', 503, 'neon_jwks_not_configured');
-  const response = await fetch(neonAuthJwksUrl, { headers: { Accept: 'application/json' } });
+  const response = await authFetch(neonAuthJwksUrl, { headers: { Accept: 'application/json' }, signal });
   if (!response.ok) throw new SecureAccessError('Veřejné klíče Neon Auth se nepodařilo načíst.', response.status, 'neon_jwks_failed');
   return response.json();
 }
@@ -578,19 +629,20 @@ async function requireSecureAccessToken(): Promise<string> {
 
 const PROFILE_SELECT = 'id,auth_user_id,email,display_name,status,role,created_at,reviewed_at,last_seen_at';
 
-export async function loadSecureProfile(): Promise<SecureProfile | null> {
-  const session = await getSecureSession();
+export async function loadSecureProfile(knownSession?: SecureSession, signal?: AbortSignal): Promise<SecureProfile | null> {
+  const session = knownSession ?? await getSecureSession(signal);
   if (!session) return null;
-  const token = await requireSecureAccessToken();
+  if (!session.user.emailVerified) throw new SecureAccessError('E-mail ještě není ověřený.', 403, 'email_not_verified');
+  const token = session.access_token;
   await neonRpc('ensure_my_profile', token, {
     requested_email: session.user.email,
     requested_display_name: session.user.user_metadata.display_name,
-  });
+  }, signal);
   const rows = await neonSelect<unknown>('profiles', token, {
     select: PROFILE_SELECT,
     auth_user_id: `eq.${session.user.id}`,
     limit: '1',
-  });
+  }, signal);
   return rows[0] ? secureProfileSchema.parse(rows[0]) : null;
 }
 
@@ -631,14 +683,15 @@ function currentDeviceLabel(): { label: string; platform: string } {
   return { label: `${family} · ${mobile ? 'telefon/tablet' : 'počítač'}`, platform };
 }
 
-export async function registerSecureDevice(deviceId: string, accessToken?: string): Promise<void> {
+export async function registerSecureDevice(deviceId: string, accessToken?: string, signal?: AbortSignal): Promise<void> {
   const { label, platform } = currentDeviceLabel();
   const registered = await neonRpc<boolean>('register_my_device', accessToken ?? await requireSecureAccessToken(), {
     target_device_id: deviceId,
     target_label: label,
     target_platform: platform,
-  });
-  if (registered !== true) throw new Error('Toto zařízení nelze autorizovat. Mohlo být správcem odvoláno.');
+  }, signal);
+  if (registered === false) throw new SecureAccessError('Server potvrdil odvolání tohoto zařízení.', 403, 'device_revoked');
+  if (registered !== true) throw new SecureAccessError('Server nepotvrdil registraci zařízení.', 502, 'device_registration_invalid');
 }
 
 export async function loadMySecureDevices(profileId: string): Promise<SecureDevice[]> {

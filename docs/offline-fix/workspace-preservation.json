@@ -1,0 +1,31 @@
+{
+  "restored": [
+    {
+      "path": "public/content/catalog.json",
+      "byteIdenticalToBeforeBuild": true,
+      "sha256": "310CB1C919F9B8EF5FA701406675EDA3ED29DBA9968E09D0B52A63E142093CFD"
+    },
+    {
+      "path": "src/generated/catalog.json",
+      "byteIdenticalToBeforeBuild": true,
+      "sha256": "310CB1C919F9B8EF5FA701406675EDA3ED29DBA9968E09D0B52A63E142093CFD"
+    },
+    {
+      "path": "src/generated/distribution.json",
+      "byteIdenticalToBeforeBuild": true,
+      "sha256": "41C4D2E33D91C51F0B473533561D670CD890EEDB0AE439AC748B1DFD10284B8E"
+    }
+  ],
+  "restoredUnrelatedGeneratedScreenshots": [
+    "docs/ui-redesign/screenshots/after-library-desktop-1440x900.png",
+    "docs/ui-redesign/screenshots/after-library-mobile-360x800.png",
+    "docs/ui-redesign/screenshots/after-library-mobile-390x844.png",
+    "docs/ui-redesign/screenshots/after-library-tablet-768x1024.png",
+    "docs/ui-redesign/screenshots/after-reader-desktop-1440x900.png",
+    "docs/ui-redesign/screenshots/after-reader-mobile-390x844.png",
+    "docs/ui-redesign/screenshots/after-text-200-more-320x568.png",
+    "docs/ui-redesign/screenshots/after-text-200-offline-320x568.png",
+    "docs/ui-redesign/screenshots/after-text-200-setlists-320x568.png"
+  ],
+  "importDirectoryWritten": false
+}

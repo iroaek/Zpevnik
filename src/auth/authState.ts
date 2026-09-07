@@ -66,7 +66,7 @@ export function classifyAuthError(error: unknown): AuthFailure {
   if (normalized.includes('authentication required') || normalized.includes('email claim required')) {
     return { kind: 'session-invalid', status, code, message };
   }
-  if (code === 'account_revoked' || code === 'account_suspended' || normalized.includes('explicit access revoked')) {
+  if (code === 'account_revoked' || code === 'account_suspended' || code === 'device_revoked') {
     return { kind: 'access-revoked', status, code, message };
   }
   if (status === 401 || code === 'session_not_found' || code === 'refresh_token_not_found' || code === 'refresh_token_already_used') {
@@ -105,11 +105,7 @@ export function offlineAuthState(grant: OfflineGrantSummary, now = Date.now()): 
 
 export function resolveAuthFailure(failure: AuthFailure, grant: OfflineGrantSummary | null, now = Date.now()): AuthState {
   if (failure.kind === 'access-revoked') return { status: 'unauthenticated', reason: 'Přístup byl serverem výslovně zrušen.' };
-  if (grant && isTemporaryAuthFailure(failure)) return offlineAuthState(grant, now);
-  if (grant) {
-    const fallback = offlineAuthState(grant, now);
-    if (fallback.status === 'offline-access-expired') return fallback;
-  }
+  if (grant) return offlineAuthState(grant, now);
   return { status: 'unauthenticated', reason: failure.message };
 }
 

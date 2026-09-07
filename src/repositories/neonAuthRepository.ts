@@ -9,12 +9,16 @@ import {
   secureProfileSchema,
   signOutSecureAccount,
 } from '../auth/secureAccess';
-import { parseNeonOfflineKeySet, verifyNeonOfflineGrant } from '../auth/offlineGrant';
+import { OfflineGrantValidationError, parseNeonOfflineKeySet, verifyNeonOfflineGrant } from '../auth/offlineGrant';
+import { assertAuthWork } from '../auth/authLifecycle';
+import { diagnoseOffline, OfflinePreparationError } from '../auth/offlineDiagnostics';
 import {
   clearOfflineGrantRecord,
   loadDownloadedLibraryMetadata,
   loadOfflineGrantRecord,
   saveOfflineGrantRecord,
+  getOrCreateDeviceId,
+  loadAuthIntent,
 } from '../storage/database';
 import type { AuthRepository, OnlineSessionResult } from './contracts';
 
@@ -35,22 +39,30 @@ function offlineDays(): number {
 
 export const neonAuthRepository: AuthRepository = {
   async getOnlineSession(signal): Promise<OnlineSessionResult> {
-    const session = await abortable(getSecureSession(), signal);
+    const session = await abortable(getSecureSession(signal), signal);
     if (!session) return { status: 'unauthenticated' };
-    const profile = await abortable(loadSecureProfile(), signal);
+    const profile = await abortable(loadSecureProfile(session, signal), signal);
+    if (profile && profile.auth_user_id !== session.user.id) throw new OfflinePreparationError('identity_mismatch');
     return profile ? { status: 'authenticated', session, profile } : { status: 'unauthenticated' };
   },
 
-  async issueOfflineGrant(profile, deviceId, accessToken) {
-    const token = await Promise.resolve(accessToken || requestNeonSessionJwt());
-    await registerSecureDevice(deviceId, token);
+  async issueOfflineGrant(profile, deviceId, accessToken, signal) {
+    if (profile.status !== 'approved') throw new OfflinePreparationError('grant_issue_failed', 403);
+    let token = await Promise.resolve(accessToken || requestNeonSessionJwt({ signal }));
+    try { await registerSecureDevice(deviceId, token, signal); }
+    catch (error) {
+      if (!error || typeof error !== 'object' || !('status' in error) || error.status !== 401) throw error;
+      token = await requestNeonSessionJwt({ forceRefresh: true, signal });
+      await registerSecureDevice(deviceId, token, signal);
+    }
+    diagnoseOffline('issue', 'device_registration_valid', 200);
     const [rawKeySet, metadata] = await Promise.all([
-      loadNeonPublicJwks(),
+      loadNeonPublicJwks(signal),
       loadDownloadedLibraryMetadata(),
     ]);
-    const keySet = parseNeonOfflineKeySet(rawKeySet);
-    if (!keySet) throw new Error('Neon Auth vrátil neplatnou sadu veřejných podpisových klíčů.');
-    const verified = await verifyNeonOfflineGrant(token, {
+    let keySet = parseNeonOfflineKeySet(rawKeySet);
+    if (!keySet) throw new OfflinePreparationError('verification_key_unavailable');
+    const options = {
       issuer: offlineGrantIssuer,
       audience: offlineGrantAudience,
       keySet,
@@ -58,27 +70,62 @@ export const neonAuthRepository: AuthRepository = {
       contentVersion: metadata?.version ?? 'not-downloaded',
       deviceId,
       offlineDays: offlineDays(),
-    });
-    return { ...verified, provider: 'neon-auth' as const, keySet };
+    };
+    // A key may rotate between /token and JWKS (or during the role refresh).
+    // Retry keys once, only at our configured endpoint, never token-supplied URLs.
+    let keysRefreshed = false;
+    const verify = async () => {
+      try { return await verifyNeonOfflineGrant(token, { ...options, keySet: keySet! }); }
+      catch (error) {
+        if (!(error instanceof OfflineGrantValidationError) || error.reason !== 'unknown-key' || keysRefreshed) throw error;
+        keysRefreshed = true;
+        keySet = parseNeonOfflineKeySet(await loadNeonPublicJwks(signal));
+        if (!keySet) throw new OfflinePreparationError('verification_key_unavailable');
+        return verifyNeonOfflineGrant(token, { ...options, keySet });
+      }
+    };
+    let verified;
+    try { verified = await verify(); }
+    catch (error) {
+      if (!(error instanceof OfflineGrantValidationError) || error.reason !== 'wrong-package') throw error;
+      // ensure_my_profile can update the signed role AFTER the login JWT was
+      // issued. Refresh at the fixed auth endpoint; never relax the verifier.
+      diagnoseOffline('verify', 'signed_role_refresh_required');
+      token = await requestNeonSessionJwt({ forceRefresh: true, signal });
+      verified = await verify();
+    }
+    assertAuthWork(signal);
+    return { ...verified, provider: 'neon-auth' as const, keySet: keySet! };
   },
 
   async getOfflineGrant() {
     const stored = await loadOfflineGrantRecord();
-    if (!stored || stored.provider !== 'neon-auth' || !stored.keySet) return null;
+    if (!stored || stored.provider !== 'neon-auth') return null;
+    if (!stored.keySet) throw new OfflinePreparationError('verification_key_unavailable');
+    const intent = await loadAuthIntent();
+    if (intent.signedOut) return null;
     const profile = secureProfileSchema.parse(stored.profile);
+    const deviceId = await getOrCreateDeviceId();
+    if (stored.payload.subject !== profile.id || stored.payload.deviceId !== deviceId || (intent.authUserId && intent.authUserId !== profile.auth_user_id)) throw new OfflinePreparationError('identity_mismatch');
     const verified = await verifyNeonOfflineGrant(stored.token, {
       issuer: offlineGrantIssuer,
       audience: offlineGrantAudience,
       keySet: stored.keySet,
       profile,
       contentVersion: stored.payload.contentVersion,
-      deviceId: stored.payload.deviceId,
+      deviceId,
       offlineDays: offlineDays(),
     });
     return { ...stored, payload: verified.payload, verifiedAt: verified.verifiedAt, profile };
   },
 
-  saveOfflineGrant: saveOfflineGrantRecord,
+  async saveOfflineGrant(record, options) {
+    await saveOfflineGrantRecord(record, options);
+    assertAuthWork(options?.signal);
+    const stored = await this.getOfflineGrant();
+    if (!stored || stored.token !== record.token || stored.payload.subject !== record.payload.subject) throw new OfflinePreparationError('grant_storage_failed');
+    diagnoseOffline('readback', 'offline_grant_valid');
+  },
   removeOfflineGrant: clearOfflineGrantRecord,
   signOut: signOutSecureAccount,
 };

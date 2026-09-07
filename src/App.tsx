@@ -141,11 +141,13 @@ export default function App() {
   const [route, setRoute] = useState<Route>(() => parseRoute());
   const [catalog, setCatalog] = useState<Catalog>(bundledCatalog);
   const [devPersonalSongs, setDevPersonalSongs] = useState<Catalog['songs']>([]);
-  const [deviceSongs, setDeviceSongs] = useState<Catalog['songs']>([]);
+  const [deviceSongSnapshot, setDeviceSongSnapshot] = useState<{ songs: Catalog['songs']; owner?: string }>({ songs: [] });
   const [personalSummary, setPersonalSummary] = useState<PersonalLibrarySummary | null>(null);
   const [userState, setUserState, hydrated, storageError] = useUserState();
   const [userProfile, setUserProfile, profileHydrated, profileError] = useUserProfile();
   const secureAccount = useSecureAccount();
+  const protectedContentOwnerId = secureAccount.enabled ? secureAccount.profile?.id : undefined;
+  const deviceSongs = useMemo(() => deviceSongSnapshot.owner === protectedContentOwnerId ? deviceSongSnapshot.songs : [], [deviceSongSnapshot, protectedContentOwnerId]);
   const cloudSync = useCloudUserState(
     secureAccount.enabled && secureAccount.authState.status === 'authenticated-online',
     secureAccount.profile,
@@ -294,16 +296,17 @@ export default function App() {
     return () => controller.abort();
   }, [setSystemMessage]);
 
-  const protectedContentOwnerId = secureAccount.enabled ? secureAccount.profile?.id : undefined;
   const refreshDeviceSongs = useCallback(async () => {
-    setDeviceSongs(await loadPersonalSongs(protectedContentOwnerId));
+    setDeviceSongSnapshot({ songs: await loadPersonalSongs(protectedContentOwnerId), owner: protectedContentOwnerId });
   }, [protectedContentOwnerId]);
 
   useEffect(() => {
     if (secureAccount.enabled && !secureAccount.hydrated) return;
+    let cancelled = false;
     loadPersonalSongs(protectedContentOwnerId)
-      .then(setDeviceSongs)
+      .then(songs => { if (!cancelled) setDeviceSongSnapshot({ songs, owner: protectedContentOwnerId }); })
       .catch(() => setSystemMessage('Písně uložené v tomto zařízení se nepodařilo načíst.'));
+    return () => { cancelled = true; };
   }, [protectedContentOwnerId, secureAccount.enabled, secureAccount.hydrated, setSystemMessage]);
 
   useEffect(() => {
@@ -489,7 +492,7 @@ export default function App() {
 
   if (secureAccount.enabled && secureAccount.authState.status === 'offline-access-expired') return <main className="app-main"><section className="registration-page"><div className="registration-card"><p className="eyebrow">Offline oprávnění vypršelo</p><h1>Krátce se připojte k internetu</h1><p className="lead">Stažená data jsme nesmazali, ale před dalším otevřením chráněných písní musí server obnovit oprávnění tohoto zařízení.</p><button type="button" className="primary-button" onClick={() => void secureAccount.refresh()}>Ověřit přístup</button></div></section>{secureAccount.error && <p className="global-warning" role="alert">{secureAccount.error}</p>}</main>;
 
-  if (secureAccount.enabled && secureAccount.authState.status === 'unauthenticated') return <main className="app-main"><AccountAccessPage canInstall={installPrompt.canPrompt} installed={installPrompt.installed} onInstall={installPrompt.install} />{secureAccount.error && <p className="global-warning" role="alert">{friendlyError(secureAccount.error)}</p>}</main>;
+  if (secureAccount.enabled && secureAccount.authState.status === 'unauthenticated') return <main className="app-main"><AccountAccessPage canInstall={installPrompt.canPrompt} installed={installPrompt.installed} onInstall={installPrompt.install} />{secureAccount.offlineProblem && <p className="global-warning" role="status">{secureAccount.offlineProblem.message} <small>({secureAccount.offlineProblem.code})</small></p>}{secureAccount.error && <p className="global-warning" role="alert">{friendlyError(secureAccount.error)}</p>}</main>;
 
   if (secureAccount.enabled && secureAccount.authState.status === 'authenticated-online' && !secureAccount.profile) return <main className="app-main"><section className="registration-page"><div className="registration-card"><p className="eyebrow">Ověření účtu</p><h1>Profil se nepodařilo načíst</h1><p className="lead">{secureAccount.error ?? 'Zkuste stav účtu načíst znovu.'}</p><button type="button" className="primary-button" onClick={() => void secureAccount.refresh()}>Načíst znovu</button></div></section></main>;
 
@@ -525,7 +528,7 @@ export default function App() {
         {route.name === 'import' && <PdfImportPage allSongs={allSongs} deviceSongs={deviceSongs} defaultNotation={userState.settings.notation} onLibraryChanged={refreshDeviceSongs} onOpenSong={openSong} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} />}
         {route.name === 'settings' && <Settings userState={userState} userProfile={userProfile} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} cloudSync={cloudSync} personalSongs={allSongs.filter((song) => song.personalOnly)} onUserStateChange={setUserState} onUserProfileChange={setUserProfile} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} onRefreshSecureProfile={secureAccount.refresh} onOpenGuide={() => setFirstRunOpen(true)} />}
         {route.name === 'admin' && secureAccount.enabled && secureAccount.profile?.role === 'admin' && <AdminPage cloudSync={cloudSync} online={online} onNavigate={navigate} onOpenSong={openSong} songs={allSongs} catalogVersion={catalog.version} downloadedSongs={downloadedLibrarySongs.length} availableSongs={allSongs.length} />}
-        {route.name === 'offline' && <OfflineContent catalog={catalog} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} offlineGrant={secureAccount.offlineGrant} onRefreshAuthorization={secureAccount.refresh} downloadedLibrarySongs={downloadedLibrarySongs} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
+        {route.name === 'offline' && <OfflineContent catalog={catalog} secureProfile={secureAccount.profile} secureMode={secureAccount.enabled} offlineGrant={secureAccount.offlineGrant} offlineProblem={secureAccount.offlineProblem} onRefreshAuthorization={secureAccount.refresh} onPrepareAuthorization={secureAccount.enabled ? secureAccount.prepareAuthorization : undefined} downloadedLibrarySongs={downloadedLibrarySongs} onPersonalLibraryChanged={refreshDeviceSongs} onNavigate={navigate} />}
         {route.name === 'install' && <InstallPage canPrompt={installPrompt.canPrompt} installed={installPrompt.installed} isIosLike={installPrompt.isIosLike} onInstall={installPrompt.install} onNavigate={navigate} />}
         {route.name === 'help' && <HelpPage onNavigate={navigate} />}
         {route.name === 'diagnostics' && <DiagnosticsPage onBack={() => navigate('settings')} />}

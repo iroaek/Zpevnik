@@ -12,5 +12,6 @@
     "resolveJsonModule": true,
     "noEmit": true
   },
-  "include": ["vite.config.ts", "eslint.config.js", "scripts", "tests", "playwright.config.ts"]
+  "include": ["vite.config.ts", "eslint.config.js", "scripts", "tests", "playwright.config.ts"],
+  "exclude": ["tests/neon-offline-lifecycle.integration.test.ts", "tests/offline-upgrade.integration.test.ts"]
 }

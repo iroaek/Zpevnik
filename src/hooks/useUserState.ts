@@ -8,18 +8,19 @@ export function useUserState(): [UserState, React.Dispatch<React.SetStateAction<
   const [state, setState] = useState<UserState>(defaultUserState);
   const [hydrated, setHydrated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [storageLoaded, setStorageLoaded] = useState(false);
 
   useEffect(() => {
     withDeadline(loadUserState(), LOCAL_HYDRATION_TIMEOUT_MS, 'Místní stav neodpovídá.')
-      .then((stored) => setState(stored))
+      .then((stored) => { setState(stored); setStorageLoaded(true); })
       .catch(() => setError('Místní data se nepodařilo načíst; používá se dočasné výchozí nastavení.'))
       .finally(() => setHydrated(true));
   }, []);
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !storageLoaded) return;
     saveUserState(state).catch(() => setError('Změny se nepodařilo uložit do místního úložiště.'));
-  }, [hydrated, state]);
+  }, [hydrated, storageLoaded, state]);
 
   const updateState = useCallback<React.Dispatch<React.SetStateAction<UserState>>>((change) => {
     setState((current) => {

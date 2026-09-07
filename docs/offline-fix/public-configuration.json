@@ -1,0 +1,81 @@
+{
+  "at": "2026-09-07T16:09:19.131Z",
+  "appOrigin": "https://iroaek.github.io",
+  "appPath": "/Zpevnik/",
+  "checks": [
+    {
+      "phase": "app",
+      "status": 200,
+      "contentType": "text/html; charset=utf-8"
+    },
+    {
+      "phase": "public_jwks",
+      "status": 200,
+      "contentType": "application/json; charset=utf-8",
+      "allowedOrigin": "https://iroaek.github.io",
+      "keys": [
+        {
+          "kty": "OKP",
+          "crv": "Ed25519",
+          "alg": "EdDSA"
+        }
+      ]
+    }
+  ],
+  "configuration": [
+    {
+      "origin": "https://ep-floral-shadow-b2xy5ga2.neonauth.c-6.eu-central-1.aws.neon.tech",
+      "path": "/neondb/auth"
+    },
+    {
+      "origin": "https://ep-floral-shadow-b2xy5ga2.apirest.c-6.eu-central-1.aws.neon.tech",
+      "path": "/neondb/rest/v1"
+    }
+  ],
+  "limitation": "Public configuration only; no production session, grant or user data inspected.",
+  "checkedModules": [
+    "/Zpevnik/assets/index-DIvZsfkR.js",
+    "/Zpevnik/assets/rolldown-runtime-C0FnF6B9.js",
+    "/Zpevnik/assets/react-core-C4pZQMXi.js",
+    "/Zpevnik/assets/browserCompatibility-CdrAzrrM.js",
+    "/Zpevnik/assets/pdf-engine-C2FhJ_CP.js",
+    "/Zpevnik/assets/App-B5dOvSPl.js",
+    "/Zpevnik/assets/contentCache-C07TMRWz.js",
+    "/Zpevnik/assets/song-ZdiMX9P4.js",
+    "/Zpevnik/assets/validation-storage-C1ALLkDN.js",
+    "/Zpevnik/assets/Icon-DNMYoVvN.js",
+    "/Zpevnik/assets/database-BYccdHjq.js",
+    "/Zpevnik/assets/chords-M7NJPPug.js",
+    "/Zpevnik/assets/readBlobBytes-Ct9KXqAt.js",
+    "/Zpevnik/assets/friendlyError-CRXqGEYF.js",
+    "/Zpevnik/assets/neon-data-DPvFuSgn.js",
+    "/Zpevnik/assets/format-CuL2csyp.js",
+    "/Zpevnik/assets/Dialog-BnsWS5IE.js",
+    "/Zpevnik/assets/motion-Cvc1Nu4m.js",
+    "/Zpevnik/assets/updateManager-B8RtRmAb.js",
+    "/Zpevnik/assets/storagePersistence-LWlMAgbC.js",
+    "/Zpevnik/assets/updateManager-CVo9tKXS.js",
+    "/Zpevnik/assets/AdminPage-BZaoUmy_.js",
+    "/Zpevnik/assets/QrCodeGenerator-BXEAX0kt.js",
+    "/Zpevnik/assets/qr-renderer-VJeGqe__.js",
+    "/Zpevnik/assets/DiagnosticsPage-D1d8uGfN.js",
+    "/Zpevnik/assets/HelpPage-Bj_AAPhb.js",
+    "/Zpevnik/assets/InstallPage-iuPjAQ2w.js",
+    "/Zpevnik/assets/OfflineContent-DDgc-oCv.js",
+    "/Zpevnik/assets/PdfImportPage-BugzsYm1.js",
+    "/Zpevnik/assets/PublicSetlistPage-PIbg0ZD8.js",
+    "/Zpevnik/assets/Setlists-DsKANpEN.js",
+    "/Zpevnik/assets/ChordSheet-BvZofBZg.js",
+    "/Zpevnik/assets/Settings-D_KgzVgR.js",
+    "/Zpevnik/assets/SongReader-BOpz3_l7.js",
+    "/Zpevnik/assets/chordEditor-BY421yKF.js",
+    "/Zpevnik/assets/opensheetmusicdisplay.min-nKSqVHgs.js",
+    "/Zpevnik/assets/music-renderer-CZy1Zz1k.js",
+    "/Zpevnik/assets/jszip.min-CHLq6_un.js",
+    "/Zpevnik/assets/AdminCorrectionsPanel-446jGBlo.js",
+    "/Zpevnik/assets/AdminLibraryQualityPanel-BPt6xMyO.js",
+    "/Zpevnik/assets/pdfImport-DHZjVm0T.js",
+    "/Zpevnik/assets/QrCodeGenerator-sLg1STb9.js",
+    "/Zpevnik/assets/ScoreViewer-kbrUY5lu.js"
+  ]
+}

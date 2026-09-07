@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { downloadApprovedLibrary, loadApprovedLibraryManifest, type SecureProfile } from '../auth/secureAccess';
-import type { OfflineGrantPayload } from '../auth/offlineGrant';
+import { offlineGrantAllowsReading, type OfflineGrantPayload } from '../auth/offlineGrant';
+import { OfflinePreparationError, type OfflineErrorCode } from '../auth/offlineDiagnostics';
+import { withDeadline } from '../domain/asyncDeadline';
 import type { Catalog, Song } from '../domain/song';
 import { useConnectivity } from '../hooks/useConnectivity';
 import {
@@ -25,6 +27,7 @@ import {
   type DownloadedLibraryMetadata,
   type ContentPackageIntegrity,
   type LibraryManifest,
+  type StoredOfflineGrantRecord,
 } from '../storage/database';
 import { inspectAppShell, type AppShellInspection } from '../pwa/appShell';
 import { Icon } from '../ui/Icon';
@@ -33,6 +36,10 @@ import { formatCount, formatDecimal, formatDateTime } from '../ui/format';
 import { friendlyError } from '../ui/friendlyError';
 
 const LIBRARY_PAGE_SIZE = 40;
+async function localInspection<T>(operation: Promise<T>): Promise<T> {
+  try { return await withDeadline(operation, 8_000, 'Místní úložiště neodpovídá.'); }
+  catch { throw new OfflinePreparationError('local_store_unavailable'); }
+}
 
 type Operation = 'member-library' | 'repair' | 'songs' | 'scores' | 'remove' | 'remove-songs' | 'remove-scores' | 'remove-library' | 'remove-song' | 'update';
 type Notice = { text: string; tone: 'success' | 'error' | 'info' };
@@ -51,6 +58,8 @@ interface OfflineContentProps {
   downloadedLibrarySongs?: Song[];
   onPersonalLibraryChanged?: () => Promise<void>;
   onRefreshAuthorization?: () => Promise<void>;
+  onPrepareAuthorization?: () => Promise<StoredOfflineGrantRecord>;
+  offlineProblem?: { code: OfflineErrorCode; message: string } | null;
   onNavigate: (path: string) => void;
 }
 
@@ -63,6 +72,8 @@ export function OfflineContent({
   onPersonalLibraryChanged,
   onNavigate,
   onRefreshAuthorization,
+  onPrepareAuthorization,
+  offlineProblem,
 }: OfflineContentProps) {
   const online = useConnectivity();
   const [stats, setStats] = useState<OfflineContentStats | null>(null);
@@ -94,7 +105,7 @@ export function OfflineContent({
   }, [downloadedLibrarySongs, libraryQuery]);
 
   const refresh = useCallback(async () => {
-    const [content, appShell] = await Promise.all([inspectOfflineContent(catalog), inspectAppShell()]);
+    const [content, appShell] = await withDeadline(Promise.all([inspectOfflineContent(catalog), inspectAppShell()]), 8_000, 'Místní úložiště neodpovídá.');
     setStats(content); setShell(appShell); setOpenedAt(Date.now());
   }, [catalog]);
   const refreshLibraryVersion = useCallback(async () => {
@@ -106,7 +117,10 @@ export function OfflineContent({
   }, [secureMode, secureProfile]);
 
   useEffect(() => {
-    void Promise.all([inspectOfflineContent(catalog), inspectAppShell()]).then(([content, appShell]) => { setStats(content); setShell(appShell); }).catch(() => setStats(null));
+    void localInspection(Promise.all([inspectOfflineContent(catalog), inspectAppShell()])).then(([content, appShell]) => { setStats(content); setShell(appShell); }).catch(() => {
+      setStats(null); setShell({ status: 'unverified', checkedAt: new Date().toISOString(), missing: 0 });
+      setNotice({ tone: 'error', text: 'Místní úložiště neodpovídá. (local_store_unavailable)' });
+    });
     void storagePersistenceState().then(setStoragePersistent);
     if (navigator.storage?.estimate) navigator.storage.estimate().then((estimate) => {
       setStorageUsage({ usage: estimate.usage ?? 0, quota: estimate.quota ?? 0 });
@@ -343,7 +357,7 @@ export function OfflineContent({
     && ((stats?.downloadedSongs ?? 0) === 0 || stats?.allSongsVerified === true)
     && ((stats?.downloadedScores ?? 0) === 0 || stats?.allScoresVerified === true);
   const shellReady = shell?.status === 'verified';
-  const authorizationReady = !secureMode || Boolean(offlineGrant && secureProfile?.status === 'approved' && offlineGrant.subject === secureProfile.id && Date.parse(offlineGrant.notBefore) <= openedAt && Date.parse(offlineGrant.offlineValidUntil) > openedAt);
+  const authorizationReady = !secureMode || offlineGrantAllowsReading(offlineGrant, secureProfile, openedAt);
   const grantDaysRemaining = offlineGrant ? Math.ceil((new Date(offlineGrant.offlineValidUntil).getTime() - openedAt) / 86_400_000) : null;
   const ready = secureMode
     ? memberLibraryReady && authorizationReady && shellReady
@@ -358,6 +372,32 @@ export function OfflineContent({
     try { await onRefreshAuthorization?.(); await refresh(); await refreshLibraryVersion(); }
     catch (error) { setNotice({ tone: 'error', text: friendlyError(error, 'Oprávnění se nepodařilo obnovit.') }); }
     finally { setOperation(null); }
+  };
+  const completePreparation = async () => {
+    setOperation('repair'); setNotice({ tone: 'info', text: 'Ověřuji a ukládám oprávnění…' });
+    try {
+      if (secureMode) {
+        const grant = await onPrepareAuthorization?.();
+        if (!grant || !offlineGrantAllowsReading(grant.payload, secureProfile)) throw new OfflinePreparationError('grant_issue_failed');
+        setNotice({ tone: 'info', text: 'Kontroluji uložené texty a akordy…' });
+        const before = await localInspection(inspectContentPackageIntegrity(grant.profile.id));
+        if (!before?.healthy || !before.expectedSongs) {
+          await downloadApprovedLibrary(grant.profile, { force: true, localSongCount: downloadedLibrarySongs.length });
+          if (onPersonalLibraryChanged) await localInspection(onPersonalLibraryChanged());
+        }
+        const checked = await localInspection(inspectContentPackageIntegrity(grant.profile.id));
+        setMemberIntegrity(checked);
+        setLocalManifest(await localInspection(loadDownloadedLibraryMetadata()));
+        if (!checked?.healthy || !checked.expectedSongs) throw new OfflinePreparationError('content_incomplete');
+      } else if (!publicCatalogReady) await downloadAllSongs(catalog, setProgress);
+      setNotice({ tone: 'info', text: 'Ověřuji soubory aplikace v zařízení…' });
+      const checkedShell = await localInspection(inspectAppShell()); setShell(checkedShell);
+      if (checkedShell.status !== 'verified') throw new OfflinePreparationError('shell_incomplete');
+      await refresh();
+      setNotice({ tone: 'success', text: 'Oprávnění, soubory aplikace i texty jsou uložené a ověřené.' });
+    } catch (error) {
+      setNotice({ tone: 'error', text: error instanceof OfflinePreparationError ? `${error.message} (${error.code})` : friendlyError(error, 'Offline přípravu se nepodařilo dokončit.') });
+    } finally { setOperation(null); }
   };
 
   return (
@@ -374,7 +414,8 @@ export function OfflineContent({
           <li className={authorizationReady ? 'complete' : ''}><Icon name={authorizationReady ? 'check' : 'lock'} size={20} /><div><strong>Offline oprávnění</strong><small>{authorizationReady ? offlineGrant ? 'Platné do ' + formatDateTime(offlineGrant.offlineValidUntil) : 'Veřejné ukázky oprávnění nevyžadují.' : offlineGrant ? 'Platnost skončila nebo nesouhlasí s účtem.' : 'Připojte se a obnovte oprávnění účtu.'}</small></div></li>
           <li className={contentReady ? 'complete' : ''}><Icon name={contentReady ? 'check' : 'download'} size={20} /><div><strong>Texty a akordy</strong><small>{secureMode ? formatCount(memberIntegrity?.completeSongs ?? 0) + ' z ' + formatCount(memberIntegrity?.expectedSongs ?? localManifest?.songCount ?? downloadedLibrarySongs.length) + ' členských písní ověřeno' : formatCount(stats?.downloadedSongs ?? 0) + ' z ' + formatCount(catalog.songs.length) + ' ukázek ověřeno'}</small></div></li>
         </ul>
-        {!authorizationReady ? <button type="button" className="primary-button" disabled={busy || !online} onClick={() => onRefreshAuthorization ? void refreshAuthorization() : onNavigate('settings')}>{busy ? 'Ověřuji…' : 'Obnovit oprávnění'}</button> : !contentReady ? <button type="button" className="primary-button" disabled={busy || !online} onClick={() => secureMode ? void downloadMemberLibrary() : void runDownload('songs')}>{busy ? 'Stahuji…' : 'Stáhnout písně'}</button> : <button type="button" className="primary-button" disabled={busy} onClick={() => void refresh().catch((error) => setNotice({ tone: 'error', text: friendlyError(error) }))}>Ověřit připravenost</button>}
+        {onPrepareAuthorization ? <button type="button" className="primary-button" disabled={busy || !online} onClick={() => void completePreparation()}>{busy ? 'Dokončuji přípravu…' : 'Dokončit offline přípravu'}</button> : !authorizationReady ? <button type="button" className="primary-button" disabled={busy || !online} onClick={() => onRefreshAuthorization ? void refreshAuthorization() : onNavigate('settings')}>{busy ? 'Ověřuji…' : 'Obnovit oprávnění'}</button> : !contentReady ? <button type="button" className="primary-button" disabled={busy || !online} onClick={() => secureMode ? void downloadMemberLibrary() : void runDownload('songs')}>{busy ? 'Stahuji…' : 'Stáhnout písně'}</button> : <button type="button" className="primary-button" disabled={busy} onClick={() => void refresh().catch((error) => setNotice({ tone: 'error', text: friendlyError(error) }))}>Ověřit připravenost</button>}
+        {offlineProblem && <p className="error-message" role="status">{offlineProblem.message} <small>({offlineProblem.code})</small></p>}
         {!online && !ready && <p className="last-update">K dokončení chybějících kroků se připojte k internetu.</p>}
       </article>
       <dl className="offline-summary"><div><dt>Písně v zařízení</dt><dd>{formatCount(secureMode ? downloadedLibrarySongs.length : stats?.downloadedSongs ?? 0)}</dd></div><div><dt>Volitelné noty</dt><dd>{formatCount(stats?.downloadedScores ?? 0)} / {formatCount(stats?.totalScores ?? 0)} partů</dd></div></dl>

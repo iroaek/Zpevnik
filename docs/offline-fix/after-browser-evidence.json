@@ -1,0 +1,1006 @@
+{
+  "results": [
+    {
+      "test": "missing mandatory JS chunk reports shell_incomplete instead of ready",
+      "result": "PASS"
+    },
+    {
+      "test": "password login",
+      "result": "PASS"
+    },
+    {
+      "test": "OTP + required password setup",
+      "result": "PASS"
+    },
+    {
+      "test": "pending account denied grant and songs",
+      "result": "PASS"
+    },
+    {
+      "test": "new approval in existing session issues grant",
+      "result": "PASS"
+    },
+    {
+      "test": "A same-page offline reload",
+      "result": "PASS"
+    },
+    {
+      "test": "B persistent profile, update, start_url, deep link, expired access token, second offline restart",
+      "result": "PASS"
+    },
+    {
+      "test": "reconnection uploads offline favorites, arrangement and setlist without loss",
+      "result": "PASS"
+    }
+  ],
+  "logs": [
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:41.039Z",
+      "build": "offline-new",
+      "step": "browser_process_started",
+      "offline": false,
+      "preservedProfile": true
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:41.283Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:41.303Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/token",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:41.322Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:41.335Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:41.349Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/register_my_device",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:41.355Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/.well-known/jwks.json",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:41.368Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/touch_my_presence",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:41.373Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:41.381Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:41.387Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:41.396Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 204
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:42.480Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/content_packages",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:43.038Z",
+      "build": "offline-new",
+      "step": "previous_lazy_chunk_available_offline",
+      "path": "assets/SongReader-DWfgaTK1.js",
+      "bytes": 38755
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:43.047Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:43.053Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:43.063Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:43.075Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/register_my_device",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:43.081Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/.well-known/jwks.json",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:43.093Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/touch_my_presence",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:43.098Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/content_packages",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:44.144Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:44.159Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/token",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:44.168Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:44.174Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:44.183Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/register_my_device",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:44.188Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/.well-known/jwks.json",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:44.201Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/touch_my_presence",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:44.203Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:44.857Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/content_packages",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:44.965Z",
+      "build": "offline-new",
+      "step": "upgrade_preserved_content_and_device",
+      "fromVersion": 9,
+      "toVersion": 10,
+      "contentRecords": 2,
+      "sameDevice": true,
+      "contentByteIdentical": true
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:45.083Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:45.106Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:45.112Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/content_packages",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:45.114Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/register_my_device",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:45.122Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/.well-known/jwks.json",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:45.139Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/touch_my_presence",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:45.142Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:45.151Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/content_packages",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:45.782Z",
+      "build": "offline-new",
+      "step": "browser_process_started",
+      "offline": false,
+      "preservedProfile": false
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:46.925Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:47.383Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/sign-in/email",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:47.410Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:47.424Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:47.440Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/register_my_device",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:47.448Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/.well-known/jwks.json",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:47.464Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/token",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:47.492Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/touch_my_presence",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:47.500Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:48.214Z",
+      "build": "offline-new",
+      "step": "login_verified",
+      "branch": "password",
+      "grantPersisted": true
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:48.883Z",
+      "build": "offline-new",
+      "step": "browser_process_started",
+      "offline": false,
+      "preservedProfile": false
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:49.959Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:50.432Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/email-otp/send-verification-otp",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:50.515Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/sign-in/email-otp",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:50.534Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/email-otp/request-password-reset",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:50.629Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/email-otp/reset-password",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:50.640Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/sign-in/email",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:50.657Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:50.668Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:50.679Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/register_my_device",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:50.686Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/.well-known/jwks.json",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:50.704Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/token",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:50.733Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/touch_my_presence",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:50.742Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:51.463Z",
+      "build": "offline-new",
+      "step": "login_verified",
+      "branch": "otp-and-password-setup",
+      "grantPersisted": true
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:52.105Z",
+      "build": "offline-new",
+      "step": "browser_process_started",
+      "offline": false,
+      "preservedProfile": false
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:53.029Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:53.215Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/sign-in/email",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:53.248Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:53.265Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:53.295Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/touch_my_presence",
+      "status": 403
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:53.382Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:53.388Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:53.401Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/register_my_device",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:53.407Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/.well-known/jwks.json",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:53.422Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/token",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:53.447Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/touch_my_presence",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:53.455Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:54.374Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:54.390Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:54.391Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/token",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:54.400Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/token",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:54.401Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:54.414Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:54.414Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/content_packages",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:54.426Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/register_my_device",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:54.434Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/.well-known/jwks.json",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:54.453Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/touch_my_presence",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:54.459Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:54.460Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/content_packages",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:55.212Z",
+      "build": "offline-new",
+      "step": "grant_persisted",
+      "provider": "neon-auth",
+      "signatureVerified": true,
+      "deviceIdPresent": true,
+      "expiresAt": "2026-10-07T17:02:54.000Z"
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:55.217Z",
+      "build": "offline-new",
+      "step": "client_diagnostics",
+      "events": [
+        {
+          "at": "2026-09-07T17:02:54.440Z",
+          "code": "offline_grant_valid",
+          "phase": "readback",
+          "build": "offline-new",
+          "status": null
+        },
+        {
+          "at": "2026-09-07T17:02:54.429Z",
+          "code": "device_registration_valid",
+          "phase": "issue",
+          "build": "offline-new",
+          "status": 200
+        },
+        {
+          "at": "2026-09-07T17:02:45.131Z",
+          "code": "offline_grant_valid",
+          "phase": "readback",
+          "build": "offline-new",
+          "status": null
+        },
+        {
+          "at": "2026-09-07T17:02:44.185Z",
+          "code": "device_registration_valid",
+          "phase": "issue",
+          "build": "offline-new",
+          "status": 200
+        },
+        {
+          "at": "2026-09-07T17:02:45.118Z",
+          "code": "device_registration_valid",
+          "phase": "issue",
+          "build": "offline-new",
+          "status": 200
+        },
+        {
+          "at": "2026-09-07T17:02:44.196Z",
+          "code": "offline_grant_valid",
+          "phase": "readback",
+          "build": "offline-new",
+          "status": null
+        }
+      ]
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:02:57.179Z",
+      "build": "offline-new",
+      "step": "network_proof",
+      "uncachedFetchFailed": true,
+      "backendAcceptingRequests": false
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:07.681Z",
+      "build": "offline-new",
+      "step": "browser_process_started",
+      "offline": true,
+      "preservedProfile": true
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:11.816Z",
+      "build": "offline-new",
+      "step": "network_proof",
+      "uncachedFetchFailed": true,
+      "backendAcceptingRequests": false
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:11.817Z",
+      "build": "offline-new",
+      "step": "cold_start_evidence",
+      "accessTokenExpired": true,
+      "grantStillValid": true,
+      "successfulResponseCount": 130,
+      "allSuccessfulResponsesFromServiceWorker": true,
+      "paths": [
+        "/Zpevnik/",
+        "/Zpevnik/assets/browserCompatibility-CdrAzrrM.js",
+        "/Zpevnik/assets/index-lLuEnGiZ.js",
+        "/Zpevnik/assets/rolldown-runtime-C0FnF6B9.js",
+        "/Zpevnik/assets/index-DHkfEneU.css",
+        "/Zpevnik/assets/react-core-C4pZQMXi.js",
+        "/Zpevnik/assets/pdf-engine-C2FhJ_CP.js",
+        "/Zpevnik/assets/song-ZdiMX9P4.js",
+        "/Zpevnik/assets/App-qpKeL3lq.js",
+        "/Zpevnik/assets/format-CuL2csyp.js",
+        "/Zpevnik/assets/contentCache-DOccFSqW.js",
+        "/Zpevnik/assets/Icon-DNMYoVvN.js",
+        "/Zpevnik/assets/database-COHZXwkg.js",
+        "/Zpevnik/assets/validation-storage-C1ALLkDN.js",
+        "/Zpevnik/assets/friendlyError-BoOjheAB.js",
+        "/Zpevnik/assets/Dialog-BnsWS5IE.js",
+        "/Zpevnik/assets/readBlobBytes-Ct9KXqAt.js",
+        "/Zpevnik/assets/chords-M7NJPPug.js",
+        "/Zpevnik/assets/updateManager-BIHLHepT.js",
+        "/Zpevnik/assets/motion-Cvc1Nu4m.js",
+        "/Zpevnik/assets/updateManager-Z2fR_cf8.js",
+        "/Zpevnik/assets/asyncDeadline-BD54JTb0.js",
+        "/Zpevnik/assets/neon-data-DPvFuSgn.js",
+        "/Zpevnik/assets/workbox-window.prod.es5-Bd17z0YL.js",
+        "/Zpevnik/assets/OfflineContent-PpO7Uz-H.js",
+        "/Zpevnik/assets/PdfImportPage-_gBnRtOv.js",
+        "/Zpevnik/assets/ChordSheet-BvZofBZg.js",
+        "/Zpevnik/assets/Setlists-rmRAM8OW.js",
+        "/Zpevnik/assets/Settings-rInpForx.js",
+        "/Zpevnik/assets/chordEditor-BY421yKF.js",
+        "/Zpevnik/assets/SongReader-BplDbIZk.js",
+        "/Zpevnik/images/taborovy-zpevnik.jpg",
+        "/Zpevnik/icons/icon-lazec-192.png",
+        "/Zpevnik/songs/personal-offline-2",
+        "/Zpevnik/content/catalog.json",
+        "/Zpevnik/songs",
+        "/Zpevnik/setlists"
+      ]
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:12.327Z",
+      "build": "offline-new",
+      "step": "browser_process_started",
+      "offline": true,
+      "preservedProfile": true
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:14.269Z",
+      "build": "offline-new",
+      "step": "network_proof",
+      "uncachedFetchFailed": true,
+      "backendAcceptingRequests": false
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:14.477Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:14.494Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/token",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:14.504Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:14.514Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:14.524Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/register_my_device",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:14.530Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/auth/.well-known/jwks.json",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:14.546Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/touch_my_presence",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:14.549Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:14.557Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:14.563Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:14.573Z",
+      "build": "offline-new",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 204
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-07T17:03:15.288Z",
+      "build": "offline-new",
+      "step": "reconnection_verified",
+      "offlineChangesSynced": true
+    }
+  ],
+  "phone": "NEOVĚŘENO NA ZAŘÍZENÍ"
+}

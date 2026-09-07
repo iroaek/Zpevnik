@@ -44,6 +44,7 @@ vi.mock('../auth/offlineGrant', () => ({
 }));
 
 vi.mock('../storage/database', () => ({
+  recordDiagnostic: vi.fn().mockResolvedValue(undefined),
   clearOfflineGrantRecord: vi.fn(),
   loadDownloadedLibraryMetadata: vi.fn(async () => ({ version: 'abc123' })),
   loadOfflineGrantRecord: vi.fn(),
@@ -75,7 +76,7 @@ describe('Neon Auth repository', () => {
     const result = await neonAuthRepository.issueOfflineGrant(profile, 'device-test', 'verified-session-jwt');
 
     expect(mocks.requestJwt).not.toHaveBeenCalled();
-    expect(mocks.registerDevice).toHaveBeenCalledWith('device-test', 'verified-session-jwt');
+    expect(mocks.registerDevice).toHaveBeenCalledWith('device-test', 'verified-session-jwt', undefined);
     expect(mocks.verify).toHaveBeenCalledWith('verified-session-jwt', expect.objectContaining({ profile, deviceId: 'device-test' }));
     expect(result.token).toBe('verified-session-jwt');
   });

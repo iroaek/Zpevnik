@@ -86,6 +86,15 @@ export interface StoredOfflineGrantRecord {
   keySet?: NeonOfflineKeySet;
 }
 
+export interface AuthIntent {
+  schemaVersion: 1;
+  revision: string;
+  signedOut: boolean;
+  authUserId: string | null;
+}
+
+export interface AuthWriteOptions { signal?: AbortSignal; intentRevision?: string }
+
 export interface StoredNeonSessionCredential {
   schemaVersion: 1;
   provider: 'neon-auth';
@@ -420,7 +429,7 @@ const personalSongEntrySchema = z.object({
 
 const personalSongBackupSchema = z.array(personalSongEntrySchema).max(5_000);
 
-export const DATABASE_VERSION = 9;
+export const DATABASE_VERSION = 10;
 
 const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
   async upgrade(database, oldVersion, _newVersion, transaction) {
@@ -465,6 +474,11 @@ const databasePromise = openDB('cesky-zpevnik', DATABASE_VERSION, {
       const stored = await stateStore.get('current') as unknown;
       const migrated = migrateUserState(stored);
       if (migrated) await stateStore.put(migrated, 'current');
+    }
+    if (oldVersion < 10) {
+      // Existing grants, sessions, songs and state stay in their original stores.
+      // The new intent record orders logout/account changes and delayed writes.
+      await transaction.objectStore('account').put({ schemaVersion: 1, revision: createUuid(), signedOut: false, authUserId: null } satisfies AuthIntent, 'authIntent');
     }
   },
   blocked() {
@@ -670,11 +684,37 @@ export async function clearDownloadedLibraryMetadata(): Promise<void> {
 
 export async function getOrCreateDeviceId(): Promise<string> {
   const database = await databasePromise;
-  const stored = await database.get('metadata', 'deviceId');
-  if (typeof stored === 'string' && stored.length >= 8) return stored;
-  const deviceId = createUuid();
-  await database.put('metadata', deviceId, 'deviceId');
+  const transaction = database.transaction('metadata', 'readwrite');
+  const stored = await transaction.store.get('deviceId');
+  const deviceId = typeof stored === 'string' && stored.length >= 8 ? stored : createUuid();
+  if (deviceId !== stored) await transaction.store.put(deviceId, 'deviceId');
+  await transaction.done;
   return deviceId;
+}
+
+export async function loadAuthIntent(): Promise<AuthIntent> {
+  const database = await databasePromise;
+  return await database.get('account', 'authIntent') as AuthIntent;
+}
+
+export async function changeAuthIntent(authUserId: string | null, signedOut: boolean, signal?: AbortSignal): Promise<void> {
+  const database = await databasePromise;
+  if (signal?.aborted) throw new DOMException('Ověření bylo zrušeno.', 'AbortError');
+  const transaction = database.transaction(['account', 'offlineAuth'], 'readwrite');
+  const abort = () => { try { transaction.abort(); } catch { /* already complete */ } };
+  signal?.addEventListener('abort', abort, { once: true });
+  try {
+    const grant = await transaction.objectStore('offlineAuth').get('current') as StoredOfflineGrantRecord | undefined;
+    const previous = await transaction.objectStore('account').get('authIntent') as AuthIntent;
+    await transaction.objectStore('account').put({ schemaVersion: 1, revision: createUuid(), signedOut, authUserId } satisfies AuthIntent, 'authIntent');
+    if (signedOut || (grant && grant.profile?.auth_user_id !== authUserId)) await transaction.objectStore('offlineAuth').delete('current');
+    if (signedOut || (previous.authUserId && previous.authUserId !== authUserId)) {
+      await transaction.objectStore('account').delete('neonSession');
+      await transaction.objectStore('account').delete('profile');
+    }
+    await transaction.done;
+  } catch (error) { abort(); await transaction.done.catch(() => undefined); throw error; }
+  finally { signal?.removeEventListener('abort', abort); }
 }
 
 export async function loadOfflineGrantRecord(): Promise<StoredOfflineGrantRecord | null> {
@@ -684,12 +724,24 @@ export async function loadOfflineGrantRecord(): Promise<StoredOfflineGrantRecord
   return stored as StoredOfflineGrantRecord;
 }
 
-export async function saveOfflineGrantRecord(record: StoredOfflineGrantRecord): Promise<void> {
+export async function saveOfflineGrantRecord(record: StoredOfflineGrantRecord, options: AuthWriteOptions = {}): Promise<void> {
   if (record.schemaVersion !== 1 || !record.token || !record.payload?.subject || !record.profile?.id) {
     throw new Error('Offline oprávnění má neplatný lokální formát.');
   }
   const database = await databasePromise;
-  await database.put('offlineAuth', record, 'current');
+  if (options.signal?.aborted) throw new DOMException('Ověření bylo zrušeno.', 'AbortError');
+  const transaction = database.transaction(['offlineAuth', 'account'], 'readwrite');
+  const aborted = () => { try { transaction.abort(); } catch { /* already complete */ } };
+  options.signal?.addEventListener('abort', aborted, { once: true });
+  try {
+    const intent = await transaction.objectStore('account').get('authIntent') as AuthIntent;
+    if (intent.signedOut || (options.intentRevision && options.intentRevision !== intent.revision) || (intent.authUserId && intent.authUserId !== record.profile.auth_user_id)) {
+      throw new DOMException('Účet se během ukládání změnil.', 'AbortError');
+    }
+    await transaction.objectStore('offlineAuth').put(record, 'current');
+    await transaction.done;
+  } catch (error) { aborted(); await transaction.done.catch(() => undefined); throw error; }
+  finally { options.signal?.removeEventListener('abort', aborted); }
 }
 
 export async function clearOfflineGrantRecord(): Promise<void> {
@@ -703,10 +755,20 @@ export async function loadNeonSessionCredential(): Promise<StoredNeonSessionCred
   return parsed.success ? parsed.data : null;
 }
 
-export async function saveNeonSessionCredential(record: StoredNeonSessionCredential): Promise<void> {
+export async function saveNeonSessionCredential(record: StoredNeonSessionCredential, signal?: AbortSignal): Promise<void> {
   const validated = storedNeonSessionCredentialSchema.parse(record);
   const database = await databasePromise;
-  await database.put('account', validated, 'neonSession');
+  if (signal?.aborted) throw new DOMException('Ověření bylo zrušeno.', 'AbortError');
+  const transaction = database.transaction('account', 'readwrite');
+  const abort = () => { try { transaction.abort(); } catch { /* already complete */ } };
+  signal?.addEventListener('abort', abort, { once: true });
+  try {
+    const intent = await transaction.store.get('authIntent') as AuthIntent;
+    if (intent.signedOut || (intent.authUserId && intent.authUserId !== record.user.id)) throw new DOMException('Účet se během ukládání změnil.', 'AbortError');
+    await transaction.store.put(validated, 'neonSession');
+    await transaction.done;
+  } catch (error) { abort(); await transaction.done.catch(() => undefined); throw error; }
+  finally { signal?.removeEventListener('abort', abort); }
 }
 
 export async function clearNeonSessionCredential(): Promise<void> {
@@ -1065,9 +1127,9 @@ export async function loadPersonalSongs(userId?: string): Promise<Song[]> {
       : parsed.data;
     if (!isDownloadedLibrarySong(normalizedSong)) return [normalizedSong];
     const owner = protectedOwners.get(normalizedSong.id);
-    // Starší balíčky před schématem 5 neměly vlastníka. Zůstanou čitelné do
-    // první online obnovy; nový import je už vždy uživatelsky oddělený.
-    return !owner || owner === userId ? [normalizedSong] : [];
+    // Older unowned packages stay stored but must be linked through an online,
+    // authorized package download before any account can read them.
+    return owner && owner === userId ? [normalizedSong] : [];
   });
 }
 

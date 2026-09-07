@@ -508,6 +508,12 @@ test('výslovně stažené noty se vykreslí offline', async ({ page, context },
   await page.goto('songs/synteticka-jiskra');
   await page.getByRole('button', { name: /Noty/ }).click();
   await expect(page.locator('.score-host svg').first()).toBeVisible({ timeout: 30_000 });
+  for (const instrument of ['Housle', 'Violoncello']) {
+    await page.getByRole('button', { name: instrument, exact: true }).click();
+    const part = page.getByLabel(`Notový part: ${instrument}`, { exact: true });
+    await expect(part.locator('svg').first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: instrument, exact: true })).toHaveAttribute('aria-pressed', 'true');
+  }
   await context.setOffline(false);
 });
 

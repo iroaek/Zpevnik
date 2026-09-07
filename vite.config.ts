@@ -54,7 +54,7 @@ export default defineConfig(({ mode }) => {
         enforce: 'post',
         generateBundle(_options, bundle) {
           const resources = Object.values(bundle)
-            .filter((item) => /\.(js|mjs|css|html|woff2)$/.test(item.fileName) && !/(music-renderer|pdf-engine|opensheetmusicdisplay|jszip)/.test(item.fileName))
+            .filter((item) => /\.(js|mjs|css|html|woff2)$/.test(item.fileName) && !/(music-renderer|opensheetmusicdisplay|jszip)/.test(item.fileName))
             .map((item) => ({ path: item.fileName, sha256: createHash('sha256').update(item.type === 'chunk' ? item.code : item.source).digest('hex') }));
           const icon = 'icons/icon-lazec-192.png';
           resources.push({ path: icon, sha256: createHash('sha256').update(readFileSync(`public/${icon}`)).digest('hex') });
@@ -64,7 +64,7 @@ export default defineConfig(({ mode }) => {
           // Vite finalizes dynamic imports after generateBundle; hash the emitted bytes.
           const directory = options.dir ?? 'dist';
           const paths = Object.values(bundle).map((item) => item.fileName)
-            .filter((file) => /\.(js|mjs|css|html|woff2)$/.test(file) && !/(music-renderer|pdf-engine|opensheetmusicdisplay|jszip)/.test(file));
+            .filter((file) => /\.(js|mjs|css|html|woff2)$/.test(file) && !/(music-renderer|opensheetmusicdisplay|jszip)/.test(file));
           paths.push('icons/icon-lazec-192.png', 'images/taborovy-zpevnik.jpg');
           const resources = paths.map((file) => ({ path: file, sha256: createHash('sha256').update(readFileSync(path.join(directory, file))).digest('hex') }));
           writeFileSync(path.join(directory, 'app-shell.json'), JSON.stringify({ resources }));
@@ -98,6 +98,10 @@ export default defineConfig(({ mode }) => {
           ],
         },
         workbox: {
+          // A newly activated worker must not remove lazy chunks still needed
+          // by an open client of the previous build. App data lives in IndexedDB.
+          cacheId: 'zpevnik',
+          importScripts: [`${basePath}sw-preserve-shell.js`],
           globPatterns: ['**/*.{js,mjs,css,html,png,jpg,svg,json,woff2,wasm}'],
           globIgnores: [
             'qr/**/*',
@@ -109,11 +113,16 @@ export default defineConfig(({ mode }) => {
             'assets/opensheetmusicdisplay*.js',
             'assets/jszip*.js',
             'assets/music-renderer*.js',
-            'assets/pdf-engine*.js',
           ],
           navigateFallback: `${basePath}index.html`,
-          cleanupOutdatedCaches: true,
+          cleanupOutdatedCaches: false,
+          navigateFallbackDenylist: [/\/(?:api|auth|rest|content|assets|personal-library)(?:\/|$)/, /\/[^/]+\.[^/]+$/],
           runtimeCaching: [
+            {
+              urlPattern: ({ url, sameOrigin }) => sameOrigin && /\/assets\/[^/]+\.(?:js|mjs|css)$/.test(url.pathname) && !/music-renderer/.test(url.pathname),
+              handler: 'CacheFirst',
+              options: { cacheName: 'zpevnik-shell-history-v1', cacheableResponse: { statuses: [200] } },
+            },
             {
               urlPattern: /\/content\/catalog\.json$/,
               handler: 'NetworkFirst',

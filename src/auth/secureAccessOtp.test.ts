@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const auth = vi.hoisted(() => ({
   clearPendingJwt: vi.fn(),
@@ -10,6 +10,7 @@ const auth = vi.hoisted(() => ({
   signInWithEmail: vi.fn(),
   signInWithOtp: vi.fn(),
   signOut: vi.fn().mockResolvedValue({ error: null }),
+  signUp: vi.fn(), verifyEmail: vi.fn(), passwordResetLink: vi.fn(), resetPasswordLink: vi.fn(),
 }));
 
 vi.mock('../backend/neonClient', () => ({
@@ -23,11 +24,15 @@ vi.mock('../backend/neonClient', () => ({
   requireNeonClient: () => ({
     auth: {
       emailOtp: {
+        verifyEmail: auth.verifyEmail,
         requestPasswordReset: auth.requestPasswordReset,
         resetPassword: auth.resetPassword,
       },
       getSession: auth.getSession,
       signOut: auth.signOut,
+      signUp: { email: auth.signUp },
+      requestPasswordReset: auth.passwordResetLink,
+      resetPassword: auth.resetPasswordLink,
       signIn: {
         email: auth.signInWithEmail,
         emailOtp: auth.signInWithOtp,
@@ -43,8 +48,12 @@ import {
   signInSecureAccountWithCode,
   signOutSecureAccount,
   subscribeToSecureSession,
+  registerSecureAccount,
+  verifyEmailVerificationCode,
+  sendPasswordReset,
+  updateSecurePassword,
 } from './secureAccess';
-import { loadNeonSessionCredential, saveNeonSessionCredential } from '../storage/database';
+import { changeAuthIntent, loadNeonSessionCredential, saveNeonSessionCredential } from '../storage/database';
 
 function testJwt(): string {
   const payload = btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1_000) + 600 }))
@@ -55,10 +64,42 @@ function testJwt(): string {
 }
 
 describe('Neon OTP relace', () => {
+  beforeEach(async () => { await changeAuthIntent(null, false); });
   afterEach(async () => {
     await signOutSecureAccount().catch(() => undefined);
     vi.clearAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it('registrace čeká na ověření e-mailu; ověřovací kód s heslem obnoví stejný přihlašovací tok', async () => {
+    const user = { id: '22222222-2222-4222-8222-222222222222', email: 'new@example.test', name: 'Testovací člen', emailVerified: false };
+    auth.signUp.mockResolvedValue({ data: { token: 'synthetic-registration-session', user }, error: null });
+    const listener = vi.fn(); const unsubscribe = subscribeToSecureSession(listener);
+    try {
+      expect(await registerSecureAccount({ email: user.email, displayName: user.name, password: 'Synthetic-password' })).toEqual({ needsEmailConfirmation: true });
+      expect(listener).not.toHaveBeenCalledWith('SIGNED_IN', expect.anything());
+      expect(auth.signOut).toHaveBeenCalled();
+      auth.verifyEmail.mockResolvedValue({ error: null });
+      auth.signInWithEmail.mockResolvedValue({ data: { token: 'synthetic-verified-session', user: { ...user, emailVerified: true } }, error: null });
+      auth.consumePendingJwt.mockReturnValue(testJwt());
+      await verifyEmailVerificationCode(user.email, '123456', 'Synthetic-password');
+      expect(listener).toHaveBeenCalledWith('SIGNED_IN', expect.objectContaining({ user: expect.objectContaining({ id: user.id, emailVerified: true }) }));
+      expect(await loadNeonSessionCredential()).toMatchObject({ sessionToken: 'synthetic-verified-session' });
+    } finally { unsubscribe(); }
+  });
+
+  it('odkaz obnovy hesla sám nevytváří přístup a po použití odstraní kód z URL', async () => {
+    auth.passwordResetLink.mockResolvedValue({ error: null }); auth.resetPasswordLink.mockResolvedValue({ error: null });
+    await sendPasswordReset('test@example.test');
+    expect(auth.passwordResetLink).toHaveBeenCalledWith(expect.objectContaining({ email: 'test@example.test' }));
+    const listener = vi.fn(); const unsubscribe = subscribeToSecureSession(listener);
+    history.replaceState({}, '', '/?token=synthetic-recovery-code&password-recovery=1');
+    try {
+      await updateSecurePassword('Synthetic-password');
+      expect(auth.resetPasswordLink).toHaveBeenCalledWith({ newPassword: 'Synthetic-password', token: 'synthetic-recovery-code' });
+      expect(new URL(location.href).searchParams.has('token')).toBe(false);
+      expect(listener).not.toHaveBeenCalledWith('SIGNED_IN', expect.anything());
+    } finally { unsubscribe(); history.replaceState({}, '', '/'); }
   });
 
   it('po restartu vymění obnovený neprůhledný session token za JWT', async () => {
@@ -73,7 +114,7 @@ describe('Neon OTP relace', () => {
       data: { session: { token: 'opaque-restart-token', expiresAt: new Date(Date.now() + 600_000) }, user },
       error: null,
     });
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token: jwt }), {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ token: jwt }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     }));
@@ -109,7 +150,7 @@ describe('Neon OTP relace', () => {
     });
     auth.getSession.mockResolvedValue({ data: null, error: null });
     const jwt = testJwt();
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token: jwt }), {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ token: jwt }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     }));
@@ -143,7 +184,7 @@ describe('Neon OTP relace', () => {
     const jwt = testJwt();
     auth.consumePendingJwt.mockReturnValue(null);
     auth.getSession.mockResolvedValue({ data: null, error: null });
-    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ token: jwt }), {
+    const fetchMock = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ token: jwt }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     }));
