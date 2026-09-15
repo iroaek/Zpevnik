@@ -201,6 +201,46 @@ describe('useSecureAccount offline cold start', () => {
     expect(result.current.authState.status).toBe('unauthenticated');
   });
 
+
+  it('pomalé první přihlášení nespotřebuje čas určený pro vydání a uložení grantu', async () => {
+    vi.useFakeTimers();
+    mocks.getOfflineGrant.mockResolvedValue(null);
+    mocks.getOnlineSession.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({
+      status: 'authenticated', profile: localGrant.profile,
+      session: { access_token: 'synthetic-access', expires_at: new Date(Date.now() + 60_000).toISOString() },
+    }), 6_000)));
+    mocks.issueOfflineGrant.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve(localGrant), 3_000)));
+    mocks.saveOfflineGrant.mockImplementation(() => new Promise(resolve => setTimeout(resolve, 2_000)));
+    const { result } = renderHook(() => useSecureAccount());
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(6_001); });
+    expect(mocks.issueOfflineGrant).toHaveBeenCalledOnce();
+    expect(result.current.hydrated).toBe(false);
+    await act(async () => { await vi.advanceTimersByTimeAsync(5_000); });
+
+    expect(mocks.saveOfflineGrant).toHaveBeenCalledOnce();
+    expect(result.current.offlineGrant).toEqual(localGrant.payload);
+    expect(result.current.offlineProblem).toBeNull();
+    expect(result.current.authState.status).toBe('authenticated-online');
+  });
+
+  it('samostatný timeout vydání grantu dál chrání před nekonečným čekáním', async () => {
+    vi.useFakeTimers();
+    mocks.getOnlineSession.mockImplementation(() => new Promise(resolve => setTimeout(() => resolve({
+      status: 'authenticated', profile: localGrant.profile,
+      session: { access_token: 'synthetic-access', expires_at: new Date(Date.now() + 60_000).toISOString() },
+    }), 6_000)));
+    mocks.issueOfflineGrant.mockReturnValue(new Promise(() => undefined));
+    const { result } = renderHook(() => useSecureAccount());
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(14_002); });
+    expect(result.current.hydrated).toBe(true);
+    expect(result.current.offlineProblem?.code).toBe('grant_issue_failed');
+    expect(result.current.offlineGrant).toEqual(localGrant.payload);
+    expect(mocks.saveOfflineGrant).not.toHaveBeenCalled();
+    expect(mocks.removeOfflineGrant).not.toHaveBeenCalled();
+  });
+
   it('při prvním přihlášení počká se vstupem na bezpečné uložení offline grantu', async () => {
     mocks.getOfflineGrant.mockResolvedValue(null);
     mocks.getOnlineSession.mockResolvedValue({

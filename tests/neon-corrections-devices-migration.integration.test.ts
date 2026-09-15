@@ -10,7 +10,7 @@ describe('Neon migrace oprav a zařízení', () => {
     expect(migration).not.toMatch(/^\s*do\s/m);
     expect(migration).not.toContain('language plpgsql');
     expect(migration).not.toMatch(/^\s*--.*;/m);
-    const functionBodies = [...migration.matchAll(/as '\n([\s\S]*?)\n';/g)].map((match) => match[1]);
+    const functionBodies = [...migration.matchAll(/as '\r?\n([\s\S]*?)\r?\n';/g)].map((match) => match[1]);
     expect(functionBodies).toHaveLength(5);
     expect(functionBodies.every((body) => !body.includes(';'))).toBe(true);
   });

@@ -1,0 +1,38 @@
+{
+  "tests": [
+    {
+      "phase": "hook-before",
+      "startedAt": "2026-09-15T14:39:06.428Z",
+      "passed": 18,
+      "failed": 1,
+      "total": 19,
+      "failures": [
+        "pomalé první přihlášení nespotřebuje čas určený pro vydání a uložení grantu"
+      ]
+    },
+    {
+      "phase": "hook-after",
+      "startedAt": "2026-09-15T14:40:54.032Z",
+      "passed": 19,
+      "failed": 0,
+      "total": 19,
+      "failures": []
+    },
+    {
+      "phase": "unit",
+      "startedAt": "2026-09-15T14:41:34.634Z",
+      "passed": 274,
+      "failed": 0,
+      "total": 274,
+      "failures": []
+    },
+    {
+      "phase": "integration",
+      "startedAt": "2026-09-15T14:45:10.760Z",
+      "passed": 58,
+      "failed": 0,
+      "total": 58,
+      "failures": []
+    }
+  ]
+}

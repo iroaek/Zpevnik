@@ -1,0 +1,138 @@
+{
+  "success": true,
+  "numTotalTests": 26,
+  "numPassedTests": 26,
+  "numFailedTests": 0,
+  "tests": [
+    {
+      "title": "podepsané offline oprávnění ověří ES256 podpis, issuer, audience, zařízení a balíček",
+      "status": "passed",
+      "duration": 34.42880000000059
+    },
+    {
+      "title": "podepsané offline oprávnění odmítne změněný podpis",
+      "status": "passed",
+      "duration": 6.546299999999974
+    },
+    {
+      "title": "podepsané offline oprávnění odmítne chybný issuer",
+      "status": "passed",
+      "duration": 5.0733000000000175
+    },
+    {
+      "title": "podepsané offline oprávnění odmítne chybný audience",
+      "status": "passed",
+      "duration": 4.2280000000000655
+    },
+    {
+      "title": "podepsané offline oprávnění odmítne chybný contentPackage",
+      "status": "passed",
+      "duration": 6.133899999999812
+    },
+    {
+      "title": "podepsané offline oprávnění odmítne chybný deviceId",
+      "status": "passed",
+      "duration": 5.003600000000006
+    },
+    {
+      "title": "podepsané offline oprávnění odmítne vypršené oprávnění",
+      "status": "passed",
+      "duration": 3.744300000000294
+    },
+    {
+      "title": "Neon Auth offline oprávnění ověří Ed25519 podpis, podepsanou roli a odvodí třicetidenní offline platnost",
+      "status": "passed",
+      "duration": 8.610200000000077
+    },
+    {
+      "title": "Neon Auth offline oprávnění odmítne podepsanou roli, která nesouhlasí se schváleným profilem",
+      "status": "passed",
+      "duration": 3.5393999999996595
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 verifies a signed member grant after the online JWT expired without network access",
+      "status": "passed",
+      "duration": 58.53810000000067
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 also verifies when native import works but native verification is unsupported",
+      "status": "passed",
+      "duration": 11.431700000000092
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 rejects a modified payload",
+      "status": "passed",
+      "duration": 12.552200000000084
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 rejects a modified signature",
+      "status": "passed",
+      "duration": 7.933599999999387
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 rejects a modified key",
+      "status": "passed",
+      "duration": 12.886800000000221
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 rejects an unrecognized signing key before using the fallback",
+      "status": "passed",
+      "duration": 3.0578999999997905
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 preserves signed authorization checks: {\"role\":\"admin\"}",
+      "status": "passed",
+      "duration": 6.435999999999694
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 preserves signed authorization checks: {\"emailVerified\":false}",
+      "status": "passed",
+      "duration": 9.481399999999667
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 preserves signed authorization checks: {\"banned\":true}",
+      "status": "passed",
+      "duration": 8.501600000000508
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 rejects a pending member profile",
+      "status": "passed",
+      "duration": 7.561999999999898
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 rejects a rejected member profile",
+      "status": "passed",
+      "duration": 5.358900000000176
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 rejects a suspended member profile",
+      "status": "passed",
+      "duration": 10.083799999999428
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 rejects an expired offline grant",
+      "status": "passed",
+      "duration": 8.260299999999916
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 does not retry a native invalid signature through the fallback",
+      "status": "passed",
+      "duration": 2.4314000000003944
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 does not bypass native DataError",
+      "status": "passed",
+      "duration": 2.1369999999997162
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 does not bypass native OperationError",
+      "status": "passed",
+      "duration": 1.8793000000005122
+    },
+    {
+      "title": "Neon grant on browsers without native Ed25519 rejects the small-order identity forgery accepted by permissive ZIP215 verification",
+      "status": "passed",
+      "duration": 2.6445999999996275
+    }
+  ]
+}

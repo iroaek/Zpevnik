@@ -1,19 +1,46 @@
+import 'fake-indexeddb/auto';
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { offlineGrantAllowsReading, verifyNeonOfflineGrant } from '../src/auth/offlineGrant.js';
+import { changeAuthIntent, clearOfflineGrantRecord, getOrCreateDeviceId, loadAuthIntent, loadOfflineGrantRecord, saveOfflineGrantRecord } from '../src/storage/database.js';
+import { neonGrantFixture, syntheticProfile } from '../src/test/neonGrantFixture.js';
 
 const verifier = readFileSync('src/auth/offlineGrant.ts', 'utf8');
 const client = readFileSync('src/auth/secureAccess.ts', 'utf8');
 const repository = readFileSync('src/repositories/neonAuthRepository.ts', 'utf8');
 
 describe('Neon offline oprávnění', () => {
-  it('stahuje krátký Neon JWT pouze online a offline ověřuje jeho Ed25519 podpis', () => {
-    expect(client).toContain('`${neonAuthUrl}/token`');
-    expect(client).toContain("credentials: 'omit'");
-    expect(client).toContain('Authorization: `Bearer ${sessionToken}`');
-    expect(client).toContain('loadNeonSessionCredential()');
-    expect(verifier).toContain("alg: z.literal('EdDSA')");
-    expect(verifier).toContain("crv: z.literal('Ed25519')");
-    expect(verifier).toContain("crypto.subtle.verify(\n    'Ed25519'");
+  afterEach(async () => {
+    vi.restoreAllMocks();
+    await clearOfflineGrantRecord();
+    await changeAuthIntent(null, true);
+  });
+
+  it('uloží a znovu ověří členský grant bez sítě a nativního Ed25519 po vypršení online JWT', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const fixture = await neonGrantFixture({ iat: now - 3600, exp: now - 2700 });
+    await changeAuthIntent(syntheticProfile.auth_user_id, false);
+    const intent = await loadAuthIntent();
+    const deviceId = await getOrCreateDeviceId();
+    vi.spyOn(crypto.subtle, 'importKey').mockRejectedValue(new DOMException('Unsupported algorithm', 'NotSupportedError'));
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Offline'));
+
+    const verified = await verifyNeonOfflineGrant(fixture.token, { ...fixture.options, deviceId });
+    await saveOfflineGrantRecord({
+      schemaVersion: 1, provider: 'neon-auth', ...verified,
+      profile: syntheticProfile, keySet: fixture.keySet,
+    }, { intentRevision: intent.revision });
+    const stored = await loadOfflineGrantRecord();
+    expect(stored).toMatchObject({ token: fixture.token, keySet: fixture.keySet, profile: syntheticProfile });
+    if (!stored?.keySet) throw new Error('Grant or verification key was not persisted');
+    expect(await getOrCreateDeviceId()).toBe(deviceId);
+    const restored = await verifyNeonOfflineGrant(stored.token, {
+      ...fixture.options, profile: stored.profile, keySet: stored.keySet,
+      deviceId, contentVersion: stored.payload.contentVersion,
+    });
+    expect(offlineGrantAllowsReading(restored.payload, stored.profile, fixture.now)).toBe(true);
+    expect(restored.payload.offlineValidUntil).toBe(verified.payload.offlineValidUntil);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it('povolí offline obsah pouze schválené podepsané roli member/admin', () => {

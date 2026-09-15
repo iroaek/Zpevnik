@@ -18,5 +18,5 @@
     "jsx": "react-jsx",
     "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src", "tests/neon-offline-lifecycle.integration.test.ts", "tests/offline-upgrade.integration.test.ts"]
+  "include": ["src", "tests/neon-offline-lifecycle.integration.test.ts", "tests/offline-upgrade.integration.test.ts", "tests/neon-offline-grant.integration.test.ts"]
 }

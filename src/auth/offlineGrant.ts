@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { verifyEd25519Signature } from './verifyEd25519';
 
 const base64UrlPattern = /^[A-Za-z0-9_-]+$/;
 
@@ -209,10 +210,8 @@ export async function verifyNeonOfflineGrant(token: string, options: VerifyNeonO
   const keySet = neonOfflineKeySetSchema.parse(options.keySet);
   const key = keySet.keys.find((candidate) => candidate.kid === header.kid);
   if (!key) throw new OfflineGrantValidationError('unknown-key', 'Podpisový klíč Neon offline oprávnění není známý.');
-  const cryptoKey = await crypto.subtle.importKey('jwk', key as JsonWebKey, 'Ed25519', false, ['verify']);
-  const validSignature = await crypto.subtle.verify(
-    'Ed25519',
-    cryptoKey,
+  const validSignature = await verifyEd25519Signature(
+    key,
     decodeBase64Url(segments[2]),
     new TextEncoder().encode(`${segments[0]}.${segments[1]}`),
   );

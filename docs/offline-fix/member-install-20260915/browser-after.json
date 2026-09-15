@@ -1,0 +1,567 @@
+{
+  "phase": "after",
+  "build": "member-install-after",
+  "baselineCommit": "bd017a3f1b74be5efa4f6b198e1a99971b0b21c7",
+  "results": [
+    {
+      "test": "admin-normal",
+      "result": "PASS",
+      "cryptographicSignatureVerified": true,
+      "durableReadbackVerified": true
+    },
+    {
+      "test": "member-slow-no-native-ed25519",
+      "result": "PASS",
+      "cryptographicSignatureVerified": true,
+      "durableReadbackVerified": true
+    },
+    {
+      "test": "new offline process with expired online JWT, valid signed grant and legacy member ID",
+      "result": "PASS"
+    },
+    {
+      "test": "second offline process preserves favorite and setlist changes",
+      "result": "PASS"
+    }
+  ],
+  "logs": [
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:00.617Z",
+      "build": "member-install-after",
+      "step": "browser_process_started",
+      "offline": false,
+      "preservedProfile": false
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:00.924Z",
+      "build": "member-install-after",
+      "step": "sw_request",
+      "path": "/Zpevnik/assets/workbox-window.prod.es5-Bd17z0YL.js"
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:00.976Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:01.827Z",
+      "build": "member-install-after",
+      "step": "service_worker_initial",
+      "registrations": [
+        {
+          "scope": "http://127.0.0.1:4287/Zpevnik/",
+          "installing": "installing"
+        }
+      ]
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.065Z",
+      "build": "member-install-after",
+      "step": "sw_request",
+      "path": "/Zpevnik/assets/workbox-window.prod.es5-Bd17z0YL.js"
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.091Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.252Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/auth/sign-in/email",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.268Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/auth/token",
+      "status": 401
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.275Z",
+      "build": "member-install-after",
+      "step": "browser_console_error",
+      "message": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.278Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.298Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.307Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.331Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/register_my_device",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.341Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/auth/.well-known/jwks.json",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.364Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/touch_my_presence",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.365Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.372Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.379Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.387Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 204
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:02.389Z",
+      "build": "member-install-after",
+      "step": "request_failed",
+      "path": "/rest/v1/user_app_state",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:03.145Z",
+      "build": "member-install-after",
+      "step": "login_result",
+      "case": "admin-normal",
+      "role": "admin",
+      "slowProfileMs": 0,
+      "slowRegisterMs": 0,
+      "slowJwksMs": 0,
+      "nativeEd25519Disabled": false,
+      "durationMs": 1116,
+      "grantPersisted": true,
+      "diagnosticCodes": [
+        "offline_grant_valid",
+        "online_session_valid",
+        "device_registration_valid"
+      ]
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:03.639Z",
+      "build": "member-install-after",
+      "step": "browser_process_started",
+      "offline": false,
+      "preservedProfile": true
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:04.045Z",
+      "build": "member-install-after",
+      "step": "sw_request",
+      "path": "/Zpevnik/assets/workbox-window.prod.es5-Bd17z0YL.js"
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:04.094Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:04.904Z",
+      "build": "member-install-after",
+      "step": "service_worker_initial",
+      "registrations": [
+        {
+          "scope": "http://127.0.0.1:4287/Zpevnik/",
+          "installing": "installing"
+        }
+      ]
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:05.194Z",
+      "build": "member-install-after",
+      "step": "sw_request",
+      "path": "/Zpevnik/assets/workbox-window.prod.es5-Bd17z0YL.js"
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:05.215Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:05.309Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/auth/sign-in/email",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:05.321Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/auth/token",
+      "status": 401
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:05.324Z",
+      "build": "member-install-after",
+      "step": "browser_console_error",
+      "message": "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:05.328Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/auth/get-session",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:11.362Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:11.380Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:12.906Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/register_my_device",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:14.427Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/auth/.well-known/jwks.json",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:14.515Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/touch_my_presence",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:14.527Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:15.089Z",
+      "build": "member-install-after",
+      "step": "login_result",
+      "case": "member-slow-no-native-ed25519",
+      "role": "member",
+      "slowProfileMs": 6000,
+      "slowRegisterMs": 1500,
+      "slowJwksMs": 1500,
+      "nativeEd25519Disabled": true,
+      "durationMs": 9930,
+      "grantPersisted": true,
+      "diagnosticCodes": [
+        "offline_grant_valid",
+        "device_registration_valid",
+        "online_session_valid"
+      ]
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:15.536Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/content_packages",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.212Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.275Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.276Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/content_packages",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.298Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/register_my_device",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.314Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/auth/.well-known/jwks.json",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.350Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/touch_my_presence",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.354Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.365Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/content_packages",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.372Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/rpc/ensure_my_profile",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.374Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/content_packages",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.386Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/profiles",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.400Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/content_package_chunks",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.404Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/user_app_state",
+      "status": 204
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.412Z",
+      "build": "member-install-after",
+      "step": "request_failed",
+      "path": "/rest/v1/user_app_state",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.419Z",
+      "build": "member-install-after",
+      "step": "http",
+      "endpoint": "/rest/v1/content_package_chunks",
+      "status": 200
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.731Z",
+      "build": "member-install-after",
+      "step": "servers_closed",
+      "httpServersListening": false
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:17.731Z",
+      "build": "member-install-after",
+      "step": "waiting_real_token_expiry",
+      "waitMs": 8469,
+      "accessTokenExpiresAt": "2026-09-15T14:55:25.000Z"
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:26.622Z",
+      "build": "member-install-after",
+      "step": "browser_process_started",
+      "offline": true,
+      "preservedProfile": true
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:28.789Z",
+      "build": "member-install-after",
+      "step": "network_proof",
+      "uncachedFetchFailed": true,
+      "serversClosed": true,
+      "routeFulfillment": false
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:28.800Z",
+      "build": "member-install-after",
+      "step": "cold_start_verified",
+      "role": "member",
+      "freshBrowserProcess": true,
+      "samePersistentProfile": true,
+      "offlineBeforeNavigation": true,
+      "accessTokenExpired": true,
+      "offlineGrantStillValid": true,
+      "nativeEd25519Disabled": true,
+      "successfulResponses": 63,
+      "allSuccessfulResponsesFromServiceWorker": true,
+      "deviceAndContentPreserved": true
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:29.419Z",
+      "build": "member-install-after",
+      "step": "browser_process_started",
+      "offline": true,
+      "preservedProfile": true
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:31.362Z",
+      "build": "member-install-after",
+      "step": "network_proof",
+      "uncachedFetchFailed": true,
+      "serversClosed": true,
+      "routeFulfillment": false
+    },
+    {
+      "phase": "after",
+      "at": "2026-09-15T14:55:31.550Z",
+      "build": "member-install-after",
+      "step": "servers_closed",
+      "httpServersListening": false
+    }
+  ],
+  "limitations": [
+    "Synthetic HTTP backend with real SDK and cryptographic signatures, not live user credentials.",
+    "Native Ed25519 absence is capability emulation in Chromium; physical Android/iOS installation not exercised."
+  ],
+  "fixtureAuth": {
+    "signInJwtHeader": false,
+    "rawOpaqueBearerTokenEndpoint": 401,
+    "cookieGetSessionJwtHeader": true,
+    "jwtLifetimeSeconds": 20
+  }
+}

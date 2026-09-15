@@ -1,0 +1,19 @@
+{
+  "phase": "before_crypto_compatibility_fix",
+  "date": "2026-09-15",
+  "command": "npx vitest run src/auth/offlineGrantCompatibility.test.ts",
+  "exitCode": 1,
+  "tests": 17,
+  "passed": 4,
+  "failed": 13,
+  "durationSeconds": 11.06,
+  "reproduction": {
+    "fixture": "Synthetic approved member and locally signed Ed25519 JWT; online exp has passed, signed offline interval remains valid",
+    "browserCondition": "Native importKey or verify rejects Ed25519 with NotSupportedError",
+    "expected": "Verify the authentic grant locally",
+    "actual": "Unhandled NotSupportedError prevents grant verification and storage",
+    "network": "Blocked in the positive offline test; no network access is required by the verifier"
+  },
+  "negativeTestFailures": "The negative cases still reject before the fix, but with NotSupportedError instead of reaching signature, account and expiry validation. They do not demonstrate unauthorized access.",
+  "physicalDeviceVerification": "Not performed; the unsupported native capability was simulated in the actual application verifier"
+}

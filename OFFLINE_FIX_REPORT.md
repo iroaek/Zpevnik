@@ -101,3 +101,14 @@ Na dodatečný pokyn uživatele byla oprava 7. 9. 2026 nasazena na stávající 
 ## Následná regrese formátu odpovědi API
 
 Po nasazení uživatel nahlásil chybu „Neon Data API nevrátilo JSON“ spolu s chybějícím grantem. Nová MIME kontrola odmítala i validní JSON a prázdné úspěšné odpovědi. Byla nahrazena bezpečným parsováním skutečného těla; HTML a poškozené JSON zůstávají odmítnuté. [Zpráva hotfixu](docs/offline-fix/mime-hotfix/REPORT.md) obsahuje červené testy před opravou, devět úspěšných browserových scénářů a opakovaný důkaz skutečného offline restartu po expiraci online tokenu.
+
+
+## Oprávnění členů po instalaci PWA — 15. 9. 2026
+
+Uživatel nahlásil `grant_issue_failed` na Androidu i iPhonu při funkčním administrátorském přístupu. [Aktuální zpráva opravy](docs/offline-fix/member-install-20260915/REPORT.md) dokládá dvě reprodukované příčiny: původní společný osmivteřinový timeout a nepodporované nativní Ed25519. Oprava odděluje časové limity a přibaluje přísný verifier podpisu pro prohlížeče bez tohoto algoritmu. Schvalování, serverová autorizace a data zůstávají zachované; produkční Neon byl kontrolován pouze pro čtení.
+
+Povinný důkaz z 15. 9.: schválený syntetický člen, nový browserový proces nad zachovaným profilem, skutečně expirovaný online JWT, platný uložený grant, oba HTTP servery vypnuté, přímé čtení chráněné syntetické písně. Všech 63 úspěšných odpovědí bylo ze service workeru. Druhý offline restart zachoval oblíbené a setlist. Výsledky: 274 unit, 58 integračních, 49 běžných e2e PASS (70 přeskočeno), 4/4 zabezpečené browserové scénáře PASS, lint/typecheck/build PASS.
+
+**Upřesnění staršího tvrzení o obnově session:** dřívější cílený test uloženého bearer credential nebyl důkazem podpory skutečného opaque Neon session tokenu bez cookie. Následné HTTP ověření ukázalo, že raw bearer `/token` vrací 401, zatímco cesta s cookie funguje. Obnova online session bez dostupné cookie není touto opravou vyřešena ani vydávána za prokázanou. Nový offline start s platným grantem na ní nezávisí. Fyzické Android/iOS zařízení stále čeká na ověření; emulace algoritmu v Chromium není test telefonu.
+
+Disk E: s původním pracovním stromem byl při pokračování nedostupný. Kód, testy a zpráva vznikly v odděleném klonu nasazené revize; původní pracovní soubory ani existující PWA nebyly mazány nebo přepsány.

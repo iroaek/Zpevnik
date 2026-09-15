@@ -111,13 +111,15 @@ export function useSecureAccount(): SecureAccountState {
     const lifecycle = authWorkSignal();
     const cancel = () => controller.abort();
     lifecycle.addEventListener('abort', cancel, { once: true });
+    // This timer bounds only the online session/profile request. Grant issuance
+    // and durable storage each have their own deadline, including on a slow first login.
     const timeout = window.setTimeout(() => controller.abort(), ONLINE_CHECK_TIMEOUT_MS);
     // Online kontrola běží souběžně s lokálním grantem. Ani pomalý IndexedDB,
     // ani nedostupný Neon tak nesčítají své časové limity do dlouhého blikání.
     const onlineSession = neonAuthRepository.getOnlineSession(controller.signal).then(
       (result) => ({ result, error: null as unknown }),
       (onlineError: unknown) => ({ result: null, error: onlineError }),
-    );
+    ).finally(() => window.clearTimeout(timeout));
     const local = await readOfflineGrant();
     if (sequence !== refreshSequence.current || lifecycle.aborted) {
       window.clearTimeout(timeout); lifecycle.removeEventListener('abort', cancel); return;
@@ -141,6 +143,7 @@ export function useSecureAccount(): SecureAccountState {
     try {
       const onlineResult = await onlineSession;
       assertAuthWork(lifecycle);
+      assertAuthWork(controller.signal);
       if (onlineResult.error) throw onlineResult.error;
       const result = onlineResult.result!;
       if (sequence !== refreshSequence.current) return;

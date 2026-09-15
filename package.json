@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@neondatabase/neon-js": "^0.7.0-beta",
+    "@noble/curves": "2.4.0",
     "csv-parse": "7.0.2",
     "fast-xml-parser": "5.10.1",
     "iconv-lite": "0.7.3",
